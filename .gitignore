@@ -1,0 +1,17 @@
+# Zig
+zig-cache/
+zig-out/
+
+# C++
+build/
+
+# Dependencies
+deps/
+
+# IDE
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+Thumbs.db 
