@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Build Configuration Editor</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 { color: #333; }
+        h2 { margin-top: 0; }
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            margin: 0.25rem;
+            font-size: 0.9rem;
+        }
+        .tag.build-system { background: #ffd700; }
+        .tag.cpp-std { background: #90ee90; }
+        .tag.config { background: #ff69b4; }
+        .tag.dep { background: #87ceeb; }
+        .tag.flag { background: #dda0dd; }
+        ul { list-style-type: none; padding-left: 0; }
+        li { margin: 0.5rem 0; }
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            margin: 4px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 4px;
+        }
+        .btn:hover {
+            background: #45a049;
+        }
+        .btn.remove {
+            background: #f44336;
+        }
+        .btn.remove:hover {
+            background: #da190b;
+        }
+        .btn.add {
+            background: #2196F3;
+        }
+        .btn.add:hover {
+            background: #0b7dda;
+        }
+    </style>
+    <script>
+        function addItem(listId) {
+            const list = document.getElementById(listId);
+            const newItem = document.createElement('li');
+            newItem.innerHTML = `
+                <input type="text" value="">
+                <button class="btn remove" onclick="this.parentElement.remove()">Remove</button>
+            `;
+            list.appendChild(newItem);
+        }
+
+        function addDependency() {
+            const list = document.getElementById('dependencies');
+            const newItem = document.createElement('li');
+            newItem.innerHTML = `
+                <input type="text" placeholder="Name" style="width: 30%">
+                <input type="text" placeholder="URL" style="width: 50%">
+                <select style="width: 15%">
+                    <option value="Zig">Zig</option>
+                    <option value="CMake">CMake</option>
+                </select>
+                <button class="btn remove" onclick="this.parentElement.remove()">Remove</button>
+            `;
+            list.appendChild(newItem);
+        }
+
+        function saveBuildConfig() {
+            const config = {
+                name: document.getElementById('project-name').value,
+                description: document.getElementById('project-description').value,
+                cpp_std: document.getElementById('cpp-std').value,
+                main_build_system: document.getElementById('main-build-system').value,
+                deps_build_system: document.getElementById('deps-build-system').value,
+                source_files: Array.from(document.getElementById('source-files').getElementsByTagName('input')).map(i => i.value).filter(Boolean),
+                include_dirs: Array.from(document.getElementById('include-dirs').getElementsByTagName('input')).map(i => i.value).filter(Boolean),
+                cpp_flags: Array.from(document.getElementById('cpp-flags').getElementsByTagName('input')).map(i => i.value).filter(Boolean),
+                dependencies: Array.from(document.getElementById('dependencies').getElementsByTagName('li')).map(li => {
+                    const inputs = li.getElementsByTagName('input');
+                    const select = li.getElementsByTagName('select')[0];
+                    return {
+                        name: inputs[0].value,
+                        url: inputs[1].value,
+                        build_system: select ? select.value : 'Zig'
+                    };
+                }).filter(d => d.name && d.url)
+            };
+            console.log(JSON.stringify(config, null, 2));
+            // TODO: Send to backend
+            alert('Configuration saved! (Check console for JSON output)');
+        }
+    </script>
+</head>
+<body>
+    <h1>Build Configuration Editor</h1>
+    <div class="card">
+        <h2>Project Information</h2>
+        <label>Name:</label>
+        <input type="text" id="project-name" value="json_example">
+        <label>Description:</label>
+        <input type="text" id="project-description" value="JSON example using nlohmann/json">
+    </div>
+    <div class="card">
+        <h2>Build Systems</h2>
+        <label>Main Build System:</label>
+        <select id="main-build-system">
+            <option value="Zig" selected>Zig</option>
+            <option value="CMake" >CMake</option>
+        </select>
+        <label>Dependencies Build System:</label>
+        <select id="deps-build-system">
+            <option value="Zig" selected>Zig</option>
+            <option value="CMake" >CMake</option>
+        </select>
+    </div>
+    <div class="card">
+        <h2>C++ Standard</h2>
+        <select id="cpp-std">
+            <option value="11" >C++11</option>
+            <option value="14" >C++14</option>
+            <option value="17" selected>C++17</option>
+            <option value="20" >C++20</option>
+            <option value="23" >C++23</option>
+        </select>
+    </div>
+    <div class="card">
+        <h2>Source Files</h2>
+        <ul id="source-files">
+            <li>
+                <input type="text" value="src/main.cpp">
+                <button class="btn remove" onclick="this.parentElement.remove()">Remove</button>
+            </li>
+        </ul>
+        <button class="btn add" onclick="addItem('source-files')">Add Source File</button>
+    </div>
+    <div class="card">
+        <h2>Include Directories</h2>
+        <ul id="include-dirs">
+            <li>
+                <input type="text" value="deps/json/single_include">
+                <button class="btn remove" onclick="this.parentElement.remove()">Remove</button>
+            </li>
+        </ul>
+        <button class="btn add" onclick="addItem('include-dirs')">Add Include Directory</button>
+    </div>
+    <div class="card">
+        <h2>Dependencies</h2>
+        <ul id="dependencies">
+            <li>
+                <input type="text" value="json" style="width: 30%" placeholder="Name">
+                <input type="text" value="https://github.com/nlohmann/json.git" style="width: 50%" placeholder="URL">
+                <select style="width: 15%">
+                    <option value="Zig" selected>Zig</option>
+                    <option value="CMake" >CMake</option>
+                </select>
+                <button class="btn remove" onclick="this.parentElement.remove()">Remove</button>
+            </li>
+        </ul>
+        <button class="btn add" onclick="addDependency()">Add Dependency</button>
+    </div>
+    <div class="card">
+        <h2>Compiler Flags</h2>
+        <ul id="cpp-flags">
+            <li>
+                <input type="text" value="-D_HAS_EXCEPTIONS=1">
+                <button class="btn remove" onclick="this.parentElement.remove()">Remove</button>
+            </li>
+        </ul>
+        <button class="btn add" onclick="addItem('cpp-flags')">Add Compiler Flag</button>
+    </div>
+
+    <div class="card" style="text-align: center;">
+        <button class="btn" onclick="saveBuildConfig()" style="font-size: 1.2em;">Save Configuration</button>
+    </div>
+</body>
+</html>
