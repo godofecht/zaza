@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const vex_cmd = @import("vex_cmd.zig");
+const vex_cmd = @import("../../../build_lib/vex_cmd.zig");
 
 pub const Dependency = struct {
     name: []const u8,
