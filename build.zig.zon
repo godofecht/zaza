@@ -1,0 +1,24 @@
+.{
+    .name = .vex,
+    .version = "0.2.0",
+    .fingerprint = 0xe969ab1c9eb2b445,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .nlohmann_json = .{
+            .path = "deps/json",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "build_lib",
+        "deps",
+        "examples",
+        "src",
+        "tests",
+        "docs",
+        "README.md",
+        ".envrc",
+        "zig-build",
+    },
+}
