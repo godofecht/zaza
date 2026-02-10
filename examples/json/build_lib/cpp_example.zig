@@ -402,6 +402,13 @@ pub const CppExample = struct {
     }
 
     pub fn buildWithTarget(self: CppExample, b: *std.Build, target: std.Build.ResolvedTarget) !*std.Build.Step.Compile {
+        if (target.result.os.tag == .windows and target.result.abi == .msvc and self.main_build_system == .Zig) {
+            @panic(
+                "Zig 0.14 cannot compile C++ with the MSVC ABI (see Zig issue #18685). "
+                ++ "Use VEX_WINDOWS_TOOLCHAIN=gnu or VEX_TARGET=x86_64-windows-gnu, "
+                ++ "or switch this example to a system toolchain (CMake)."
+            );
+        }
         // Generate CMakeLists.txt first
         try self.generateCMake(b);
         

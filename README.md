@@ -385,6 +385,9 @@ zig build run-simple
 - **Zig documentation**: Check the Zig documentation for more information on the Zig language and standard library
 - **Community support**: Join the Vex community for help and support from other users
 
+### JUCE on Windows
+See `docs/JUCE_WINDOWS.md` for Zig 0.14 workarounds.
+
 ## 🛣 Roadmap
 
 See `docs/ROADMAP.md`.

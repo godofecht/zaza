@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) !void {
 
     const system_cmds = b.option(bool, "system-cmds", "Enable git/cmake steps in build") orelse (envBool(b, "VEX_SYSTEM_CMDS") orelse false);
     const verbose = b.option(bool, "verbose", "Print build status messages") orelse true;
-    const target = b.standardTargetOptions(.{});
+    const target = selectTarget(b);
     const optimize = b.standardOptimizeOption(.{});
 
     // Temporarily disable JUCE example due to CMake build issues
@@ -248,4 +248,28 @@ fn envBool(b: *std.Build, name: []const u8) ?bool {
         return false;
     }
     return null;
+}
+
+fn envString(b: *std.Build, name: []const u8) ?[]const u8 {
+    return std.process.getEnvVarOwned(b.allocator, name) catch null;
+}
+
+fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
+    if (envString(b, "VEX_TARGET")) |target_str| {
+        defer b.allocator.free(target_str);
+        const query = b.parseTargetQuery(.{ .arch_os_abi = target_str }) catch
+            @panic("VEX_TARGET is invalid. Use a Zig target triple like x86_64-windows-gnu");
+        return b.resolveTargetQuery(query);
+    }
+    if (builtin.os.tag == .windows) {
+        if (envString(b, "VEX_WINDOWS_TOOLCHAIN")) |toolchain| {
+            defer b.allocator.free(toolchain);
+            if (std.ascii.eqlIgnoreCase(toolchain, "gnu")) {
+                const query = b.parseTargetQuery(.{ .arch_os_abi = "native-windows-gnu" }) catch
+                    @panic("Failed to set Windows GNU toolchain target");
+                return b.resolveTargetQuery(query);
+            }
+        }
+    }
+    return b.standardTargetOptions(.{});
 }
