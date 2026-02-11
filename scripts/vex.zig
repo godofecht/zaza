@@ -155,33 +155,36 @@ fn writeFile(path: []const u8, data: []const u8) !void {
 }
 
 fn updateLock(allocator: std.mem.Allocator, path: []const u8, name: []const u8, url: []const u8, hash: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
+
     var lock_data: []u8 = &.{};
     if (std.fs.cwd().openFile(path, .{})) |file| {
         defer file.close();
         const size = (try file.stat()).size;
-        lock_data = try allocator.alloc(u8, size);
+        lock_data = try arena_alloc.alloc(u8, size);
         _ = try file.readAll(lock_data);
     } else |_| {
-        lock_data = try allocator.dupe(u8, "{\n  \"packages\": {}\n}\n");
+        lock_data = try arena_alloc.dupe(u8, "{\n  \"packages\": {}\n}\n");
     }
-    defer allocator.free(lock_data);
 
-    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
+    var parsed = try std.json.parseFromSlice(std.json.Value, arena_alloc, lock_data, .{});
     defer parsed.deinit();
     var root = parsed.value;
     if (root.object.getPtr("packages") == null) {
-        try root.object.put("packages", .{ .object = std.json.ObjectMap.init(allocator) });
+        try root.object.put("packages", .{ .object = std.json.ObjectMap.init(arena_alloc) });
     }
     const packages = root.object.getPtr("packages").?;
 
     var entry = std.json.Value{
-        .object = std.json.ObjectMap.init(allocator),
+        .object = std.json.ObjectMap.init(arena_alloc),
     };
     try entry.object.put("url", .{ .string = url });
     try entry.object.put("hash", .{ .string = hash });
     try packages.object.put(name, entry);
 
-    var out = std.ArrayList(u8).init(allocator);
+    var out = std.ArrayList(u8).init(arena_alloc);
     defer out.deinit();
     try std.json.stringify(root, .{ .whitespace = .indent_2 }, out.writer());
     try out.append('\n');
