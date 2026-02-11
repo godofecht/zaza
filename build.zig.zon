@@ -20,5 +20,9 @@
         "README.md",
         ".envrc",
         "zig-build",
+        "vex",
+        "registry",
+        "scripts",
+        "vex.lock",
     },
 }

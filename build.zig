@@ -7,6 +7,7 @@ const hello_vex_example = @import("examples/hello_vex/build.zig");
 const cmake_combo_example = @import("examples/cmake_combo/build.zig");
 const cmake_net_example = @import("examples/cmake_net/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
+const cpp = @import("build_lib/cpp_example.zig");
 
 pub fn build(b: *std.Build) !void {
     // Preflight: ensure a writable cache dir or guide the user.
@@ -22,56 +23,82 @@ pub fn build(b: *std.Build) !void {
     const target = selectTarget(b);
     const optimize = b.standardOptimizeOption(.{});
 
-    // Temporarily disable JUCE example due to CMake build issues
-    json_example.example.enable_system_commands = system_cmds;
-    try json_example.buildWithTarget(b, target);
-    // try juce_example.build(b);
+    // Auto-fetch registry deps into build.zig.zon (can disable with VEX_REGISTRY=0)
+    try ensureRegistryDeps(b);
+
+    // Apply preset configs to examples (optional)
+    if (envString(b, "VEX_PRESET")) |preset| {
+        defer b.allocator.free(preset);
+        applyPresetToExample(&cmake_combo_example.example, preset);
+        applyPresetToExample(&cmake_net_example.example, preset);
+        applyPresetToExample(&cmake_shim_example.example, preset);
+    }
+
+    if (exampleEnabled(b, "json")) {
+        json_example.example.enable_system_commands = system_cmds;
+        try json_example.buildWithTarget(b, target);
+    }
+
+    if (exampleEnabled(b, "juce")) {
+        const juce_step = b.step("juce", "Build the JUCE example");
+        // JUCE build uses CMake/system commands.
+        try juce_example.buildWithTarget(b, target);
+        juce_step.dependOn(b.getInstallStep());
+    }
 
     const hello_step = b.step("hello-vex", "Build hello_vex (Zig + C++ via Vex)");
     try hello_vex_example.build(b, target, optimize);
     hello_step.dependOn(b.getInstallStep());
 
-    const combo_step = b.step("cmake-combo", "Build CMake combo example (fmt + spdlog)");
-    // cmake-combo always enables system commands so it works out-of-the-box.
-    cmake_combo_example.example.enable_system_commands = true;
-    const combo_exe = try cmake_combo_example.buildWithTarget(b, target);
-    combo_step.dependOn(&b.addInstallArtifact(combo_exe, .{}).step);
+    if (exampleEnabled(b, "cmake-combo")) {
+        const combo_step = b.step("cmake-combo", "Build CMake combo example (fmt + spdlog)");
+        // cmake-combo always enables system commands so it works out-of-the-box.
+        cmake_combo_example.example.enable_system_commands = true;
+        const combo_exe = try cmake_combo_example.buildWithTarget(b, target);
+        combo_step.dependOn(&b.addInstallArtifact(combo_exe, .{}).step);
 
-    const combo_run = b.addRunArtifact(combo_exe);
-    const combo_run_step = b.step("cmake-combo-run", "Run the CMake combo example (fmt + spdlog)");
-    const combo_banner = addBannerStep(b, "cmake-combo", "=== RUN: cmake-combo ===");
-    combo_run.step.dependencies.append(combo_banner) catch unreachable;
-    combo_run_step.dependOn(&combo_run.step);
+        const combo_run = b.addRunArtifact(combo_exe);
+        const combo_run_step = b.step("cmake-combo-run", "Run the CMake combo example (fmt + spdlog)");
+        const combo_banner = addBannerStep(b, "cmake-combo", "=== RUN: cmake-combo ===");
+        combo_run.step.dependencies.append(combo_banner) catch unreachable;
+        combo_run_step.dependOn(&combo_run.step);
+    }
 
-    const net_step = b.step("cmake-net", "Build CMake networking example (curl + zlib + mbedtls)");
-    cmake_net_example.example.enable_system_commands = true;
-    const net_exe = try cmake_net_example.buildWithTarget(b, target);
-    net_step.dependOn(&b.addInstallArtifact(net_exe, .{}).step);
+    if (exampleEnabled(b, "cmake-net")) {
+        const net_step = b.step("cmake-net", "Build CMake networking example (curl + zlib + mbedtls)");
+        cmake_net_example.example.enable_system_commands = true;
+        const net_exe = try cmake_net_example.buildWithTarget(b, target);
+        net_step.dependOn(&b.addInstallArtifact(net_exe, .{}).step);
 
-    const net_run = b.addRunArtifact(net_exe);
-    const net_run_step = b.step("cmake-net-run", "Run the CMake networking example (curl + zlib + mbedtls)");
-    const net_banner = addBannerStep(b, "cmake-net", "=== RUN: cmake-net ===");
-    net_run.step.dependencies.append(net_banner) catch unreachable;
-    net_run_step.dependOn(&net_run.step);
+        const net_run = b.addRunArtifact(net_exe);
+        const net_run_step = b.step("cmake-net-run", "Run the CMake networking example (curl + zlib + mbedtls)");
+        const net_banner = addBannerStep(b, "cmake-net", "=== RUN: cmake-net ===");
+        net_run.step.dependencies.append(net_banner) catch unreachable;
+        net_run_step.dependOn(&net_run.step);
+    }
     
-    const cmake_shim_step = b.step("cmake-shim", "Build the CMake shim example");
+    var cmake_shim_step_opt: ?*std.Build.Step = null;
     var cmake_run_step: ?*std.Build.Step = null;
     var cmake_install_step: ?*std.Build.Step = null;
-    if (system_cmds) {
-        cmake_shim_example.example.enable_system_commands = true;
-        const cmake_check = vex_cmd.addCommandStep(b, "cmake-version", &.{"cmake", "--version"});
-        cmake_shim_step.dependOn(cmake_check);
-        const cmake_exe = try cmake_shim_example.buildWithTarget(b, target);
-        cmake_shim_step.dependOn(&b.addInstallArtifact(cmake_exe, .{}).step);
+    if (exampleEnabled(b, "cmake-shim")) {
+        const cmake_shim_step = b.step("cmake-shim", "Build the CMake shim example");
+        cmake_shim_step_opt = cmake_shim_step;
+        if (system_cmds) {
+            cmake_shim_example.example.enable_system_commands = true;
+            const cmake_check = vex_cmd.addCommandStep(b, "cmake-version", &.{"cmake", "--version"});
+            cmake_shim_step.dependOn(cmake_check);
+            const cmake_exe = try cmake_shim_example.buildWithTarget(b, target);
+            cmake_shim_step.dependOn(&b.addInstallArtifact(cmake_exe, .{}).step);
 
-        const cmake_run = b.addRunArtifact(cmake_exe);
-        const run_step = b.step("cmake-shim-run", "Run the CMake shim example");
-        run_step.dependOn(&cmake_run.step);
-        cmake_run_step = run_step;
+            const cmake_run = b.addRunArtifact(cmake_exe);
+            const run_step = b.step("cmake-shim-run", "Run the CMake shim example");
+            run_step.dependOn(&cmake_run.step);
+            cmake_run_step = run_step;
 
-        const install_step = b.step("cmake-install", "Build and install CMake deps marked install=true");
-        install_step.dependOn(cmake_shim_step);
-        cmake_install_step = install_step;
+            const install_step = b.step("cmake-install", "Build and install CMake deps marked install=true");
+            install_step.dependOn(cmake_shim_step);
+            cmake_install_step = install_step;
+        }
     }
     
     // Add clean tests that actually work
@@ -104,7 +131,7 @@ pub fn build(b: *std.Build) !void {
     // Build the default artifacts (e.g., json_example) via the install step.
     all_step.dependOn(b.getInstallStep());
     if (system_cmds) {
-        all_step.dependOn(cmake_shim_step);
+        if (cmake_shim_step_opt) |step| all_step.dependOn(step);
         if (cmake_run_step) |step| all_step.dependOn(step);
         if (cmake_install_step) |step| all_step.dependOn(step);
     }
@@ -140,6 +167,85 @@ pub fn build(b: *std.Build) !void {
             run_cpp_step.dependOn(&run.step);
         }
     }
+
+    // Registry fetch: zig build vex-fetch -- <name>
+    const fetch_step = b.step("vex-fetch", "Fetch a dependency into build.zig.zon (usage: zig build vex-fetch -- <name>)");
+    if (b.args) |args| {
+        if (args.len >= 1) {
+            const name = args[0];
+            const cmd = b.addSystemCommand(&.{
+                "zig",
+                "run",
+                "scripts/vex.zig",
+                "--",
+                "fetch",
+                name,
+            });
+            cmd.stdio = .inherit;
+            fetch_step.dependOn(&cmd.step);
+        }
+    }
+}
+
+fn ensureRegistryDeps(b: *std.Build) !void {
+    const enabled = envBool(b, "VEX_REGISTRY") orelse true;
+    if (!enabled) return;
+
+    // Only fetch deps for enabled examples to avoid unnecessary downloads.
+    if (exampleEnabled(b, "juce")) {
+        try ensureRegistryDep(b, "juce");
+    }
+    if (exampleEnabled(b, "cmake-combo")) {
+        try ensureRegistryDep(b, "fmt");
+        try ensureRegistryDep(b, "spdlog");
+    }
+    if (exampleEnabled(b, "cmake-net")) {
+        try ensureRegistryDep(b, "curl");
+        try ensureRegistryDep(b, "zlib");
+        try ensureRegistryDep(b, "mbedtls");
+    }
+    if (exampleEnabled(b, "json")) {
+        try ensureRegistryDep(b, "nlohmann_json");
+    }
+}
+
+fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
+    if (zonHasDependency(b, name)) return;
+
+    var child = std.process.Child.init(&.{
+        "zig",
+        "run",
+        "scripts/vex.zig",
+        "--",
+        "fetch",
+        name,
+    }, b.allocator);
+    child.stdout_behavior = .Inherit;
+    child.stderr_behavior = .Inherit;
+    const term = try child.spawnAndWait();
+    switch (term) {
+        .Exited => |code| if (code != 0) return error.CommandFailed,
+        else => return error.CommandFailed,
+    }
+
+    std.debug.print("\\n[vex] added dependency '{s}' to build.zig.zon; re-run zig build\\n", .{name});
+    @panic("dependency added; re-run zig build");
+}
+
+fn zonHasDependency(b: *std.Build, name: []const u8) bool {
+    const data = readFile(b, "build.zig.zon") catch return false;
+    defer b.allocator.free(data);
+    const needle = b.fmt(".{s}", .{name});
+    return std.mem.indexOf(u8, data, needle) != null;
+}
+
+fn readFile(b: *std.Build, path: []const u8) ![]u8 {
+    const file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+    const size = (try file.stat()).size;
+    const buf = try b.allocator.alloc(u8, size);
+    _ = try file.readAll(buf);
+    return buf;
 }
 
 fn cacheWritable(b: *std.Build) bool {
@@ -254,10 +360,44 @@ fn envString(b: *std.Build, name: []const u8) ?[]const u8 {
     return std.process.getEnvVarOwned(b.allocator, name) catch null;
 }
 
+fn exampleEnabled(b: *std.Build, name: []const u8) bool {
+    if (envString(b, "VEX_EXAMPLES")) |raw| {
+        defer b.allocator.free(raw);
+        var it = std.mem.splitScalar(u8, raw, ',');
+        while (it.next()) |entry| {
+            const trimmed = std.mem.trim(u8, entry, " \t\r\n");
+            if (trimmed.len == 0) continue;
+            if (std.ascii.eqlIgnoreCase(trimmed, name)) return true;
+        }
+        return false;
+    }
+    return true;
+}
+
+fn presetConfigs(preset: []const u8) []const cpp.BuildConfig {
+    if (std.ascii.eqlIgnoreCase(preset, "debug")) {
+        return &.{.{ .mode = .Debug }};
+    }
+    if (std.ascii.eqlIgnoreCase(preset, "release")) {
+        return &.{.{ .mode = .Release }};
+    }
+    if (std.ascii.eqlIgnoreCase(preset, "relwithdebinfo")) {
+        return &.{.{ .mode = .RelWithDebInfo }};
+    }
+    if (std.ascii.eqlIgnoreCase(preset, "minsizerel")) {
+        return &.{.{ .mode = .MinSizeRel }};
+    }
+    return &.{.{ .mode = .Debug }};
+}
+
+fn applyPresetToExample(example: *cpp.CppExample, preset: []const u8) void {
+    example.configs = presetConfigs(preset);
+}
+
 fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
     if (envString(b, "VEX_TARGET")) |target_str| {
         defer b.allocator.free(target_str);
-        const query = b.parseTargetQuery(.{ .arch_os_abi = target_str }) catch
+        const query = std.Build.parseTargetQuery(.{ .arch_os_abi = target_str }) catch
             @panic("VEX_TARGET is invalid. Use a Zig target triple like x86_64-windows-gnu");
         return b.resolveTargetQuery(query);
     }
@@ -265,7 +405,7 @@ fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
         if (envString(b, "VEX_WINDOWS_TOOLCHAIN")) |toolchain| {
             defer b.allocator.free(toolchain);
             if (std.ascii.eqlIgnoreCase(toolchain, "gnu")) {
-                const query = b.parseTargetQuery(.{ .arch_os_abi = "native-windows-gnu" }) catch
+                const query = std.Build.parseTargetQuery(.{ .arch_os_abi = "native-windows-gnu" }) catch
                     @panic("Failed to set Windows GNU toolchain target");
                 return b.resolveTargetQuery(query);
             }

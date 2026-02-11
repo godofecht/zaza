@@ -14,6 +14,7 @@ A sophisticated build system that leverages Zig's powerful C++ compilation capab
 8. [Examples](#examples)
 9. [Troubleshooting](#troubleshooting)
 10. [Roadmap](#roadmap)
+11. [Wiki Website](#wiki-website)
 
 ## 🚀 Quick Start
 
@@ -74,6 +75,80 @@ brew install zig
 curl -L https://ziglang.org/download/0.14.0/zig-macos-x86_64-0.14.0.tar.xz | tar xJ
 ```
 
+## 🧭 Wiki Website
+
+A wiki-style documentation site lives in `wiki/` and explains:
+- what Vex is,
+- current capabilities,
+- how to use it clearly,
+- and a phased strategy to replace CMake-centric workflows.
+
+Run it locally:
+
+```bash
+cd wiki
+python3 -m http.server 8000
+```
+
+Then open `http://localhost:8000`.
+
+## 📚 Registry (Auto-Fetch)
+
+Vex ships a lightweight registry and **auto-fetches** dependencies into `build.zig.zon`
+when you run `zig build`. (Disable with `VEX_REGISTRY=0`.)
+
+```bash
+# auto-fetch and pin dependencies from registry/registry.json
+zig build
+```
+
+```bash
+# optional: presets
+VEX_PRESET=release zig build
+```
+
+```bash
+# lockfile (vex.lock) is updated when registry fetch runs
+```
+
+```bash
+# limit which examples auto-wire into the build
+VEX_EXAMPLES=juce zig build
+```
+
+## 📦 Install / Export (CMake-style)
+
+Vex can install headers/libs and emit a minimal CMake config for consumers.
+
+```zig
+pub var example = cpp.CppExample{
+    .name = "hello_vex_cpp",
+    .source_files = &.{"src/main.cpp"},
+    .install_headers = &.{"include/hello_vex.h"},
+    .export_cmake = true,
+};
+```
+
+This produces:
+- `zig-out/include/<name>/...`
+- `zig-out/lib/...` (if `install_libs` provided)
+- `zig-out/cmake/<name>/<name>Config.cmake`
+
+## 🧰 Tooling (compile_commands.json)
+
+Vex emits `compile_commands.json` for Zig-built C++ targets and enables
+`CMAKE_EXPORT_COMPILE_COMMANDS=ON` for CMake builds.
+
+## 🧩 Generator Expressions (subset)
+
+Vex supports a minimal subset of CMake-style config expressions on list fields:
+
+```
+$<CONFIG:Debug>-DDEBUG_ONLY=1
+```
+
+These are filtered per build configuration in Zig builds and passed through to CMake unchanged.
+
 ## 📚 Tutorial: Building Your First Project
 
 ### Step 1: Project Setup
@@ -119,7 +194,8 @@ pub fn build(b: *std.Build) !void {
         .name = "my_app",
         .description = "My Vex Application",
         .source_files = &.{"src/main.cpp"},
-        .include_dirs = &.{"deps/json/single_include"},
+        .public_include_dirs = &.{"deps/json/single_include"},
+        .public_defines = &.{"HAS_JSON=1"},
         .cpp_flags = &.{"-D_HAS_EXCEPTIONS=1"},
         .deps = &.{
             .{ .name = "json", .url = "https://github.com/nlohmann/json.git", .type = .Zig },
@@ -361,6 +437,12 @@ zig build cmake-net-run
 ### CMake Shim (mixed Zig + CMake)
 ```bash
 VEX_SYSTEM_CMDS=1 zig build cmake-shim
+```
+
+### JUCE (versioned)
+```bash
+# JUCE 7.x via FetchContent
+JUCE_GIT_TAG=7.0.9 VEX_EXAMPLES=juce zig build juce
 ```
 
 ### Simple Example

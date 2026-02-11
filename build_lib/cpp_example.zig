@@ -146,24 +146,37 @@ pub const BuildConfig = struct {
 };
 
 fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
+    const url = normalizeGitUrl(b, dep.url);
+    var args = std.ArrayList([]const u8).init(b.allocator);
     if (builtin.os.tag == .windows) {
-        return &.{
+        args.appendSlice(&.{
             "cmd.exe",
             "/c",
             b.fmt(
                 "if not exist deps\\{s} git clone --depth 1 {s} deps/{s}",
-                .{ dep.name, dep.url, dep.name }
+                .{ dep.name, url, dep.name }
             ),
-        };
+        }) catch unreachable;
+    } else {
+        args.appendSlice(&.{
+            "sh",
+            "-c",
+            b.fmt(
+                "test -d deps/{s} || git clone --depth 1 {s} deps/{s}",
+                .{ dep.name, url, dep.name }
+            ),
+        }) catch unreachable;
     }
-    return &.{
-        "sh",
-        "-c",
-        b.fmt(
-            "test -d deps/{s} || git clone --depth 1 {s} deps/{s}",
-            .{ dep.name, dep.url, dep.name }
-        ),
-    };
+    return args.toOwnedSlice() catch unreachable;
+}
+
+fn normalizeGitUrl(b: *std.Build, url: []const u8) []const u8 {
+    const https_prefix = "https://github.com/";
+    if (std.mem.startsWith(u8, url, https_prefix)) {
+        const rest = url[https_prefix.len..];
+        return b.fmt("git@github.com:{s}", .{rest});
+    }
+    return url;
 }
 
 fn buildDefaultCMakeArgs(b: *std.Build, dep_name: []const u8, user_args: []const []const u8) []const []const u8 {
@@ -219,6 +232,9 @@ fn makeCMakeConfigureCommand(
     }
     if (install_prefix) |prefix| {
         args.append(b.fmt("-DCMAKE_INSTALL_PREFIX={s}", .{prefix})) catch unreachable;
+    }
+    if (!hasCMakeFlag(extra_args, "CMAKE_EXPORT_COMPILE_COMMANDS")) {
+        args.append("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON") catch unreachable;
     }
     args.appendSlice(extra_args) catch unreachable;
     return args.toOwnedSlice() catch unreachable;
@@ -280,7 +296,17 @@ pub const CppExample = struct {
     description: []const u8,
     source_files: []const []const u8,
     include_dirs: []const []const u8,
+    public_include_dirs: []const []const u8 = &.{},
+    private_include_dirs: []const []const u8 = &.{},
     cpp_flags: []const []const u8,
+    public_defines: []const []const u8 = &.{},
+    private_defines: []const []const u8 = &.{},
+    public_link_libs: []const []const u8 = &.{},
+    private_link_libs: []const []const u8 = &.{},
+    install_headers: []const []const u8 = &.{},
+    install_libs: []const []const u8 = &.{},
+    export_cmake: bool = false,
+    export_name: ?[]const u8 = null,
     deps: []const Dependency,
     configs: []const BuildConfig,
     deps_build_system: BuildSystem,
@@ -337,7 +363,11 @@ pub const CppExample = struct {
         }
 
         fn list(writer: *std.ArrayList(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
-            try writer.writer().print("{s}({s} PRIVATE\n", .{name, target});
+            try listScoped(writer, name, target, "PRIVATE", items);
+        }
+
+        fn listScoped(writer: *std.ArrayList(u8), name: []const u8, target: []const u8, scope: []const u8, items: []const []const u8) !void {
+            try writer.writer().print("{s}({s} {s}\n", .{name, target, scope});
             for (items) |item| {
                 try writer.writer().print("    {s}\n", .{item});
             }
@@ -374,7 +404,18 @@ pub const CppExample = struct {
         try cmake.write(&writer, "", .{});
 
         // Include directories
-        try cmake.list(&writer, "target_include_directories", self.name, self.include_dirs);
+        if (self.public_include_dirs.len > 0) {
+            try cmake.listScoped(&writer, "target_include_directories", self.name, "PUBLIC", self.public_include_dirs);
+        }
+        if (self.include_dirs.len > 0 or self.private_include_dirs.len > 0) {
+            var all_private = std.ArrayList([]const u8).init(b.allocator);
+            defer all_private.deinit();
+            try all_private.appendSlice(self.include_dirs);
+            try all_private.appendSlice(self.private_include_dirs);
+            if (all_private.items.len > 0) {
+                try cmake.listScoped(&writer, "target_include_directories", self.name, "PRIVATE", all_private.items);
+            }
+        }
 
         // Compiler flags
         var flags = std.ArrayList([]const u8).init(b.allocator);
@@ -388,6 +429,22 @@ pub const CppExample = struct {
         try flags.appendSlice(self.cpp_flags);
 
         try cmake.list(&writer, "target_compile_options", self.name, flags.items);
+
+        // Compile definitions
+        if (self.public_defines.len > 0) {
+            try cmake.listScoped(&writer, "target_compile_definitions", self.name, "PUBLIC", self.public_defines);
+        }
+        if (self.private_defines.len > 0) {
+            try cmake.listScoped(&writer, "target_compile_definitions", self.name, "PRIVATE", self.private_defines);
+        }
+
+        // Link libraries
+        if (self.public_link_libs.len > 0) {
+            try cmake.listScoped(&writer, "target_link_libraries", self.name, "PUBLIC", self.public_link_libs);
+        }
+        if (self.private_link_libs.len > 0) {
+            try cmake.listScoped(&writer, "target_link_libraries", self.name, "PRIVATE", self.private_link_libs);
+        }
 
         // Write CMakeLists.txt
         try b.build_root.handle.writeFile(.{
@@ -556,8 +613,21 @@ pub const CppExample = struct {
                     cmake_install.dependencies.append(cmake_build) catch unreachable;
                     last_step = cmake_install;
                 }
+                if (last_step) |step| {
+                    final_steps.append(step) catch unreachable;
+                }
+                try emitInstallAndExport(b, self, config_name);
+                continue;
             } else {
                 // Build with Zig directly since json is header-only
+                const public_include_dirs = filterByConfig(b, self.public_include_dirs, config_name);
+                const private_include_dirs = filterByConfig(b, self.private_include_dirs, config_name);
+                const include_dirs = filterByConfig(b, self.include_dirs, config_name);
+                const public_defines = filterByConfig(b, self.public_defines, config_name);
+                const private_defines = filterByConfig(b, self.private_defines, config_name);
+                const public_link_libs = filterByConfig(b, self.public_link_libs, config_name);
+                const private_link_libs = filterByConfig(b, self.private_link_libs, config_name);
+
                 const exe = b.addExecutable(.{
                     .name = self.getExeName(b, config),
                     .target = target,
@@ -575,7 +645,7 @@ pub const CppExample = struct {
                 defer cpp_flags_list.deinit();
 
                 // Add user flags
-                try cpp_flags_list.appendSlice(self.cpp_flags);
+                try cpp_flags_list.appendSlice(filterByConfig(b, self.cpp_flags, config_name));
                 
                 // Add required flags
                 try cpp_flags_list.append(try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
@@ -584,6 +654,16 @@ pub const CppExample = struct {
                     "-frtti",
                     "-D_HAS_EXCEPTIONS=1",
                 });
+                // Add compile definitions (public/private treated the same in Zig build)
+                for (public_defines) |def| {
+                    try cpp_flags_list.append(ensureDefineFlag(b, def));
+                }
+                for (private_defines) |def| {
+                    try cpp_flags_list.append(ensureDefineFlag(b, def));
+                }
+                for (config.defines) |def| {
+                    try cpp_flags_list.append(ensureDefineFlag(b, def));
+                }
 
                 exe.addCSourceFiles(.{
                     .files = self.source_files,
@@ -591,7 +671,13 @@ pub const CppExample = struct {
                 });
 
                 // Add include directories
-                for (self.include_dirs) |dir| {
+                for (public_include_dirs) |dir| {
+                    exe.addIncludePath(.{ .cwd_relative = dir });
+                }
+                for (include_dirs) |dir| {
+                    exe.addIncludePath(.{ .cwd_relative = dir });
+                }
+                for (private_include_dirs) |dir| {
                     exe.addIncludePath(.{ .cwd_relative = dir });
                 }
                 // Add system include directories from build config
@@ -617,6 +703,18 @@ pub const CppExample = struct {
                 for (config.link_libs) |lib| {
                     exe.linkSystemLibrary(lib);
                 }
+                for (public_link_libs) |lib| {
+                    exe.linkSystemLibrary(lib);
+                }
+                for (private_link_libs) |lib| {
+                    exe.linkSystemLibrary(lib);
+                }
+
+                // Optional: compile_commands.json for Zig builds
+                try emitCompileCommands(b, self, config, config_name, public_include_dirs, private_include_dirs, include_dirs, public_defines, private_defines);
+
+                // Optional install + export
+                try emitInstallAndExport(b, self, config_name);
 
                 if (last_step) |prev| {
                     exe.step.dependencies.append(prev) catch unreachable;
@@ -640,6 +738,10 @@ pub const CppExample = struct {
 
 pub const JUCEApplication = struct {
     const Self = @This();
+
+    pub const BuilderOptions = struct {
+        enable_system_commands: bool = false,
+    };
     
     // Configuration struct for JUCE applications
     pub const JuceConfig = struct {
@@ -659,6 +761,10 @@ pub const JUCEApplication = struct {
         modules: []const []const u8 = &.{},
         /// C++ standard version (e.g. "17", "20")
         cpp_std: ?[]const u8 = null,
+        /// Subdirectory for generated CMakeLists (default: ".")
+        cmake_root: []const u8 = ".",
+        /// JUCE git tag/branch (e.g. "7.0.9", "7.0.12", "master")
+        juce_git_tag: ?[]const u8 = null,
     };
 
     // Common JUCE modules that most apps need
@@ -702,8 +808,17 @@ pub const JUCEApplication = struct {
                 defer app.deinit();
 
                 const app_builder = try app.configure(config);
-                const example = try app_builder.build();
-                try example.build(b);
+                const example = try app_builder.build(.{});
+                _ = try example.build(b);
+            }
+
+            pub fn buildWithTarget(b: *std.Build, target: std.Build.ResolvedTarget) !void {
+                var app = JUCEApplication.builder(b);
+                defer app.deinit();
+
+                const app_builder = try app.configure(config);
+                const example = try app_builder.build(.{});
+                _ = try example.buildWithTarget(b, target);
             }
         };
     }
@@ -718,6 +833,8 @@ pub const JUCEApplication = struct {
         modules: std.ArrayList([]const u8),
         build_mode: BuildMode = .Debug,
         cpp_std: ?[]const u8 = null,
+        cmake_root: []const u8 = ".",
+        juce_git_tag: ?[]const u8 = null,
 
         pub fn init(b: *std.Build) Builder {
             return .{
@@ -739,6 +856,8 @@ pub const JUCEApplication = struct {
             self.company = config.company;
             self.build_mode = config.build_mode;
             self.cpp_std = config.cpp_std;
+            self.cmake_root = config.cmake_root;
+            self.juce_git_tag = config.juce_git_tag;
             
             // Add sources and modules
             for (config.sources) |src| {
@@ -772,7 +891,7 @@ pub const JUCEApplication = struct {
             return self;
         }
 
-        pub fn build(self: *Builder) !*CppExample {
+        pub fn build(self: *Builder, options: BuilderOptions) !*CppExample {
             // Create CMakeLists.txt
             const writer = try self.b.allocator.create(std.ArrayList(u8));
             writer.* = std.ArrayList(u8).init(self.b.allocator);
@@ -782,7 +901,26 @@ pub const JUCEApplication = struct {
             try cmake.write(writer, "cmake_minimum_required(VERSION 3.15)", .{});
             try cmake.write(writer, "", .{});
             try cmake.section(writer, "project", &.{self.name, "VERSION", self.version});
-            try cmake.write(writer, "add_subdirectory(deps/juce)", .{});
+            try cmake.write(writer, "include(FetchContent)", .{});
+            try cmake.write(writer, "set(FETCHCONTENT_QUIET OFF)", .{});
+            try cmake.write(writer, "set(FETCHCONTENT_UPDATES_DISCONNECTED ON)", .{});
+            try cmake.write(writer, "if (DEFINED JUCE_SOURCE_DIR)", .{});
+            try cmake.write(writer, "    set(FETCHCONTENT_SOURCE_DIR_JUCE \"${{JUCE_SOURCE_DIR}}\")", .{});
+            try cmake.write(writer, "elseif (EXISTS \"${{CMAKE_CURRENT_LIST_DIR}}/deps/juce/CMakeLists.txt\")", .{});
+            try cmake.write(writer, "    set(FETCHCONTENT_SOURCE_DIR_JUCE \"${{CMAKE_CURRENT_LIST_DIR}}/deps/juce\")", .{});
+            try cmake.write(writer, "endif()", .{});
+            if (self.juce_git_tag) |tag| {
+                try cmake.write(writer, "set(JUCE_GIT_TAG \"{s}\")", .{tag});
+            } else {
+                try cmake.write(writer, "if (NOT DEFINED JUCE_GIT_TAG)", .{});
+                try cmake.write(writer, "    set(JUCE_GIT_TAG \"master\")", .{});
+                try cmake.write(writer, "endif()", .{});
+            }
+            try cmake.write(writer, "FetchContent_Declare(juce", .{});
+            try cmake.write(writer, "    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git", .{});
+            try cmake.write(writer, "    GIT_TAG ${{JUCE_GIT_TAG}}", .{});
+            try cmake.write(writer, ")", .{});
+            try cmake.write(writer, "FetchContent_MakeAvailable(juce)", .{});
             try cmake.write(writer, "", .{});
 
             // App definition
@@ -807,8 +945,12 @@ pub const JUCEApplication = struct {
             try cmake.section(writer, "target_compile_features", &.{self.name, "PRIVATE", "cxx_std_17"});
 
             // Write CMakeLists.txt
+            const cmake_path = if (std.mem.eql(u8, self.cmake_root, "."))
+                "CMakeLists.txt"
+            else
+                self.b.pathJoin(&.{ self.cmake_root, "CMakeLists.txt" });
             try self.b.build_root.handle.writeFile(.{
-                .sub_path = "CMakeLists.txt",
+                .sub_path = cmake_path,
                 .data = writer.items,
             });
 
@@ -823,18 +965,7 @@ pub const JUCEApplication = struct {
                     "build/JuceLibraryCode",
                 },
                 .cpp_flags = &.{"-std=c++17"},
-                .deps = &.{
-                    .{
-                        .name = "juce",
-                        .url = "https://github.com/juce-framework/JUCE.git",
-                        .include_path = "modules",
-                        .type = .CMake,
-                        .build_command = &.{
-                            "cmd.exe", "/c",
-                            "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build --config Debug",
-                        },
-                    },
-                },
+                .deps = &.{},
                 .configs = &.{
                     .{
                         .mode = self.build_mode,
@@ -843,6 +974,11 @@ pub const JUCEApplication = struct {
                 .deps_build_system = .CMake,
                 .main_build_system = .CMake,
                 .cpp_std = self.cpp_std,
+                .enable_system_commands = options.enable_system_commands,
+                .cmake_config = .{
+                    .source_dir = self.cmake_root,
+                    .build_dir = self.b.pathJoin(&.{ self.cmake_root, "build" }),
+                },
             };
 
             return example;
@@ -853,6 +989,188 @@ pub const JUCEApplication = struct {
         return Builder.init(b);
     }
 };
+
+fn filterByConfig(b: *std.Build, items: []const []const u8, config_name: []const u8) []const []const u8 {
+    var out = std.ArrayList([]const u8).init(b.allocator);
+    for (items) |item| {
+        if (std.mem.startsWith(u8, item, "$<CONFIG:")) {
+            const end = std.mem.indexOfScalar(u8, item, '>') orelse continue;
+            const name = item["$<CONFIG:".len..end];
+            if (std.ascii.eqlIgnoreCase(name, config_name)) {
+                const rest = item[end + 1 ..];
+                if (rest.len > 0) out.append(rest) catch unreachable;
+            }
+        } else {
+            out.append(item) catch unreachable;
+        }
+    }
+    return out.toOwnedSlice() catch unreachable;
+}
+
+fn emitCompileCommands(
+    b: *std.Build,
+    self: CppExample,
+    config: BuildConfig,
+    config_name: []const u8,
+    public_include_dirs: []const []const u8,
+    private_include_dirs: []const []const u8,
+    include_dirs: []const []const u8,
+    public_defines: []const []const u8,
+    private_defines: []const []const u8,
+) !void {
+    var entries = std.ArrayList(u8).init(b.allocator);
+    defer entries.deinit();
+
+    try entries.appendSlice("[\n");
+    for (self.source_files, 0..) |src, idx| {
+        const cmd = try buildCompileCommand(
+            b,
+            self,
+            config,
+            config_name,
+            src,
+            public_include_dirs,
+            private_include_dirs,
+            include_dirs,
+            public_defines,
+            private_defines,
+        );
+        defer b.allocator.free(cmd);
+
+        const root_path = b.build_root.path orelse ".";
+        const abs_src = b.pathJoin(&.{ root_path, src });
+        const abs_dir = root_path;
+        const obj = b.pathJoin(&.{ "zig-out", "obj", self.name, b.fmt("{d}.o", .{idx}) });
+
+        const escaped_dir = jsonEscape(b, abs_dir);
+        const escaped_file = jsonEscape(b, abs_src);
+        const escaped_cmd = jsonEscape(b, cmd);
+        const escaped_out = jsonEscape(b, obj);
+        defer b.allocator.free(escaped_dir);
+        defer b.allocator.free(escaped_file);
+        defer b.allocator.free(escaped_cmd);
+        defer b.allocator.free(escaped_out);
+
+        try entries.writer().print(
+            "  {{\"directory\":\"{s}\",\"file\":\"{s}\",\"command\":\"{s}\",\"output\":\"{s}\"}}{s}\n",
+            .{ escaped_dir, escaped_file, escaped_cmd, escaped_out, if (idx + 1 == self.source_files.len) "" else "," },
+        );
+    }
+    try entries.appendSlice("]\n");
+
+    const write_files = b.addWriteFiles();
+    const cc_path = "compile_commands.json";
+    const cc_file = write_files.add(cc_path, entries.items);
+    _ = b.addInstallFileWithDir(cc_file, .prefix, cc_path);
+}
+
+fn buildCompileCommand(
+    b: *std.Build,
+    self: CppExample,
+    config: BuildConfig,
+    config_name: []const u8,
+    src: []const u8,
+    public_include_dirs: []const []const u8,
+    private_include_dirs: []const []const u8,
+    include_dirs: []const []const u8,
+    public_defines: []const []const u8,
+    private_defines: []const []const u8,
+) ![]u8 {
+    var cmd = std.ArrayList(u8).init(b.allocator);
+    try cmd.appendSlice("zig c++ ");
+
+    const flags = filterByConfig(b, self.cpp_flags, config_name);
+    for (flags) |flag| {
+        try cmd.writer().print("{s} ", .{flag});
+    }
+    const std_flag = try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version);
+    defer b.allocator.free(std_flag);
+    try cmd.writer().print("{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
+
+    for (public_defines) |def| {
+        const flag = ensureDefineFlag(b, def);
+        try cmd.writer().print("{s} ", .{flag});
+    }
+    for (private_defines) |def| {
+        const flag = ensureDefineFlag(b, def);
+        try cmd.writer().print("{s} ", .{flag});
+    }
+    for (config.defines) |def| {
+        const flag = ensureDefineFlag(b, def);
+        try cmd.writer().print("{s} ", .{flag});
+    }
+
+    for (public_include_dirs) |dir| {
+        try cmd.writer().print("-I{s} ", .{dir});
+    }
+    for (include_dirs) |dir| {
+        try cmd.writer().print("-I{s} ", .{dir});
+    }
+    for (private_include_dirs) |dir| {
+        try cmd.writer().print("-I{s} ", .{dir});
+    }
+    for (config.system_includes) |dir| {
+        try cmd.writer().print("-isystem {s} ", .{dir});
+    }
+
+    const obj = b.pathJoin(&.{ "zig-out", "obj", self.name, b.fmt("{s}.o", .{std.fs.path.stem(src)}) });
+    try cmd.writer().print("-c {s} -o {s}", .{src, obj});
+    return cmd.toOwnedSlice();
+}
+
+fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8) !void {
+    _ = config_name;
+    const export_name = self.export_name orelse self.name;
+
+    for (self.install_headers) |hdr| {
+        const base = std.fs.path.basename(hdr);
+        const dest = b.pathJoin(&.{ export_name, base });
+        _ = b.addInstallHeaderFile(b.path(hdr), dest);
+    }
+    for (self.install_libs) |lib| {
+        const base = std.fs.path.basename(lib);
+        _ = b.addInstallLibFile(b.path(lib), base);
+    }
+
+    if (self.export_cmake) {
+        var content = std.ArrayList(u8).init(b.allocator);
+        defer content.deinit();
+
+        try content.appendSlice("get_filename_component(_VEX_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
+        try content.writer().print("set(VEX_INCLUDE_DIR \"${{_VEX_PREFIX}}/include/{s}\")\n", .{export_name});
+        try content.appendSlice("set(VEX_LIB_DIR \"${_VEX_PREFIX}/lib\")\n");
+        if (self.public_link_libs.len > 0 or self.private_link_libs.len > 0) {
+            try content.appendSlice("set(VEX_LIBRARIES ");
+            for (self.public_link_libs) |lib| {
+                try content.writer().print("{s} ", .{lib});
+            }
+            for (self.private_link_libs) |lib| {
+                try content.writer().print("{s} ", .{lib});
+            }
+            try content.appendSlice(")\n");
+        }
+
+        const write_files = b.addWriteFiles();
+        const cmake_rel = b.fmt("cmake/{s}/{s}Config.cmake", .{ export_name, export_name });
+        const cmake_file = write_files.add(cmake_rel, content.items);
+        _ = b.addInstallFileWithDir(cmake_file, .prefix, cmake_rel);
+    }
+}
+
+fn jsonEscape(b: *std.Build, input: []const u8) []u8 {
+    var out = std.ArrayList(u8).init(b.allocator);
+    for (input) |c| {
+        switch (c) {
+            '"' => out.appendSlice("\\\"") catch unreachable,
+            '\\' => out.appendSlice("\\\\") catch unreachable,
+            '\n' => out.appendSlice("\\n") catch unreachable,
+            '\r' => out.appendSlice("\\r") catch unreachable,
+            '\t' => out.appendSlice("\\t") catch unreachable,
+            else => out.append(c) catch unreachable,
+        }
+    }
+    return out.toOwnedSlice() catch unreachable;
+}
 
 pub const CppConfig = struct {
     pub const std_version = "17";  // Default C++ standard
@@ -954,3 +1272,18 @@ pub const CppFlags = struct {
         return try self.flags.toOwnedSlice();
     }
 }; 
+
+fn hasCMakeFlag(args: []const []const u8, name: []const u8) bool {
+    for (args) |arg| {
+        if (std.mem.startsWith(u8, arg, "-D")) {
+            const rest = arg[2..];
+            if (std.mem.startsWith(u8, rest, name)) return true;
+        }
+    }
+    return false;
+}
+
+fn ensureDefineFlag(b: *std.Build, def: []const u8) []const u8 {
+    if (std.mem.startsWith(u8, def, "-D")) return def;
+    return b.fmt("-D{s}", .{def});
+}
