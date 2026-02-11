@@ -47,7 +47,7 @@ fn fetchIntoZon(
     const hash = try zigFetch(allocator, url);
     defer allocator.free(hash);
 
-    var zon = try readFile(allocator, zon_path);
+    const zon = try readFile(allocator, zon_path);
     defer allocator.free(zon);
 
     const updated = try upsertDependency(allocator, zon, name, url, hash);
@@ -80,6 +80,7 @@ fn zigFetch(allocator: std.mem.Allocator, url: []const u8) ![]const u8 {
 
     const stdout = child.stdout.?;
     const out = try stdout.readToEndAlloc(allocator, 16 * 1024);
+    defer allocator.free(out);
     const term = try child.wait();
     switch (term) {
         .Exited => |code| if (code != 0) return error.CommandFailed,
