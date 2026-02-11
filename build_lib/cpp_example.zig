@@ -170,6 +170,34 @@ fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
     return args.toOwnedSlice() catch unreachable;
 }
 
+fn makeSubmoduleInitCommand(b: *std.Build, dep_name: []const u8) []const []const u8 {
+    var args = std.ArrayList([]const u8).init(b.allocator);
+    if (builtin.os.tag == .windows) {
+        args.appendSlice(&.{
+            "cmd.exe",
+            "/c",
+            b.fmt(
+                "cd deps\\{s} && git submodule update --init --recursive",
+                .{dep_name}
+            ),
+        }) catch unreachable;
+    } else {
+        args.appendSlice(&.{
+            "sh",
+            "-c",
+            b.fmt(
+                "cd deps/{s} && git submodule update --init --recursive",
+                .{dep_name}
+            ),
+        }) catch unreachable;
+    }
+    return args.toOwnedSlice() catch unreachable;
+}
+
+fn needsSubmoduleInit(dep_name: []const u8) bool {
+    return std.mem.eql(u8, dep_name, "mbedtls");
+}
+
 fn normalizeGitUrl(b: *std.Build, url: []const u8) []const u8 {
     const https_prefix = "https://github.com/";
     if (std.mem.startsWith(u8, url, https_prefix)) {
@@ -192,6 +220,39 @@ fn buildDefaultCMakeArgs(b: *std.Build, dep_name: []const u8, user_args: []const
         args.appendSlice(&.{
             "-DJSON_BuildTests=OFF",
             "-DJSON_Install=OFF",
+        }) catch unreachable;
+    } else if (std.mem.eql(u8, dep_name, "fmt")) {
+        args.appendSlice(&.{
+            "-DFMT_DOC=OFF",
+            "-DFMT_TEST=OFF",
+            "-DBUILD_SHARED_LIBS=OFF",
+        }) catch unreachable;
+    } else if (std.mem.eql(u8, dep_name, "spdlog")) {
+        args.appendSlice(&.{
+            "-DSPDLOG_BUILD_EXAMPLE=OFF",
+            "-DSPDLOG_BUILD_TESTS=OFF",
+            "-DSPDLOG_BUILD_BENCH=OFF",
+            "-DBUILD_SHARED_LIBS=OFF",
+        }) catch unreachable;
+    } else if (std.mem.eql(u8, dep_name, "curl")) {
+        args.appendSlice(&.{
+            "-DBUILD_CURL_EXE=OFF",
+            "-DBUILD_SHARED_LIBS=OFF",
+            "-DBUILD_TESTING=OFF",
+            "-DCURL_DISABLE_TESTS=ON",
+        }) catch unreachable;
+    } else if (std.mem.eql(u8, dep_name, "zlib")) {
+        args.appendSlice(&.{
+            "-DBUILD_SHARED_LIBS=OFF",
+        }) catch unreachable;
+    } else if (std.mem.eql(u8, dep_name, "mbedtls")) {
+        args.appendSlice(&.{
+            "-DENABLE_PROGRAMS=OFF",
+            "-DENABLE_TESTING=OFF",
+            "-DMBEDTLS_BUILD_SHARED_LIBS=OFF",
+            "-DMBEDTLS_FATAL_WARNINGS=OFF",
+            "-DUSE_STATIC_MBEDTLS_LIBRARY=ON",
+            "-DUSE_SHARED_MBEDTLS_LIBRARY=OFF",
         }) catch unreachable;
     }
     args.appendSlice(user_args) catch unreachable;
@@ -494,6 +555,19 @@ pub const CppExample = struct {
                         clone_step.dependencies.append(prev) catch unreachable;
                     }
                     last_step = clone_step;
+
+                    // Submodule init step (for deps that need it)
+                    if (needsSubmoduleInit(dep.name)) {
+                        const submodule_step = vex_cmd.addCommandStep(
+                            b,
+                            b.fmt("submodule_init_{s}_{s}", .{ dep.name, config_name }),
+                            makeSubmoduleInitCommand(b, dep.name),
+                        );
+                        if (last_step) |prev| {
+                            submodule_step.dependencies.append(prev) catch unreachable;
+                        }
+                        last_step = submodule_step;
+                    }
 
                     // Build step (only after clone completes)
                     const dep_build_system = dep.type orelse self.deps_build_system;
