@@ -439,6 +439,18 @@ zig build cmake-net-run
 VEX_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
+### Proof Library
+```bash
+zig build proof-library
+zig build proof-library-run
+```
+
+### Generated Code
+```bash
+zig build generated-code
+zig build generated-code-run
+```
+
 ### JUCE (versioned)
 ```bash
 # JUCE 7.x via FetchContent

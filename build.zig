@@ -6,6 +6,8 @@ const cmake_shim_example = @import("examples/cmake_shim/build.zig");
 const hello_vex_example = @import("examples/hello_vex/build.zig");
 const cmake_combo_example = @import("examples/cmake_combo/build.zig");
 const cmake_net_example = @import("examples/cmake_net/build.zig");
+const proof_library_example = @import("examples/proof_library/build.zig");
+const generated_code_example = @import("examples/generated_code/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -57,6 +59,14 @@ pub fn build(b: *std.Build) !void {
     const hello_run_step = b.step("run-hello-vex", "Run both hello_vex executables");
     hello_run_step.dependOn(&hello_run_zig.step);
     hello_run_step.dependOn(&hello_run_cpp.step);
+
+    if (exampleEnabled(b, "proof-library")) {
+        try proof_library_example.build(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "generated-code")) {
+        try generated_code_example.build(b, target, optimize);
+    }
 
     if (exampleEnabled(b, "cmake-combo")) {
         const combo_step = b.step("cmake-combo", "Build CMake combo example (fmt + spdlog)");
