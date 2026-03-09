@@ -47,8 +47,15 @@ pub fn build(b: *std.Build) !void {
     }
 
     const hello_step = b.step("hello-vex", "Build hello_vex (Zig + C++ via Vex)");
-    try hello_vex_example.build(b, target, optimize);
-    hello_step.dependOn(b.getInstallStep());
+    const hello_artifacts = try hello_vex_example.addArtifacts(b, target, optimize);
+    hello_step.dependOn(&b.addInstallArtifact(hello_artifacts.zig_exe, .{}).step);
+    hello_step.dependOn(&b.addInstallArtifact(hello_artifacts.cpp_exe, .{}).step);
+
+    const hello_run_zig = b.addRunArtifact(hello_artifacts.zig_exe);
+    const hello_run_cpp = b.addRunArtifact(hello_artifacts.cpp_exe);
+    const hello_run_step = b.step("run-hello-vex", "Run both hello_vex executables");
+    hello_run_step.dependOn(&hello_run_zig.step);
+    hello_run_step.dependOn(&hello_run_cpp.step);
 
     if (exampleEnabled(b, "cmake-combo")) {
         const combo_step = b.step("cmake-combo", "Build CMake combo example (fmt + spdlog)");
@@ -83,6 +90,9 @@ pub fn build(b: *std.Build) !void {
     if (exampleEnabled(b, "cmake-shim")) {
         const cmake_shim_step = b.step("cmake-shim", "Build the CMake shim example");
         cmake_shim_step_opt = cmake_shim_step;
+        if (!system_cmds) {
+            std.debug.print("[cmake-shim] skipped: system-cmds=false. Run with -Dsystem-cmds=true or VEX_SYSTEM_CMDS=1 to enable.\n", .{});
+        }
         if (system_cmds) {
             cmake_shim_example.example.enable_system_commands = true;
             const cmake_check = vex_cmd.addCommandStep(b, "cmake-version", &.{"cmake", "--version"});
@@ -114,6 +124,44 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/working_test.zig"),
     });
     test_step.dependOn(&b.addRunArtifact(working_tests).step);
+
+    // Wire up tests/
+    const standalone_tests: []const []const u8 = &.{
+        "tests/test_string_split.zig",
+        "tests/test_fetch_minimal.zig",
+        "tests/test_cpp_targets.zig",
+    };
+    for (standalone_tests) |path| {
+        const t = b.addTest(.{ .root_source_file = b.path(path) });
+        if (std.mem.eql(u8, path, "tests/test_cpp_targets.zig")) {
+            t.root_module.addImport("cpp_example", b.createModule(.{
+                .root_source_file = b.path("build_lib/cpp_example.zig"),
+            }));
+        }
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
+    const deps_mod = b.createModule(.{ .root_source_file = b.path("build/dependencies.zig") });
+    const builder_mod = b.createModule(.{
+        .root_source_file = b.path("build/builder.zig"),
+        .imports = &.{.{ .name = "zigcpp", .module = b.createModule(.{ .root_source_file = b.path("build/zigcpp.zig") }) }},
+    });
+
+    const build_module_tests: []const []const u8 = &.{
+        "tests/test_builder.zig",
+        "tests/test_builder_only.zig",
+        "tests/test_dependencies.zig",
+        "tests/test_manager_init.zig",
+        "tests/test_deps_simple.zig",
+        "tests/test_fetch.zig",
+        "tests/test_deps_only.zig",
+        "tests/test_deps_import_only.zig",
+    };
+    for (build_module_tests) |path| {
+        const t = b.addTest(.{ .root_source_file = b.path(path) });
+        t.root_module.addImport("dependencies", deps_mod);
+        t.root_module.addImport("builder", builder_mod);
+        test_step.dependOn(&b.addRunArtifact(t).step);
+    }
 
     if (verbose) {
         std.debug.print("\n\x1b[1;34m=== VEX BUILD ===\x1b[0m\n", .{});

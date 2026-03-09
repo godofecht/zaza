@@ -111,6 +111,62 @@ pub const BuildSystem = enum {
     CMake,
 };
 
+pub const TargetKind = enum {
+    executable,
+    static_library,
+    shared_library,
+    object_library,
+    interface_library,
+};
+
+pub const Visibility = enum {
+    public,
+    private,
+    interface,
+};
+
+pub const UsageRequirements = struct {
+    include_dirs: []const []const u8 = &.{},
+    compile_definitions: []const []const u8 = &.{},
+    compile_options: []const []const u8 = &.{},
+    link_libraries: []const []const u8 = &.{},
+    link_options: []const []const u8 = &.{},
+
+    pub fn merge(self: UsageRequirements, allocator: std.mem.Allocator, other: UsageRequirements) !UsageRequirements {
+        return .{
+            .include_dirs = try concatSlices(allocator, self.include_dirs, other.include_dirs),
+            .compile_definitions = try concatSlices(allocator, self.compile_definitions, other.compile_definitions),
+            .compile_options = try concatSlices(allocator, self.compile_options, other.compile_options),
+            .link_libraries = try concatSlices(allocator, self.link_libraries, other.link_libraries),
+            .link_options = try concatSlices(allocator, self.link_options, other.link_options),
+        };
+    }
+};
+
+pub const TargetDependency = struct {
+    name: []const u8,
+    visibility: Visibility = .public,
+};
+
+pub const ResolvedUsage = struct {
+    local: UsageRequirements = .{},
+    exported: UsageRequirements = .{},
+    link_libraries: []const []const u8 = &.{},
+};
+
+pub const CppTarget = struct {
+    name: []const u8,
+    kind: TargetKind = .executable,
+    include_dirs: UsageRequirements = .{},
+    dependencies: []const TargetDependency = &.{},
+
+    pub fn resolveUsage(self: CppTarget, allocator: std.mem.Allocator, graph: []const CppTarget) !ResolvedUsage {
+        var visiting = std.StringHashMap(void).init(allocator);
+        defer visiting.deinit();
+        return resolveUsageInner(allocator, self, graph, &visiting);
+    }
+};
+
 pub const BuildMode = enum {
     Debug,
     Release,
@@ -355,6 +411,7 @@ pub const Configs = struct {
 pub const CppExample = struct {
     name: []const u8,
     description: []const u8,
+    kind: TargetKind = .executable,
     source_files: []const []const u8,
     include_dirs: []const []const u8,
     public_include_dirs: []const []const u8 = &.{},
@@ -440,6 +497,10 @@ pub const CppExample = struct {
         return b.fmt("{s}_{s}", .{ self.name, config.mode.toCMakeString() });
     }
 
+    pub fn targetName(self: CppExample) []const u8 {
+        return self.name;
+    }
+
     pub fn generateCMake(self: CppExample, b: *std.Build) !void {
         var writer = std.ArrayList(u8).init(b.allocator);
         defer writer.deinit();
@@ -456,12 +517,20 @@ pub const CppExample = struct {
         }
         try cmake.write(&writer, "", .{});
 
-        // Create executable
-        try cmake.write(&writer, "add_executable({s}", .{self.name});
-        for (self.source_files) |src| {
-            try cmake.write(&writer, "    {s}", .{src});
+        // Create target
+        switch (self.kind) {
+            .executable => try cmake.write(&writer, "add_executable({s}", .{self.name}),
+            .static_library => try cmake.write(&writer, "add_library({s} STATIC", .{self.name}),
+            .shared_library => try cmake.write(&writer, "add_library({s} SHARED", .{self.name}),
+            .object_library => try cmake.write(&writer, "add_library({s} OBJECT", .{self.name}),
+            .interface_library => try cmake.write(&writer, "add_library({s} INTERFACE)", .{self.name}),
         }
-        try cmake.write(&writer, ")", .{});
+        if (self.kind != .interface_library) {
+            for (self.source_files) |src| {
+                try cmake.write(&writer, "    {s}", .{src});
+            }
+            try cmake.write(&writer, ")", .{});
+        }
         try cmake.write(&writer, "", .{});
 
         // Include directories
@@ -702,17 +771,7 @@ pub const CppExample = struct {
                 const public_link_libs = filterByConfig(b, self.public_link_libs, config_name);
                 const private_link_libs = filterByConfig(b, self.private_link_libs, config_name);
 
-                const exe = b.addExecutable(.{
-                    .name = self.getExeName(b, config),
-                    .target = target,
-                    .optimize = switch (config.mode) {
-                        .Debug => .Debug,
-                        .Release => .ReleaseFast,
-                        .RelWithDebInfo => .ReleaseSafe,
-                        .MinSizeRel => .ReleaseSmall,
-                    },
-                    .root_source_file = null,
-                });
+                const compile = try addTargetArtifact(b, self, config, target);
 
                 // Add source files with C++ flags
                 var cpp_flags_list = std.ArrayList([]const u8).init(b.allocator);
@@ -739,49 +798,53 @@ pub const CppExample = struct {
                     try cpp_flags_list.append(ensureDefineFlag(b, def));
                 }
 
-                exe.addCSourceFiles(.{
-                    .files = self.source_files,
-                    .flags = try cpp_flags_list.toOwnedSlice(),
-                });
+                if (self.kind != .interface_library) {
+                    compile.addCSourceFiles(.{
+                        .files = self.source_files,
+                        .flags = try cpp_flags_list.toOwnedSlice(),
+                    });
+                }
 
                 // Add include directories
                 for (public_include_dirs) |dir| {
-                    exe.addIncludePath(.{ .cwd_relative = dir });
+                    compile.addIncludePath(.{ .cwd_relative = dir });
                 }
                 for (include_dirs) |dir| {
-                    exe.addIncludePath(.{ .cwd_relative = dir });
+                    compile.addIncludePath(.{ .cwd_relative = dir });
                 }
                 for (private_include_dirs) |dir| {
-                    exe.addIncludePath(.{ .cwd_relative = dir });
+                    compile.addIncludePath(.{ .cwd_relative = dir });
                 }
                 // Add system include directories from build config
                 for (config.system_includes) |dir| {
-                    exe.addSystemIncludePath(.{ .cwd_relative = dir });
+                    compile.addSystemIncludePath(.{ .cwd_relative = dir });
                 }
                 // Add include directories from Zig package deps
                 for (self.deps) |dep| {
                     if (dep.pkg_name) |pkg_name| {
                         const pkg = b.dependency(pkg_name, .{});
                         const include_subdir = dep.pkg_include orelse ".";
-                        exe.addIncludePath(pkg.path(include_subdir));
+                        compile.addIncludePath(pkg.path(include_subdir));
                     }
                 }
 
                 // Link C++ runtime
-                exe.linkLibCpp();
+                if (self.kind != .object_library and self.kind != .interface_library) {
+                    compile.linkLibCpp();
+                }
 
                 // Link extra libraries from build config
                 for (config.link_paths) |lib_path| {
-                    exe.addLibraryPath(.{ .cwd_relative = lib_path });
+                    compile.addLibraryPath(.{ .cwd_relative = lib_path });
                 }
                 for (config.link_libs) |lib| {
-                    exe.linkSystemLibrary(lib);
+                    compile.linkSystemLibrary(lib);
                 }
                 for (public_link_libs) |lib| {
-                    exe.linkSystemLibrary(lib);
+                    compile.linkSystemLibrary(lib);
                 }
                 for (private_link_libs) |lib| {
-                    exe.linkSystemLibrary(lib);
+                    compile.linkSystemLibrary(lib);
                 }
 
                 // Optional: compile_commands.json for Zig builds
@@ -791,10 +854,10 @@ pub const CppExample = struct {
                 try emitInstallAndExport(b, self, config_name);
 
                 if (last_step) |prev| {
-                    exe.step.dependencies.append(prev) catch unreachable;
+                    compile.step.dependencies.append(prev) catch unreachable;
                 }
-                last_step = &exe.step;
-                last_exe = exe;  // Store the last executable
+                last_step = &compile.step;
+                last_exe = compile;
             }
 
             if (last_step) |step| {
@@ -1064,6 +1127,53 @@ pub const JUCEApplication = struct {
     }
 };
 
+fn addTargetArtifact(
+    b: *std.Build,
+    self: CppExample,
+    config: BuildConfig,
+    target: std.Build.ResolvedTarget,
+) !*std.Build.Step.Compile {
+    const optimize: std.builtin.OptimizeMode = switch (config.mode) {
+        .Debug => .Debug,
+        .Release => .ReleaseFast,
+        .RelWithDebInfo => .ReleaseSafe,
+        .MinSizeRel => .ReleaseSmall,
+    };
+
+    return switch (self.kind) {
+        .executable => b.addExecutable(.{
+            .name = self.getExeName(b, config),
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = null,
+        }),
+        .static_library => b.addStaticLibrary(.{
+            .name = self.getExeName(b, config),
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = null,
+        }),
+        .shared_library => b.addSharedLibrary(.{
+            .name = self.getExeName(b, config),
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = null,
+        }),
+        .object_library => b.addObject(.{
+            .name = self.getExeName(b, config),
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = null,
+        }),
+        .interface_library => b.addStaticLibrary(.{
+            .name = self.getExeName(b, config),
+            .target = target,
+            .optimize = optimize,
+            .root_source_file = null,
+        }),
+    };
+}
+
 fn filterByConfig(b: *std.Build, items: []const []const u8, config_name: []const u8) []const []const u8 {
     var out = std.ArrayList([]const u8).init(b.allocator);
     for (items) |item| {
@@ -1079,6 +1189,67 @@ fn filterByConfig(b: *std.Build, items: []const []const u8, config_name: []const
         }
     }
     return out.toOwnedSlice() catch unreachable;
+}
+
+fn concatSlices(allocator: std.mem.Allocator, a: []const []const u8, b: []const []const u8) ![]const []const u8 {
+    var out = try allocator.alloc([]const u8, a.len + b.len);
+    @memcpy(out[0..a.len], a);
+    @memcpy(out[a.len..], b);
+    return out;
+}
+
+fn resolveUsageInner(
+    allocator: std.mem.Allocator,
+    target: CppTarget,
+    graph: []const CppTarget,
+    visiting: *std.StringHashMap(void),
+) !ResolvedUsage {
+    if (visiting.contains(target.name)) return error.DependencyCycleDetected;
+    try visiting.put(target.name, {});
+    defer _ = visiting.remove(target.name);
+
+    var local = target.include_dirs;
+    var exported = UsageRequirements{
+        .include_dirs = target.include_dirs.include_dirs,
+        .compile_definitions = target.include_dirs.compile_definitions,
+        .compile_options = target.include_dirs.compile_options,
+        .link_libraries = target.include_dirs.link_libraries,
+        .link_options = target.include_dirs.link_options,
+    };
+    var link_libraries: []const []const u8 = &.{};
+
+    for (target.dependencies) |dep| {
+        const child = findTarget(graph, dep.name) orelse return error.UnknownTargetDependency;
+        const resolved = try resolveUsageInner(allocator, child, graph, visiting);
+
+        switch (dep.visibility) {
+            .private => {
+                local = try local.merge(allocator, resolved.exported);
+                link_libraries = try concatSlices(allocator, link_libraries, &.{dep.name});
+            },
+            .public => {
+                local = try local.merge(allocator, resolved.exported);
+                exported = try exported.merge(allocator, resolved.exported);
+                link_libraries = try concatSlices(allocator, link_libraries, &.{dep.name});
+            },
+            .interface => {
+                exported = try exported.merge(allocator, resolved.exported);
+            },
+        }
+    }
+
+    return .{
+        .local = local,
+        .exported = exported,
+        .link_libraries = link_libraries,
+    };
+}
+
+fn findTarget(graph: []const CppTarget, name: []const u8) ?CppTarget {
+    for (graph) |target| {
+        if (std.mem.eql(u8, target.name, name)) return target;
+    }
+    return null;
 }
 
 fn emitCompileCommands(
