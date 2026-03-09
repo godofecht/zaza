@@ -112,3 +112,27 @@ test "interface dependencies export usage without local link" {
     try testing.expectEqual(@as(usize, 0), resolved.local.compile_options.len);
     try testing.expectEqual(@as(usize, 1), resolved.exported.compile_options.len);
 }
+
+test "all source files include generated sources" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const example = cpp.CppExample{
+        .name = "generated_demo",
+        .description = "test",
+        .source_files = &.{"src/main.cpp"},
+        .generated_source_files = &.{"zig-out/gen/generated.cpp"},
+        .include_dirs = &.{},
+        .cpp_flags = &.{},
+        .deps = &.{},
+        .configs = &.{.{ .mode = .Debug }},
+        .deps_build_system = .Zig,
+        .main_build_system = .Zig,
+        .cpp_std = "17",
+    };
+
+    const files = try example.allSourceFiles(arena.allocator());
+    try testing.expectEqual(@as(usize, 2), files.len);
+    try testing.expectEqualStrings("src/main.cpp", files[0]);
+    try testing.expectEqualStrings("zig-out/gen/generated.cpp", files[1]);
+}

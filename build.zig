@@ -8,6 +8,7 @@ const cmake_combo_example = @import("examples/cmake_combo/build.zig");
 const cmake_net_example = @import("examples/cmake_net/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
+const presets = @import("build_lib/presets.zig");
 
 pub fn build(b: *std.Build) !void {
     // Preflight: ensure a writable cache dir or guide the user.
@@ -131,6 +132,7 @@ pub fn build(b: *std.Build) !void {
         "tests/test_fetch_minimal.zig",
         "tests/test_cpp_targets.zig",
         "tests/test_dependency_ux.zig",
+        "tests/test_workflows.zig",
     };
     for (standalone_tests) |path| {
         const t = b.addTest(.{ .root_source_file = b.path(path) });
@@ -145,6 +147,11 @@ pub fn build(b: *std.Build) !void {
             }));
             t.root_module.addImport("vex_cli", b.createModule(.{
                 .root_source_file = b.path("scripts/vex.zig"),
+            }));
+        }
+        if (std.mem.eql(u8, path, "tests/test_workflows.zig")) {
+            t.root_module.addImport("presets", b.createModule(.{
+                .root_source_file = b.path("build_lib/presets.zig"),
             }));
         }
         test_step.dependOn(&b.addRunArtifact(t).step);
@@ -222,6 +229,23 @@ pub fn build(b: *std.Build) !void {
             compile.step.dependencies.append(explain) catch unreachable;
             run.step.dependencies.append(&compile.step) catch unreachable;
             run_cpp_step.dependOn(&run.step);
+        }
+    }
+
+    const run_zig_step = b.step("run-zig", "Compile and run a single Zig file (usage: zig build run-zig -- path/to/file.zig)");
+    if (b.args) |args| {
+        if (args.len >= 1) {
+            const src = args[0];
+            const out = b.pathJoin(&.{"zig-out", "bin", "run_zig"});
+
+            const build_cmd = b.addSystemCommand(&.{"./zig", "build-exe"});
+            build_cmd.addArg(src);
+            build_cmd.addArg(b.fmt("-femit-bin={s}", .{out}));
+            build_cmd.stdio = .inherit;
+            const run = b.addSystemCommand(&.{out});
+            run.stdio = .inherit;
+            run.step.dependencies.append(&build_cmd.step) catch unreachable;
+            run_zig_step.dependOn(&run.step);
         }
     }
 
@@ -431,24 +455,8 @@ fn exampleEnabled(b: *std.Build, name: []const u8) bool {
     return true;
 }
 
-fn presetConfigs(preset: []const u8) []const cpp.BuildConfig {
-    if (std.ascii.eqlIgnoreCase(preset, "debug")) {
-        return &.{.{ .mode = .Debug }};
-    }
-    if (std.ascii.eqlIgnoreCase(preset, "release")) {
-        return &.{.{ .mode = .Release }};
-    }
-    if (std.ascii.eqlIgnoreCase(preset, "relwithdebinfo")) {
-        return &.{.{ .mode = .RelWithDebInfo }};
-    }
-    if (std.ascii.eqlIgnoreCase(preset, "minsizerel")) {
-        return &.{.{ .mode = .MinSizeRel }};
-    }
-    return &.{.{ .mode = .Debug }};
-}
-
 fn applyPresetToExample(example: *cpp.CppExample, preset: []const u8) void {
-    example.configs = presetConfigs(preset);
+    example.configs = presets.presetConfigs(preset);
 }
 
 fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
