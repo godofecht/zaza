@@ -13,6 +13,7 @@ pub var example = cpp.CppExample{
         .{
             .name = "fmt",
             .url = "https://github.com/fmtlib/fmt.git",
+            .git_ref = "10.2.1",
             .type = .CMake,
             .cmake_config = .{
                 .install_prefix = "zig-out/deps",
@@ -27,6 +28,7 @@ pub var example = cpp.CppExample{
         .{
             .name = "spdlog",
             .url = "https://github.com/gabime/spdlog.git",
+            .git_ref = "v1.14.1",
             .type = .CMake,
             .cmake_config = .{
                 .install_prefix = "zig-out/deps",
@@ -34,7 +36,7 @@ pub var example = cpp.CppExample{
                 .configure_args = &.{
                     "-DSPDLOG_BUILD_EXAMPLES=OFF",
                     "-DSPDLOG_BUILD_TESTS=OFF",
-                    "-DSPDLOG_FMT_EXTERNAL=ON",
+                    "-DSPDLOG_FMT_EXTERNAL=OFF",
                     "-DSPDLOG_INSTALL=ON",
                     "-DCMAKE_PREFIX_PATH=zig-out/deps",
                 },
@@ -43,9 +45,10 @@ pub var example = cpp.CppExample{
     },
     .configs = &.{.{
         .mode = .Debug,
-        .system_includes = &.{"zig-out/deps/include"},
-        .link_paths = &.{"zig-out/deps/lib"},
-        .link_libs = &.{"fmt", "spdlog"},
+        .link_files = &.{
+            "zig-out/deps/lib/libfmtd.a",
+            "zig-out/deps/lib/libspdlogd.a",
+        },
     }},
     .deps_build_system = .CMake,
     .main_build_system = .Zig,

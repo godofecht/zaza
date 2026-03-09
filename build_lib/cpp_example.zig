@@ -5,6 +5,7 @@ const vex_cmd = @import("vex_cmd.zig");
 pub const Dependency = struct {
     name: []const u8,
     url: []const u8,
+    git_ref: ?[]const u8 = null,
     include_path: ?[]const u8 = null,
     type: ?BuildSystem = null,  // null means "use parent's build system"
     build_command: []const []const u8 = &.{},
@@ -200,6 +201,7 @@ pub const BuildConfig = struct {
     system_includes: []const []const u8 = &.{},
     link_paths: []const []const u8 = &.{},
     link_libs: []const []const u8 = &.{},
+    link_files: []const []const u8 = &.{},
     want_lto: bool = false,
 };
 
@@ -208,26 +210,45 @@ pub const CustomCommand = struct {
     argv: []const []const u8,
 };
 
+pub fn dependencySyncScript(allocator: std.mem.Allocator, dep: Dependency, windows: bool) []const u8 {
+    const url = normalizeGitUrlFromAllocator(allocator, dep.url);
+    if (windows) {
+        if (dep.git_ref) |git_ref| {
+            return std.fmt.allocPrint(allocator,
+                "if exist deps\\{0s}\\.git (git -C deps\\{0s} fetch --tags origin {1s} || git -C deps\\{0s} fetch --tags) && git -C deps\\{0s} checkout --force {1s} else (git clone --depth 1 --branch {1s} {2s} deps/{0s} || (git clone {2s} deps/{0s} && git -C deps\\{0s} checkout --force {1s}))",
+                .{ dep.name, git_ref, url },
+            ) catch unreachable;
+        }
+        return std.fmt.allocPrint(allocator,
+            "if not exist deps\\{0s}\\.git git clone --depth 1 {1s} deps/{0s}",
+            .{ dep.name, url },
+        ) catch unreachable;
+    }
+    if (dep.git_ref) |git_ref| {
+        return std.fmt.allocPrint(allocator,
+            "if test -d deps/{0s}/.git; then (git -C deps/{0s} fetch --tags origin {1s} || git -C deps/{0s} fetch --tags) && git -C deps/{0s} checkout --force {1s}; else git clone --depth 1 --branch {1s} {2s} deps/{0s} || (git clone {2s} deps/{0s} && git -C deps/{0s} checkout --force {1s}); fi",
+            .{ dep.name, git_ref, url },
+        ) catch unreachable;
+    }
+    return std.fmt.allocPrint(allocator,
+        "test -d deps/{0s}/.git || git clone --depth 1 {1s} deps/{0s}",
+        .{ dep.name, url },
+    ) catch unreachable;
+}
+
 fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
-    const url = normalizeGitUrl(b, dep.url);
     var args = std.ArrayList([]const u8).init(b.allocator);
     if (builtin.os.tag == .windows) {
         args.appendSlice(&.{
             "cmd.exe",
             "/c",
-            b.fmt(
-                "if not exist deps\\{s} git clone --depth 1 {s} deps/{s}",
-                .{ dep.name, url, dep.name }
-            ),
+            dependencySyncScript(b.allocator, dep, true),
         }) catch unreachable;
     } else {
         args.appendSlice(&.{
             "sh",
             "-c",
-            b.fmt(
-                "test -d deps/{s} || git clone --depth 1 {s} deps/{s}",
-                .{ dep.name, url, dep.name }
-            ),
+            dependencySyncScript(b.allocator, dep, false),
         }) catch unreachable;
     }
     return args.toOwnedSlice() catch unreachable;
@@ -262,11 +283,11 @@ fn needsSubmoduleInit(dep_name: []const u8) bool {
 }
 
 fn normalizeGitUrl(b: *std.Build, url: []const u8) []const u8 {
-    const https_prefix = "https://github.com/";
-    if (std.mem.startsWith(u8, url, https_prefix)) {
-        const rest = url[https_prefix.len..];
-        return b.fmt("git@github.com:{s}", .{rest});
-    }
+    return normalizeGitUrlFromAllocator(b.allocator, url);
+}
+
+fn normalizeGitUrlFromAllocator(allocator: std.mem.Allocator, url: []const u8) []const u8 {
+    _ = allocator;
     return url;
 }
 
@@ -470,6 +491,7 @@ pub const CppExample = struct {
         for (self.deps) |dep| {
             allocator.free(dep.name);
             allocator.free(dep.url);
+            if (dep.git_ref) |git_ref| allocator.free(git_ref);
             if (dep.include_path) |path| {
                 allocator.free(path);
             }
@@ -892,6 +914,9 @@ pub const CppExample = struct {
                 // Link extra libraries from build config
                 for (config.link_paths) |lib_path| {
                     compile.addLibraryPath(.{ .cwd_relative = lib_path });
+                }
+                for (config.link_files) |lib_file| {
+                    compile.addObjectFile(.{ .cwd_relative = lib_file });
                 }
                 for (config.link_libs) |lib| {
                     compile.linkSystemLibrary(lib);
@@ -1538,6 +1563,8 @@ pub fn buildToolingManifest(
     try writeJsonStringArray(&out, "private_defines", private_defines);
     try out.appendSlice(",\n");
     try writeJsonStringArray(&out, "link_paths", config.link_paths);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "link_files", config.link_files);
     try out.appendSlice(",\n");
     try writeJsonStringArray(&out, "link_libs", config.link_libs);
     try out.appendSlice("\n}\n");
