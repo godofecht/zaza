@@ -356,20 +356,14 @@ fn cacheWritable(b: *std.Build) bool {
     defer if (cache_dir) |p| b.allocator.free(p);
 
     const path = if (cache_dir) |p| resolvePath(b, p) else defaultGlobalCachePath(b) orelse return false;
-    // Try to create the dir (or open it) to verify writability.
+    // Avoid create/delete probes here because concurrent builds can race on the sentinel file.
+    // If we can ensure the directory exists and open it, Zig can use it.
     if (std.fs.cwd().makePath(path)) |_| {} else |_| {}
     if (!std.fs.path.isAbsolute(path)) return false;
     if (std.fs.openDirAbsolute(path, .{})) |dir_const| {
         var dir = dir_const;
         defer dir.close();
-        // Create and delete a temp file.
-        if (dir.createFile("._zig_cache_write_test", .{})) |file| {
-            file.close();
-            dir.deleteFile("._zig_cache_write_test") catch {};
-            return true;
-        } else |_| {
-            return false;
-        }
+        return true;
     } else |_| {
         return false;
     }
