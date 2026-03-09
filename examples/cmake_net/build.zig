@@ -13,6 +13,7 @@ pub var example = cpp.CppExample{
         .{
             .name = "zlib",
             .url = "https://github.com/madler/zlib.git",
+            .git_ref = "v1.3.1",
             .type = .CMake,
             .cmake_config = .{
                 .install_prefix = "zig-out/deps",
@@ -27,6 +28,7 @@ pub var example = cpp.CppExample{
         .{
             .name = "mbedtls",
             .url = "https://github.com/Mbed-TLS/mbedtls.git",
+            .git_ref = "v3.6.2",
             .type = .CMake,
             .cmake_config = .{
                 .install_prefix = "zig-out/deps",
@@ -41,6 +43,7 @@ pub var example = cpp.CppExample{
         .{
             .name = "curl",
             .url = "https://github.com/curl/curl.git",
+            .git_ref = "curl-8_6_0",
             .type = .CMake,
             .cmake_config = .{
                 .install_prefix = "zig-out/deps",
@@ -59,9 +62,14 @@ pub var example = cpp.CppExample{
     },
     .configs = &.{.{
         .mode = .Debug,
-        .system_includes = &.{"zig-out/deps/include"},
-        .link_paths = &.{"zig-out/deps/lib"},
-        .link_libs = &.{"curl", "z", "mbedtls", "mbedx509", "mbedcrypto"},
+        .link_files = &.{
+            "zig-out/deps/lib/libcurl.a",
+            "zig-out/deps/lib/libz.a",
+            "zig-out/deps/lib/libmbedtls.a",
+            "zig-out/deps/lib/libmbedx509.a",
+            "zig-out/deps/lib/libtfpsacrypto.a",
+        },
+        .link_libs = &.{"z", "pthread"},
     }},
     .deps_build_system = .CMake,
     .main_build_system = .Zig,

@@ -79,3 +79,16 @@ test "package manifest includes exported metadata" {
     try testing.expect(std.mem.indexOf(u8, manifest, "\"include_dirs\": [\"include\"]") != null);
     try testing.expect(std.mem.indexOf(u8, manifest, "\"link_libraries\": [\"fmt\"]") != null);
 }
+
+test "dependency sync script checks out requested git ref" {
+    const dep = cpp.Dependency{
+        .name = "mbedtls",
+        .url = "https://github.com/Mbed-TLS/mbedtls.git",
+        .git_ref = "mbedtls-3.6.2",
+    };
+
+    const script = cpp.dependencySyncScript(testing.allocator, dep, false);
+    defer testing.allocator.free(script);
+    try testing.expect(std.mem.indexOf(u8, script, "git -C deps/mbedtls checkout --force mbedtls-3.6.2") != null);
+    try testing.expect(std.mem.indexOf(u8, script, "git clone --depth 1 --branch mbedtls-3.6.2") != null);
+}
