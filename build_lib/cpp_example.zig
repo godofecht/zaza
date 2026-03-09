@@ -196,9 +196,16 @@ pub const BuildConfig = struct {
     mode: BuildMode,
     target: ?[]const u8 = null,
     defines: []const []const u8 = &.{},
+    cpp_flags: []const []const u8 = &.{},
     system_includes: []const []const u8 = &.{},
     link_paths: []const []const u8 = &.{},
     link_libs: []const []const u8 = &.{},
+    want_lto: bool = false,
+};
+
+pub const CustomCommand = struct {
+    name: []const u8,
+    argv: []const []const u8,
 };
 
 fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
@@ -425,6 +432,8 @@ pub const CppExample = struct {
     install_libs: []const []const u8 = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
+    generated_source_files: []const []const u8 = &.{},
+    custom_commands: []const CustomCommand = &.{},
     deps: []const Dependency,
     configs: []const BuildConfig,
     deps_build_system: BuildSystem,
@@ -448,6 +457,16 @@ pub const CppExample = struct {
             allocator.free(flag);
         }
         allocator.free(self.cpp_flags);
+        for (self.generated_source_files) |src| {
+            allocator.free(src);
+        }
+        allocator.free(self.generated_source_files);
+        for (self.custom_commands) |cmd| {
+            allocator.free(cmd.name);
+            for (cmd.argv) |arg| allocator.free(arg);
+            allocator.free(cmd.argv);
+        }
+        allocator.free(self.custom_commands);
         for (self.deps) |dep| {
             allocator.free(dep.name);
             allocator.free(dep.url);
@@ -499,6 +518,10 @@ pub const CppExample = struct {
 
     pub fn targetName(self: CppExample) []const u8 {
         return self.name;
+    }
+
+    pub fn allSourceFiles(self: CppExample, allocator: std.mem.Allocator) ![]const []const u8 {
+        return concatSlices(allocator, self.source_files, self.generated_source_files);
     }
 
     pub fn generateCMake(self: CppExample, b: *std.Build) !void {
@@ -705,6 +728,20 @@ pub const CppExample = struct {
                     }
                 }
             }
+            if (self.custom_commands.len > 0) {
+                if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+                for (self.custom_commands) |cmd| {
+                    const custom_step = vex_cmd.addCommandStep(
+                        b,
+                        b.fmt("{s}_{s}", .{ cmd.name, config_name }),
+                        cmd.argv,
+                    );
+                    if (last_step) |prev| {
+                        custom_step.dependencies.append(prev) catch unreachable;
+                    }
+                    last_step = custom_step;
+                }
+            }
 
             // Build main project with selected build system
             if (self.main_build_system == .CMake) {
@@ -779,6 +816,7 @@ pub const CppExample = struct {
 
                 // Add user flags
                 try cpp_flags_list.appendSlice(filterByConfig(b, self.cpp_flags, config_name));
+                try cpp_flags_list.appendSlice(config.cpp_flags);
                 
                 // Add required flags
                 try cpp_flags_list.append(try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
@@ -798,9 +836,10 @@ pub const CppExample = struct {
                     try cpp_flags_list.append(ensureDefineFlag(b, def));
                 }
 
+                const all_sources = try self.allSourceFiles(b.allocator);
                 if (self.kind != .interface_library) {
                     compile.addCSourceFiles(.{
-                        .files = self.source_files,
+                        .files = all_sources,
                         .flags = try cpp_flags_list.toOwnedSlice(),
                     });
                 }
@@ -1140,7 +1179,7 @@ fn addTargetArtifact(
         .MinSizeRel => .ReleaseSmall,
     };
 
-    return switch (self.kind) {
+    const compile = switch (self.kind) {
         .executable => b.addExecutable(.{
             .name = self.getExeName(b, config),
             .target = target,
@@ -1172,6 +1211,8 @@ fn addTargetArtifact(
             .root_source_file = null,
         }),
     };
+    if (config.want_lto) compile.want_lto = true;
+    return compile;
 }
 
 fn filterByConfig(b: *std.Build, items: []const []const u8, config_name: []const u8) []const []const u8 {
@@ -1265,9 +1306,10 @@ fn emitCompileCommands(
 ) !void {
     var entries = std.ArrayList(u8).init(b.allocator);
     defer entries.deinit();
+    const all_sources = try self.allSourceFiles(b.allocator);
 
     try entries.appendSlice("[\n");
-    for (self.source_files, 0..) |src, idx| {
+    for (all_sources, 0..) |src, idx| {
         const cmd = try buildCompileCommand(
             b,
             self,
@@ -1298,7 +1340,7 @@ fn emitCompileCommands(
 
         try entries.writer().print(
             "  {{\"directory\":\"{s}\",\"file\":\"{s}\",\"command\":\"{s}\",\"output\":\"{s}\"}}{s}\n",
-            .{ escaped_dir, escaped_file, escaped_cmd, escaped_out, if (idx + 1 == self.source_files.len) "" else "," },
+            .{ escaped_dir, escaped_file, escaped_cmd, escaped_out, if (idx + 1 == all_sources.len) "" else "," },
         );
     }
     try entries.appendSlice("]\n");
@@ -1326,6 +1368,9 @@ fn buildCompileCommand(
 
     const flags = filterByConfig(b, self.cpp_flags, config_name);
     for (flags) |flag| {
+        try cmd.writer().print("{s} ", .{flag});
+    }
+    for (config.cpp_flags) |flag| {
         try cmd.writer().print("{s} ", .{flag});
     }
     const std_flag = try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version);
