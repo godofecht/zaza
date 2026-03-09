@@ -52,8 +52,10 @@ pub var example = cpp.CppExample{
                     "-DBUILD_SHARED_LIBS=OFF",
                     "-DBUILD_TESTING=OFF",
                     "-DCURL_USE_MBEDTLS=ON",
+                    "-DCURL_USE_LIBSSH2=OFF",
                     "-DCURL_ZLIB=ON",
                     "-DHTTP_ONLY=ON",
+                    "-DCURL_DISABLE_PROXY=ON",
                     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
                     "-DCMAKE_PREFIX_PATH=zig-out/deps",
                 },
@@ -63,11 +65,15 @@ pub var example = cpp.CppExample{
     .configs = &.{.{
         .mode = .Debug,
         .link_files = &.{
-            "zig-out/deps/lib/libcurl.a",
+            "zig-out/deps/lib/libcurl-d.a",
             "zig-out/deps/lib/libz.a",
             "zig-out/deps/lib/libmbedtls.a",
             "zig-out/deps/lib/libmbedx509.a",
-            "zig-out/deps/lib/libtfpsacrypto.a",
+            "zig-out/deps/lib/libmbedcrypto.a",
+        },
+        .link_frameworks = &.{
+            "CoreFoundation",
+            "SystemConfiguration",
         },
         .link_libs = &.{"z", "pthread"},
     }},

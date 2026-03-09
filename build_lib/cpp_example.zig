@@ -202,6 +202,7 @@ pub const BuildConfig = struct {
     link_paths: []const []const u8 = &.{},
     link_libs: []const []const u8 = &.{},
     link_files: []const []const u8 = &.{},
+    link_frameworks: []const []const u8 = &.{},
     want_lto: bool = false,
 };
 
@@ -918,6 +919,9 @@ pub const CppExample = struct {
                 for (config.link_files) |lib_file| {
                     compile.addObjectFile(.{ .cwd_relative = lib_file });
                 }
+                for (config.link_frameworks) |framework| {
+                    compile.linkFramework(framework);
+                }
                 for (config.link_libs) |lib| {
                     compile.linkSystemLibrary(lib);
                 }
@@ -1565,6 +1569,8 @@ pub fn buildToolingManifest(
     try writeJsonStringArray(&out, "link_paths", config.link_paths);
     try out.appendSlice(",\n");
     try writeJsonStringArray(&out, "link_files", config.link_files);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "link_frameworks", config.link_frameworks);
     try out.appendSlice(",\n");
     try writeJsonStringArray(&out, "link_libs", config.link_libs);
     try out.appendSlice("\n}\n");
