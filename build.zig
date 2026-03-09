@@ -130,12 +130,21 @@ pub fn build(b: *std.Build) !void {
         "tests/test_string_split.zig",
         "tests/test_fetch_minimal.zig",
         "tests/test_cpp_targets.zig",
+        "tests/test_dependency_ux.zig",
     };
     for (standalone_tests) |path| {
         const t = b.addTest(.{ .root_source_file = b.path(path) });
         if (std.mem.eql(u8, path, "tests/test_cpp_targets.zig")) {
             t.root_module.addImport("cpp_example", b.createModule(.{
                 .root_source_file = b.path("build_lib/cpp_example.zig"),
+            }));
+        }
+        if (std.mem.eql(u8, path, "tests/test_dependency_ux.zig")) {
+            t.root_module.addImport("cpp_example", b.createModule(.{
+                .root_source_file = b.path("build_lib/cpp_example.zig"),
+            }));
+            t.root_module.addImport("vex_cli", b.createModule(.{
+                .root_source_file = b.path("scripts/vex.zig"),
             }));
         }
         test_step.dependOn(&b.addRunArtifact(t).step);

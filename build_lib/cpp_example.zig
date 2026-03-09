@@ -1400,6 +1400,40 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
         const cmake_file = write_files.add(cmake_rel, content.items);
         _ = b.addInstallFileWithDir(cmake_file, .prefix, cmake_rel);
     }
+
+    const manifest = try buildPackageManifest(b.allocator, self);
+    defer b.allocator.free(manifest);
+    const write_files = b.addWriteFiles();
+    const manifest_rel = b.fmt("share/vex/{s}.json", .{export_name});
+    const manifest_file = write_files.add(manifest_rel, manifest);
+    _ = b.addInstallFileWithDir(manifest_file, .prefix, manifest_rel);
+}
+
+pub fn buildPackageManifest(allocator: std.mem.Allocator, self: CppExample) ![]u8 {
+    var out = std.ArrayList(u8).init(allocator);
+    defer out.deinit();
+
+    try out.appendSlice("{\n");
+    try out.writer().print("  \"name\": \"{s}\",\n", .{self.export_name orelse self.name});
+    try out.writer().print("  \"kind\": \"{s}\",\n", .{@tagName(self.kind)});
+    try writeJsonStringArray(&out, "include_dirs", self.public_include_dirs);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "headers", self.install_headers);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "libs", self.install_libs);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "link_libraries", self.public_link_libs);
+    try out.appendSlice("\n}\n");
+    return out.toOwnedSlice();
+}
+
+fn writeJsonStringArray(out: *std.ArrayList(u8), key: []const u8, values: []const []const u8) !void {
+    try out.writer().print("  \"{s}\": [", .{key});
+    for (values, 0..) |value, idx| {
+        if (idx > 0) try out.appendSlice(", ");
+        try out.writer().print("\"{s}\"", .{value});
+    }
+    try out.append(']');
 }
 
 fn jsonEscape(b: *std.Build, input: []const u8) []u8 {
