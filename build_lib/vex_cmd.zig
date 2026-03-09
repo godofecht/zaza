@@ -1,4 +1,5 @@
 const std = @import("std");
+const hints = @import("interop_hints.zig");
 
 pub const CommandStep = struct {
     step: std.Build.Step,
@@ -32,7 +33,12 @@ pub const CommandStep = struct {
 
         const term = try child.spawnAndWait();
         switch (term) {
-            .Exited => |code| if (code != 0) return error.CommandFailed,
+            .Exited => |code| if (code != 0) {
+                if (hints.commandHint(self.argv)) |hint| {
+                    std.debug.print("[vex] hint: {s}\n", .{hint});
+                }
+                return error.CommandFailed;
+            },
             else => return error.CommandFailed,
         }
     }

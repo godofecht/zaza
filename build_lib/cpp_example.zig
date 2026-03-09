@@ -797,6 +797,23 @@ pub const CppExample = struct {
                     final_steps.append(step) catch unreachable;
                 }
                 try emitInstallAndExport(b, self, config_name);
+                const manifest = try buildToolingManifest(
+                    b.allocator,
+                    self,
+                    config,
+                    config_name,
+                    b.pathJoin(&.{ "deps", "compile_commands", b.fmt("{s}.json", .{self.name}) }),
+                    self.public_include_dirs,
+                    self.private_include_dirs,
+                    self.include_dirs,
+                    self.public_defines,
+                    self.private_defines,
+                );
+                defer b.allocator.free(manifest);
+                const write_files = b.addWriteFiles();
+                const manifest_rel = b.fmt("share/vex/{s}-{s}-tooling.json", .{ self.name, config_name });
+                const manifest_file = write_files.add(manifest_rel, manifest);
+                _ = b.addInstallFileWithDir(manifest_file, .prefix, manifest_rel);
                 continue;
             } else {
                 // Build with Zig directly since json is header-only
@@ -1349,6 +1366,23 @@ fn emitCompileCommands(
     const cc_path = "compile_commands.json";
     const cc_file = write_files.add(cc_path, entries.items);
     _ = b.addInstallFileWithDir(cc_file, .prefix, cc_path);
+
+    const manifest = try buildToolingManifest(
+        b.allocator,
+        self,
+        config,
+        config_name,
+        cc_path,
+        public_include_dirs,
+        private_include_dirs,
+        include_dirs,
+        public_defines,
+        private_defines,
+    );
+    defer b.allocator.free(manifest);
+    const manifest_rel = b.fmt("share/vex/{s}-{s}-tooling.json", .{ self.name, config_name });
+    const manifest_file = write_files.add(manifest_rel, manifest);
+    _ = b.addInstallFileWithDir(manifest_file, .prefix, manifest_rel);
 }
 
 fn buildCompileCommand(
@@ -1468,6 +1502,44 @@ pub fn buildPackageManifest(allocator: std.mem.Allocator, self: CppExample) ![]u
     try writeJsonStringArray(&out, "libs", self.install_libs);
     try out.appendSlice(",\n");
     try writeJsonStringArray(&out, "link_libraries", self.public_link_libs);
+    try out.appendSlice("\n}\n");
+    return out.toOwnedSlice();
+}
+
+pub fn buildToolingManifest(
+    allocator: std.mem.Allocator,
+    self: CppExample,
+    config: BuildConfig,
+    config_name: []const u8,
+    compile_commands_path: []const u8,
+    public_include_dirs: []const []const u8,
+    private_include_dirs: []const []const u8,
+    include_dirs: []const []const u8,
+    public_defines: []const []const u8,
+    private_defines: []const []const u8,
+) ![]u8 {
+    var out = std.ArrayList(u8).init(allocator);
+    defer out.deinit();
+
+    try out.appendSlice("{\n");
+    try out.writer().print("  \"name\": \"{s}\",\n", .{self.name});
+    try out.writer().print("  \"config\": \"{s}\",\n", .{config_name});
+    try out.writer().print("  \"compile_commands\": \"{s}\",\n", .{compile_commands_path});
+    try writeJsonStringArray(&out, "include_dirs", public_include_dirs);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "private_include_dirs", private_include_dirs);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "internal_include_dirs", include_dirs);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "system_includes", config.system_includes);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "public_defines", public_defines);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "private_defines", private_defines);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "link_paths", config.link_paths);
+    try out.appendSlice(",\n");
+    try writeJsonStringArray(&out, "link_libs", config.link_libs);
     try out.appendSlice("\n}\n");
     return out.toOwnedSlice();
 }

@@ -133,6 +133,8 @@ pub fn build(b: *std.Build) !void {
         "tests/test_cpp_targets.zig",
         "tests/test_dependency_ux.zig",
         "tests/test_workflows.zig",
+        "tests/test_cmake_interop.zig",
+        "tests/test_interop_hints.zig",
     };
     for (standalone_tests) |path| {
         const t = b.addTest(.{ .root_source_file = b.path(path) });
@@ -152,6 +154,16 @@ pub fn build(b: *std.Build) !void {
         if (std.mem.eql(u8, path, "tests/test_workflows.zig")) {
             t.root_module.addImport("presets", b.createModule(.{
                 .root_source_file = b.path("build_lib/presets.zig"),
+            }));
+        }
+        if (std.mem.eql(u8, path, "tests/test_cmake_interop.zig")) {
+            t.root_module.addImport("cpp_example", b.createModule(.{
+                .root_source_file = b.path("build_lib/cpp_example.zig"),
+            }));
+        }
+        if (std.mem.eql(u8, path, "tests/test_interop_hints.zig")) {
+            t.root_module.addImport("interop_hints", b.createModule(.{
+                .root_source_file = b.path("build_lib/interop_hints.zig"),
             }));
         }
         test_step.dependOn(&b.addRunArtifact(t).step);
