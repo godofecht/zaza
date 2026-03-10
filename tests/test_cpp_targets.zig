@@ -113,6 +113,53 @@ test "interface dependencies export usage without local link" {
     try testing.expectEqual(@as(usize, 1), resolved.exported.compile_options.len);
 }
 
+test "object and interface usage propagates through public static library" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const graph = [_]cpp.CppTarget{
+        .{
+            .name = "graph_interface",
+            .kind = .interface_library,
+            .include_dirs = .{
+                .include_dirs = &.{"graph/include"},
+                .compile_definitions = &.{"GRAPH_API_LEVEL=4"},
+            },
+        },
+        .{
+            .name = "graph_objects",
+            .kind = .object_library,
+            .dependencies = &.{
+                .{ .name = "graph_interface", .visibility = .public },
+            },
+        },
+        .{
+            .name = "graph_core",
+            .kind = .static_library,
+            .dependencies = &.{
+                .{ .name = "graph_interface", .visibility = .public },
+                .{ .name = "graph_objects", .visibility = .private },
+            },
+        },
+        .{
+            .name = "graph_app",
+            .kind = .executable,
+            .dependencies = &.{
+                .{ .name = "graph_core", .visibility = .public },
+            },
+        },
+    };
+
+    const resolved = try graph[3].resolveUsage(allocator, &graph);
+    try testing.expectEqual(@as(usize, 1), resolved.local.include_dirs.len);
+    try testing.expectEqualStrings("graph/include", resolved.local.include_dirs[0]);
+    try testing.expectEqual(@as(usize, 1), resolved.local.compile_definitions.len);
+    try testing.expectEqualStrings("GRAPH_API_LEVEL=4", resolved.local.compile_definitions[0]);
+    try testing.expectEqual(@as(usize, 1), resolved.link_libraries.len);
+    try testing.expectEqualStrings("graph_core", resolved.link_libraries[0]);
+}
+
 test "all source files include generated sources" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
