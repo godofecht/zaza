@@ -8,6 +8,7 @@ const cmake_combo_example = @import("examples/cmake_combo/build.zig");
 const cmake_net_example = @import("examples/cmake_net/build.zig");
 const proof_library_example = @import("examples/proof_library/build.zig");
 const generated_code_example = @import("examples/generated_code/build.zig");
+const package_producer_example = @import("examples/package_producer/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -66,6 +67,55 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "generated-code")) {
         try generated_code_example.build(b, target, optimize);
+    }
+
+    var package_producer_steps: ?package_producer_example.BuildResult = null;
+    if (exampleEnabled(b, "package-producer")) {
+        package_producer_steps = try package_producer_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "package-consumer")) {
+        if (package_producer_steps == null) {
+            package_producer_steps = try package_producer_example.addSteps(b, target, optimize);
+        }
+
+        const producer_install = b.addSystemCommand(&.{
+            "env",
+            "VEX_EXAMPLES=package-producer",
+            "./zig",
+            "build",
+            "install",
+        });
+        producer_install.stdio = .inherit;
+        producer_install.step.dependencies.append(package_producer_steps.?.build_step) catch unreachable;
+
+        const consumer_build = b.addSystemCommand(&.{
+            "./zig",
+            "build",
+            "--build-file",
+            "examples/package_consumer/build.zig",
+            "package-consumer",
+            "-Dpackage-prefix=zig-out",
+        });
+        consumer_build.stdio = .inherit;
+        consumer_build.step.dependencies.append(&producer_install.step) catch unreachable;
+
+        const consumer_step = b.step("package-consumer", "Build the downstream package consumer example");
+        consumer_step.dependOn(&consumer_build.step);
+
+        const consumer_run = b.addSystemCommand(&.{
+            "./zig",
+            "build",
+            "--build-file",
+            "examples/package_consumer/build.zig",
+            "run",
+            "-Dpackage-prefix=zig-out",
+        });
+        consumer_run.stdio = .inherit;
+        consumer_run.step.dependencies.append(&consumer_build.step) catch unreachable;
+
+        const consumer_run_step = b.step("package-consumer-run", "Run the downstream package consumer example");
+        consumer_run_step.dependOn(&consumer_run.step);
     }
 
     if (exampleEnabled(b, "cmake-combo")) {

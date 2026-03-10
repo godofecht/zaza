@@ -76,7 +76,8 @@ test "package manifest includes exported metadata" {
 
     const manifest = try cpp.buildPackageManifest(allocator, example);
     try testing.expect(std.mem.indexOf(u8, manifest, "\"kind\": \"static_library\"") != null);
-    try testing.expect(std.mem.indexOf(u8, manifest, "\"include_dirs\": [\"include\"]") != null);
+    try testing.expect(std.mem.indexOf(u8, manifest, "\"include_dirs\": [\"include/hello_vex_cpp\"]") != null);
+    try testing.expect(std.mem.indexOf(u8, manifest, "\"libs\": [\"lib/libhello_vex_cpp_Debug.a\", \"lib/libhello_vex.a\"]") != null);
     try testing.expect(std.mem.indexOf(u8, manifest, "\"link_libraries\": [\"fmt\"]") != null);
 }
 
