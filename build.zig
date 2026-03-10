@@ -149,6 +149,29 @@ pub fn build(b: *std.Build) !void {
         try preset_profiles_example.build(b, target, optimize);
     }
 
+    if (exampleEnabled(b, "cross-compile-cli")) {
+        const cross_build = b.addSystemCommand(&.{
+            "./zig",
+            "build",
+            "--build-file",
+            "examples/cross_compile_cli/build.zig",
+            "cross-compile-cli",
+            "-Dtarget-triple=x86_64-linux-musl",
+        });
+        cross_build.stdio = .inherit;
+        const cross_step = b.step("cross-compile-cli", "Cross compile a CLI for x86_64-linux-musl");
+        cross_step.dependOn(&cross_build.step);
+
+        const inspect = b.addSystemCommand(&.{
+            "file",
+            "examples/cross_compile_cli/zig-out/bin/cross_compile_cli",
+        });
+        inspect.stdio = .inherit;
+        inspect.step.dependencies.append(&cross_build.step) catch unreachable;
+        const inspect_step = b.step("cross-compile-cli-report", "Inspect the cross compiled CLI artifact");
+        inspect_step.dependOn(&inspect.step);
+    }
+
     if (exampleEnabled(b, "cmake-combo")) {
         const combo_step = b.step("cmake-combo", "Build CMake combo example (fmt + spdlog)");
         // cmake-combo always enables system commands so it works out-of-the-box.
