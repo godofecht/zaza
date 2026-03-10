@@ -14,6 +14,7 @@ const interface_object_graph_example = @import("examples/interface_object_graph/
 const test_workflows_example = @import("examples/test_workflows/build.zig");
 const generated_headers_example = @import("examples/generated_headers/build.zig");
 const shared_plugin_example = @import("examples/shared_plugin/build.zig");
+const preset_profiles_example = @import("examples/preset_profiles/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -41,6 +42,7 @@ pub fn build(b: *std.Build) !void {
         applyPresetToExample(&cmake_combo_example.example, preset);
         applyPresetToExample(&cmake_net_example.example, preset);
         applyPresetToExample(&cmake_shim_example.example, preset);
+        applyPresetToExample(&preset_profiles_example.example, preset);
     }
 
     if (exampleEnabled(b, "json")) {
@@ -141,6 +143,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "shared-plugin")) {
         _ = shared_plugin_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "preset-profiles")) {
+        try preset_profiles_example.build(b, target, optimize);
     }
 
     if (exampleEnabled(b, "cmake-combo")) {
