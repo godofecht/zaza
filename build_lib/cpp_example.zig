@@ -1478,11 +1478,13 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
     for (self.install_headers) |hdr| {
         const base = std.fs.path.basename(hdr);
         const dest = b.pathJoin(&.{ export_name, base });
-        _ = b.addInstallHeaderFile(b.path(hdr), dest);
+        const install_header = b.addInstallHeaderFile(b.path(hdr), dest);
+        b.getInstallStep().dependOn(&install_header.step);
     }
     for (self.install_libs) |lib| {
         const base = std.fs.path.basename(lib);
-        _ = b.addInstallLibFile(b.path(lib), base);
+        const install_lib = b.addInstallLibFile(b.path(lib), base);
+        b.getInstallStep().dependOn(&install_lib.step);
     }
 
     if (self.export_cmake) {
@@ -1506,7 +1508,8 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
         const write_files = b.addWriteFiles();
         const cmake_rel = b.fmt("cmake/{s}/{s}Config.cmake", .{ export_name, export_name });
         const cmake_file = write_files.add(cmake_rel, content.items);
-        _ = b.addInstallFileWithDir(cmake_file, .prefix, cmake_rel);
+        const install_cmake = b.addInstallFileWithDir(cmake_file, .prefix, cmake_rel);
+        b.getInstallStep().dependOn(&install_cmake.step);
     }
 
     const manifest = try buildPackageManifest(b.allocator, self);
@@ -1514,25 +1517,95 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
     const write_files = b.addWriteFiles();
     const manifest_rel = b.fmt("share/vex/{s}.json", .{export_name});
     const manifest_file = write_files.add(manifest_rel, manifest);
-    _ = b.addInstallFileWithDir(manifest_file, .prefix, manifest_rel);
+    const install_manifest = b.addInstallFileWithDir(manifest_file, .prefix, manifest_rel);
+    b.getInstallStep().dependOn(&install_manifest.step);
 }
 
 pub fn buildPackageManifest(allocator: std.mem.Allocator, self: CppExample) ![]u8 {
     var out = std.ArrayList(u8).init(allocator);
     defer out.deinit();
 
+    const export_name = self.export_name orelse self.name;
+
     try out.appendSlice("{\n");
-    try out.writer().print("  \"name\": \"{s}\",\n", .{self.export_name orelse self.name});
+    try out.writer().print("  \"name\": \"{s}\",\n", .{export_name});
     try out.writer().print("  \"kind\": \"{s}\",\n", .{@tagName(self.kind)});
-    try writeJsonStringArray(&out, "include_dirs", self.public_include_dirs);
+    try writeInstalledIncludeDirs(&out, export_name, self.install_headers.len > 0);
     try out.appendSlice(",\n");
-    try writeJsonStringArray(&out, "headers", self.install_headers);
+    try writeInstalledHeaders(&out, export_name, self.install_headers);
     try out.appendSlice(",\n");
-    try writeJsonStringArray(&out, "libs", self.install_libs);
+    try writeInstalledLibs(allocator, &out, self);
     try out.appendSlice(",\n");
     try writeJsonStringArray(&out, "link_libraries", self.public_link_libs);
     try out.appendSlice("\n}\n");
     return out.toOwnedSlice();
+}
+
+fn writeInstalledIncludeDirs(out: *std.ArrayList(u8), export_name: []const u8, has_headers: bool) !void {
+    if (!has_headers) {
+        try out.appendSlice("  \"include_dirs\": []");
+        return;
+    }
+    try out.writer().print("  \"include_dirs\": [\"include/{s}\"]", .{export_name});
+}
+
+fn writeInstalledHeaders(out: *std.ArrayList(u8), export_name: []const u8, headers: []const []const u8) !void {
+    try out.appendSlice("  \"headers\": [");
+    for (headers, 0..) |hdr, idx| {
+        if (idx > 0) try out.appendSlice(", ");
+        try out.writer().print("\"include/{s}/{s}\"", .{ export_name, std.fs.path.basename(hdr) });
+    }
+    try out.appendSlice("]");
+}
+
+fn writeInstalledLibs(allocator: std.mem.Allocator, out: *std.ArrayList(u8), self: CppExample) !void {
+    try out.appendSlice("  \"libs\": [");
+    var needs_comma = false;
+
+    switch (self.kind) {
+        .static_library, .shared_library => {
+            for (self.configs) |config| {
+                const rel = try installedArtifactRelativePath(allocator, self, config);
+                defer allocator.free(rel);
+                if (needs_comma) try out.appendSlice(", ");
+                try out.writer().print("\"{s}\"", .{rel});
+                needs_comma = true;
+            }
+        },
+        else => {},
+    }
+
+    for (self.install_libs) |lib| {
+        if (needs_comma) try out.appendSlice(", ");
+        try out.writer().print("\"lib/{s}\"", .{std.fs.path.basename(lib)});
+        needs_comma = true;
+    }
+
+    try out.appendSlice("]");
+}
+
+fn installedArtifactRelativePath(allocator: std.mem.Allocator, self: CppExample, config: BuildConfig) ![]u8 {
+    const artifact_name = try std.fmt.allocPrint(allocator, "{s}_{s}", .{
+        self.name,
+        config.mode.toCMakeString(),
+    });
+    defer allocator.free(artifact_name);
+
+    const filename = switch (self.kind) {
+        .static_library => switch (builtin.os.tag) {
+            .windows => try std.fmt.allocPrint(allocator, "{s}.lib", .{artifact_name}),
+            else => try std.fmt.allocPrint(allocator, "lib{s}.a", .{artifact_name}),
+        },
+        .shared_library => switch (builtin.os.tag) {
+            .windows => try std.fmt.allocPrint(allocator, "{s}.dll", .{artifact_name}),
+            .macos => try std.fmt.allocPrint(allocator, "lib{s}.dylib", .{artifact_name}),
+            else => try std.fmt.allocPrint(allocator, "lib{s}.so", .{artifact_name}),
+        },
+        else => return std.fmt.allocPrint(allocator, "", .{}),
+    };
+    defer allocator.free(filename);
+
+    return std.fmt.allocPrint(allocator, "lib/{s}", .{filename});
 }
 
 pub fn buildToolingManifest(
