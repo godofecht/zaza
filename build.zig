@@ -17,6 +17,8 @@ const shared_plugin_example = @import("examples/shared_plugin/build.zig");
 const preset_profiles_example = @import("examples/preset_profiles/build.zig");
 const resources_bundle_example = @import("examples/resources_bundle/build.zig");
 const bindings_example = @import("examples/bindings/build.zig");
+const benchmark_workflow_example = @import("examples/benchmark_workflow/build.zig");
+const cxx20_modules_example = @import("examples/cxx20_modules/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -180,6 +182,14 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "bindings")) {
         _ = bindings_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "benchmark-workflow")) {
+        _ = benchmark_workflow_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "cxx20-modules")) {
+        _ = cxx20_modules_example.addSteps(b);
     }
 
     if (exampleEnabled(b, "cmake-combo")) {
