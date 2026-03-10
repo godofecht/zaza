@@ -12,9 +12,11 @@ A sophisticated build system that leverages Zig's powerful C++ compilation capab
 6. [Comparison with CMake](#comparison-with-cmake)
 7. [Build System Features](#build-system-features)
 8. [Examples](#examples)
-9. [Troubleshooting](#troubleshooting)
-10. [Roadmap](#roadmap)
-11. [Wiki Website](#wiki-website)
+9. [Examples Guide](#examples-guide)
+10. [Syntax Reference](#syntax-reference)
+11. [Troubleshooting](#troubleshooting)
+12. [Roadmap](#roadmap)
+13. [Wiki Website](#wiki-website)
 
 ## 🚀 Quick Start
 
@@ -441,6 +443,9 @@ run `zig fetch` once to populate the hash.
 
 ## 📝 Examples
 
+Detailed per-example explanations and diagrams live in
+[`docs/EXAMPLES.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/EXAMPLES.md).
+
 ### Hello Vex (Zig + C++)
 ```bash
 zig build hello-vex
@@ -567,6 +572,14 @@ zig build wasm-web-demo-serve
 
 `wasm-web-demo-serve` serves the staged browser demo at
 `http://127.0.0.1:8000`.
+
+## 📚 Examples Guide
+
+See [`docs/EXAMPLES.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/EXAMPLES.md).
+
+## 🔤 Syntax Reference
+
+See [`docs/SYNTAX_REFERENCE.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/SYNTAX_REFERENCE.md).
 
 ## 🤔 Troubleshooting
 
