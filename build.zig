@@ -15,6 +15,7 @@ const test_workflows_example = @import("examples/test_workflows/build.zig");
 const generated_headers_example = @import("examples/generated_headers/build.zig");
 const shared_plugin_example = @import("examples/shared_plugin/build.zig");
 const preset_profiles_example = @import("examples/preset_profiles/build.zig");
+const resources_bundle_example = @import("examples/resources_bundle/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -170,6 +171,10 @@ pub fn build(b: *std.Build) !void {
         inspect.step.dependencies.append(&cross_build.step) catch unreachable;
         const inspect_step = b.step("cross-compile-cli-report", "Inspect the cross compiled CLI artifact");
         inspect_step.dependOn(&inspect.step);
+    }
+
+    if (exampleEnabled(b, "resources-bundle")) {
+        _ = resources_bundle_example.addSteps(b, target, optimize);
     }
 
     if (exampleEnabled(b, "cmake-combo")) {
