@@ -19,6 +19,8 @@ const resources_bundle_example = @import("examples/resources_bundle/build.zig");
 const bindings_example = @import("examples/bindings/build.zig");
 const benchmark_workflow_example = @import("examples/benchmark_workflow/build.zig");
 const cxx20_modules_example = @import("examples/cxx20_modules/build.zig");
+const wasm_wasi_example = @import("examples/wasm_wasi/build.zig");
+const wasm_exports_example = @import("examples/wasm_exports/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -192,6 +194,14 @@ pub fn build(b: *std.Build) !void {
         _ = cxx20_modules_example.addSteps(b);
     }
 
+    if (exampleEnabled(b, "wasm-wasi")) {
+        _ = wasm_wasi_example.addSteps(b, optimize);
+    }
+
+    if (exampleEnabled(b, "wasm-exports")) {
+        _ = wasm_exports_example.addSteps(b, optimize);
+    }
+
     if (exampleEnabled(b, "cmake-combo")) {
         const combo_step = b.step("cmake-combo", "Build CMake combo example (fmt + spdlog)");
         // cmake-combo always enables system commands so it works out-of-the-box.
@@ -353,6 +363,8 @@ pub fn build(b: *std.Build) !void {
         "bindings-run",
         "benchmark-workflow-run",
         "cxx20-modules-run",
+        "wasm-wasi-report",
+        "wasm-exports-run",
     };
     var previous_matrix_step: ?*std.Build.Step = null;
     for (matrix_targets) |target_name| {
