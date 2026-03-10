@@ -335,6 +335,34 @@ pub fn build(b: *std.Build) !void {
         }
         std.debug.print("[test] running\n", .{});
     }
+
+    const example_matrix_step = b.step("example-matrix", "Run the verified example matrix sequentially");
+    const matrix_targets: []const []const u8 = &.{
+        "run-hello-vex",
+        "proof-library-run",
+        "generated-code-run",
+        "package-consumer-run",
+        "mixed-stack-run",
+        "interface-object-graph-run",
+        "test-workflows-run",
+        "generated-headers-run",
+        "shared-plugin-run",
+        "preset-profiles-run",
+        "cross-compile-cli-report",
+        "resources-bundle-run",
+        "bindings-run",
+        "benchmark-workflow-run",
+        "cxx20-modules-run",
+    };
+    var previous_matrix_step: ?*std.Build.Step = null;
+    for (matrix_targets) |target_name| {
+        const nested = addNestedBuildStep(b, target_name);
+        if (previous_matrix_step) |prev| {
+            nested.dependencies.append(prev) catch unreachable;
+        }
+        example_matrix_step.dependOn(nested);
+        previous_matrix_step = nested;
+    }
     
     const all_step = b.step("all", "Run all tests, build default artifacts, and optionally run CMake shim");
     all_step.dependOn(test_step);
@@ -519,6 +547,13 @@ fn addInfoStep(b: *std.Build, name: []const u8, msg: []const u8) *std.Build.Step
     else
         &.{ "sh", "-c", b.fmt("printf '\\033[0;36m%s\\033[0m\\n' \"{s}\"", .{msg}) };
     return vex_cmd.addCommandStep(b, name, cmd);
+}
+
+fn addNestedBuildStep(b: *std.Build, target_name: []const u8) *std.Build.Step {
+    const run = b.addSystemCommand(&.{ "./zig", "build", target_name });
+    run.setName(b.fmt("matrix-{s}", .{target_name}));
+    run.stdio = .inherit;
+    return &run.step;
 }
 
 fn parseExtraFlags(args: []const []const u8) []const []const u8 {
