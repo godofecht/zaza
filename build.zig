@@ -365,6 +365,7 @@ pub fn build(b: *std.Build) !void {
         "cxx20-modules-run",
         "wasm-wasi-report",
         "wasm-exports-run",
+        "wasm-web-demo-smoke",
     };
     var previous_matrix_step: ?*std.Build.Step = null;
     for (matrix_targets) |target_name| {

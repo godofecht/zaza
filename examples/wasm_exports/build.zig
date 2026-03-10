@@ -3,6 +3,8 @@ const std = @import("std");
 pub const BuildResult = struct {
     build_step: *std.Build.Step,
     run_step: *std.Build.Step,
+    web_step: *std.Build.Step,
+    web_smoke_step: *std.Build.Step,
 };
 
 pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
@@ -37,9 +39,65 @@ pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
     const run_step = b.step("wasm-exports-run", "Run the freestanding WebAssembly exports example via Node");
     run_step.dependOn(&run.step);
 
+    const web_root = "zig-out/www/wasm-exports";
+    const install_web_wasm = b.addInstallFileWithDir(exe.getEmittedBin(), .prefix, "www/wasm-exports/wasm_exports_demo.wasm");
+    const install_web_html = b.addInstallFileWithDir(
+        b.path("examples/wasm_exports/web/index.html"),
+        .prefix,
+        "www/wasm-exports/index.html",
+    );
+    const install_web_js = b.addInstallFileWithDir(
+        b.path("examples/wasm_exports/web/app.js"),
+        .prefix,
+        "www/wasm-exports/app.js",
+    );
+
+    const web_step = b.step("wasm-web-demo", "Stage the browser WebAssembly demo");
+    web_step.dependOn(&install_web_wasm.step);
+    web_step.dependOn(&install_web_html.step);
+    web_step.dependOn(&install_web_js.step);
+
+    const web_smoke = b.addSystemCommand(&.{
+        "sh",
+        "-c",
+        "python3 -m http.server 8123 --directory zig-out/www/wasm-exports >/tmp/vex-wasm-web-demo.log 2>&1 & "
+            ++ "pid=$!; "
+            ++ "trap 'kill $pid >/dev/null 2>&1 || true' EXIT; "
+            ++ "for _ in 1 2 3 4 5 6 7 8 9 10; do "
+            ++ "curl -fsS http://127.0.0.1:8123/index.html >/dev/null && break; "
+            ++ "sleep 1; "
+            ++ "done; "
+            ++ "curl -fsS http://127.0.0.1:8123/index.html >/dev/null; "
+            ++ "curl -fsS http://127.0.0.1:8123/app.js >/dev/null; "
+            ++ "curl -fsS http://127.0.0.1:8123/wasm_exports_demo.wasm >/dev/null",
+    });
+    web_smoke.setName("wasm-web-demo-smoke-cmd");
+    web_smoke.stdio = .inherit;
+    web_smoke.step.dependencies.append(web_step) catch unreachable;
+
+    const web_smoke_step = b.step("wasm-web-demo-smoke", "Smoke-test the staged browser WebAssembly demo");
+    web_smoke_step.dependOn(&web_smoke.step);
+
+    const serve = b.addSystemCommand(&.{
+        "python3",
+        "-m",
+        "http.server",
+        "8000",
+        "--directory",
+        web_root,
+    });
+    serve.setName("wasm-web-demo-serve-cmd");
+    serve.stdio = .inherit;
+    serve.step.dependencies.append(web_step) catch unreachable;
+
+    const serve_step = b.step("wasm-web-demo-serve", "Serve the browser WebAssembly demo at http://127.0.0.1:8000");
+    serve_step.dependOn(&serve.step);
+
     return .{
         .build_step = build_step,
         .run_step = run_step,
+        .web_step = web_step,
+        .web_smoke_step = web_smoke_step,
     };
 }
 
