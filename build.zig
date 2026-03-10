@@ -11,6 +11,7 @@ const generated_code_example = @import("examples/generated_code/build.zig");
 const package_producer_example = @import("examples/package_producer/build.zig");
 const mixed_stack_example = @import("examples/mixed_stack/build.zig");
 const interface_object_graph_example = @import("examples/interface_object_graph/build.zig");
+const test_workflows_example = @import("examples/test_workflows/build.zig");
 const vex_cmd = @import("build_lib/vex_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -126,6 +127,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "interface-object-graph")) {
         _ = interface_object_graph_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "test-workflows")) {
+        _ = test_workflows_example.addSteps(b, target, optimize);
     }
 
     if (exampleEnabled(b, "cmake-combo")) {
