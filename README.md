@@ -31,20 +31,20 @@ zig build
 # Run all tests explicitly
 zig build test
 
-# Build the mixed Zig + C++ example
-zig build hello-vex
+# Run the verified example matrix
+zig build example-matrix
 
-# Build the CMake combo example (fmt + spdlog)
-zig build cmake-combo
+# Run the mixed Zig + C++ example
+zig build run-hello-vex
 
-# Run the CMake combo example
-zig build cmake-combo-run
+# Run the package producer/consumer flow
+zig build package-consumer-run
 
-# Build the CMake networking example (curl + zlib + mbedtls)
-zig build cmake-net
+# Run the browser-facing wasm smoke test
+zig build wasm-web-demo-smoke
 
-# Run the CMake networking example
-zig build cmake-net-run
+# Serve the browser-facing wasm demo
+zig build wasm-web-demo-serve
 ```
 
 ```bash
@@ -133,6 +133,36 @@ This produces:
 - `zig-out/include/<name>/...`
 - `zig-out/lib/...` (if `install_libs` provided)
 - `zig-out/cmake/<name>/<name>Config.cmake`
+- `zig-out/share/vex/<name>.json`
+
+## ✅ Verified Surface
+
+The repo now has a single matrix target for the verified example surface:
+
+```bash
+zig build example-matrix
+```
+
+This runs the currently verified targets sequentially:
+
+- `run-hello-vex`
+- `proof-library-run`
+- `generated-code-run`
+- `package-consumer-run`
+- `mixed-stack-run`
+- `interface-object-graph-run`
+- `test-workflows-run`
+- `generated-headers-run`
+- `shared-plugin-run`
+- `preset-profiles-run`
+- `cross-compile-cli-report`
+- `resources-bundle-run`
+- `bindings-run`
+- `benchmark-workflow-run`
+- `cxx20-modules-run`
+- `wasm-wasi-report`
+- `wasm-exports-run`
+- `wasm-web-demo-smoke`
 
 ## 🧰 Tooling (compile_commands.json)
 
@@ -390,7 +420,7 @@ Run it:
 
 ```bash
 zig build hello-vex
-zig build hello-vex run
+zig build run-hello-vex
 ```
 
 For CMake-based dependencies (shim):
@@ -411,15 +441,65 @@ run `zig fetch` once to populate the hash.
 
 ## 📝 Examples
 
-### JSON Example
-```bash
-zig build run
-```
-
 ### Hello Vex (Zig + C++)
 ```bash
 zig build hello-vex
-zig build hello-vex run
+zig build run-hello-vex
+```
+
+### Package Producer / Consumer
+```bash
+zig build package-producer-run
+zig build package-consumer-run
+```
+
+### Mixed C + C++ + Zig
+```bash
+zig build mixed-stack-run
+```
+
+### Interface / Object / Static Graph
+```bash
+zig build interface-object-graph-run
+```
+
+### Workflow Modes (args + env + cwd)
+```bash
+zig build test-workflows-run
+zig build test-workflows-unit
+zig build test-workflows-integration
+```
+
+### Generated Source
+```bash
+zig build generated-code-run
+```
+
+### Generated Header
+```bash
+zig build generated-headers-run
+```
+
+### Shared Plugin
+```bash
+zig build shared-plugin-run
+```
+
+### Preset Profiles
+```bash
+zig build preset-profiles-run
+VEX_PRESET=asan zig build preset-profiles-run
+VEX_PRESET=lto zig build preset-profiles-run
+```
+
+Notes:
+- On this machine, `asan` is blocked by missing sanitizer runtime support.
+- On this machine, `lto` is blocked unless the toolchain is using LLD.
+
+### Cross-Compile CLI
+```bash
+zig build cross-compile-cli
+zig build cross-compile-cli-report
 ```
 
 ### CMake Combo (fmt + spdlog)
@@ -445,10 +525,20 @@ zig build proof-library
 zig build proof-library-run
 ```
 
-### Generated Code
+### Resources Bundle
 ```bash
-zig build generated-code
-zig build generated-code-run
+zig build resources-bundle-run
+```
+
+### Zig <-> C++ Bindings
+```bash
+zig build bindings-run
+```
+
+### Benchmark Workflow
+```bash
+zig build benchmark-workflow-run
+zig build benchmark-workflow-quick
 ```
 
 ### JUCE (versioned)
@@ -457,15 +547,26 @@ zig build generated-code-run
 JUCE_GIT_TAG=7.0.9 VEX_EXAMPLES=juce zig build juce
 ```
 
-### Simple Example
+### C++20 Modules
 ```bash
-zig build run-simple
+zig build cxx20-modules-run
 ```
 
-### Working Test
+The modules example intentionally uses Homebrew LLVM Clang on this machine rather
+than `zig c++`, because the local `zig c++` driver does not currently expose a
+working C++20 modules flow here.
+
+### WebAssembly
 ```bash
-./bin/working_test
+zig build wasm-wasi-report
+zig build wasm-exports-run
+zig build wasm-web-demo
+zig build wasm-web-demo-smoke
+zig build wasm-web-demo-serve
 ```
+
+`wasm-web-demo-serve` serves the staged browser demo at
+`http://127.0.0.1:8000`.
 
 ## 🤔 Troubleshooting
 
