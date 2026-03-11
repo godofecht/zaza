@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vex Tutorials</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand-block">
+        <p class="eyebrow">Vex tutorials</p>
+        <h1>Build native projects with simple steps</h1>
+        <p class="brand-sub">Start with one command. Then learn examples, syntax, packaging, WebAssembly, and migration from CMake.</p>
+      </div>
+      <div class="search-wrap">
+        <label for="search" class="sr-only">Search wiki sections</label>
+        <input id="search" type="search" placeholder="Search tutorials, commands, and concepts">
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar" aria-label="Wiki navigation">
+      <div class="sidebar-section">
+        <p class="sidebar-label">Learn</p>
+        <h2>Tutorials</h2>
+      </div>
+      <nav id="nav"></nav>
+      <section class="meta-card">
+        <h3>Start here</h3>
+        <ul>
+          <li><code>zig build</code></li>
+          <li><code>zig build test</code></li>
+          <li><code>zig build example-matrix</code></li>
+          <li><code>zig build run-hello-vex</code></li>
+        </ul>
+      </section>
+    </aside>
+
+    <section class="content" id="content" tabindex="-1"></section>
+  </main>
+
+  <template id="article-template">
+    <article class="article">
+      <header class="article-header">
+        <p class="article-category"></p>
+        <h2 class="article-title"></h2>
+        <p class="article-summary"></p>
+      </header>
+      <div class="article-body"></div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
