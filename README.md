@@ -222,3 +222,8 @@ And keep changes scoped:
 - prefer verified example coverage over vague feature claims
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the repo workflow details.
+
+GitHub repo support files are in place for public use:
+
+- issue templates in [`.github/ISSUE_TEMPLATE`](.github/ISSUE_TEMPLATE)
+- PR template in [`.github/pull_request_template.md`](.github/pull_request_template.md)

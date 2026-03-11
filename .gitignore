@@ -1,9 +1,22 @@
 # Zig
+.zig-cache/
+.zig-cache-global/
 zig-cache/
 zig-out/
 
-# C++
+# Build outputs
 build/
+bin/
+dist/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.pcm
 
 # Dependencies
 deps/
@@ -19,3 +32,13 @@ Thumbs.db
 # Zig installation
 zig-linux-x86_64-0.11.0/
 zig-linux-x86_64-0.11.0.tar.xz
+
+# Env / local tooling
+.envrc
+
+# Example-local caches
+examples/**/.zig-cache/
+examples/**/zig-out/
+
+# Local web / generated staging
+www/
