@@ -94,6 +94,68 @@ zig build run</code></pre>
     `,
   },
   {
+    id: "app-walkthrough",
+    category: "Tutorial",
+    title: "Build a small app from scratch",
+    summary: "Go from one source file to a runnable app with one build file and one command.",
+    body: `
+      <div class="callout"><strong>Goal</strong><br>Make a small command line app with a normal source layout and a simple run command.</div>
+      <h3>Project layout</h3>
+      <pre><code>my_app/
+  build.zig
+  build/
+  src/
+    main.cpp
+  include/
+    app.hpp</code></pre>
+      <h3>Source file</h3>
+      <pre><code>#include &lt;iostream&gt;
+
+int main() {
+    std::cout &lt;&lt; "hello from vex" &lt;&lt; "\\n";
+    return 0;
+}</code></pre>
+      <h3>Build file</h3>
+      <pre><code>const std = @import("std");
+const cpp = @import("build/cpp_example.zig");
+
+pub fn build(b: *std.Build) !void {
+    const exe = try cpp.CppExample{
+        .name = "my_app",
+        .kind = .executable,
+        .source_files = &.{"src/main.cpp"},
+        .public_include_dirs = &.{"include"},
+        .configs = &.{.{ .mode = .Debug }},
+        .deps_build_system = .Zig,
+        .main_build_system = .Zig,
+        .cpp_std = "17",
+    }.build(b);
+
+    const run_cmd = b.addRunArtifact(exe);
+    const run_step = b.step("run", "Run my_app");
+    run_step.dependOn(&run_cmd.step);
+}</code></pre>
+      <h3>Run it</h3>
+      <pre><code>zig build
+zig build run</code></pre>
+      <h3>What to add next</h3>
+      <div class="step-group">
+        <div class="step-card">
+          <strong>Add more source files</strong>
+          Put them in <code>.source_files</code>.
+        </div>
+        <div class="step-card">
+          <strong>Add compile flags</strong>
+          Put them in <code>.cpp_flags</code> or in <code>.configs</code>.
+        </div>
+        <div class="step-card">
+          <strong>Add a library later</strong>
+          Move shared code into a separate target instead of leaving everything in one executable.
+        </div>
+      </div>
+    `,
+  },
+  {
     id: "examples",
     category: "Tutorial",
     title: "Learn through examples",
@@ -244,6 +306,48 @@ zig build package-consumer-run</code></pre>
     `,
   },
   {
+    id: "library-walkthrough",
+    category: "Tutorial",
+    title: "Make a reusable library",
+    summary: "Build a library, install headers, export metadata, and use it from another project.",
+    body: `
+      <div class="callout"><strong>Goal</strong><br>Turn shared code into a reusable package instead of copying source files between apps.</div>
+      <h3>Producer shape</h3>
+      <pre><code>pub var lib = cpp.CppExample{
+    .name = "math_lib",
+    .kind = .static_library,
+    .source_files = &.{"src/math.cpp"},
+    .public_include_dirs = &.{"include"},
+    .install_headers = &.{"include/math.hpp"},
+    .export_cmake = true,
+    .configs = &.{.{ .mode = .Debug }},
+    .deps_build_system = .Zig,
+    .main_build_system = .Zig,
+    .cpp_std = "17",
+};</code></pre>
+      <h3>Consumer shape</h3>
+      <div class="step-group">
+        <div class="step-card">
+          <strong>Read package metadata</strong>
+          The consumer reads <code>zig-out/share/vex/math_lib.json</code>.
+        </div>
+        <div class="step-card">
+          <strong>Add include and lib paths</strong>
+          The package metadata points at installed headers and libraries.
+        </div>
+        <div class="step-card">
+          <strong>Link and run</strong>
+          The app links the produced library as normal.
+        </div>
+      </div>
+      <h3>Run the real example</h3>
+      <pre><code>zig build package-producer-run
+zig build package-consumer-run</code></pre>
+      <h3>What this replaces</h3>
+      <p>This is the direct answer to install and downstream package flows that are usually handled through CMake export and find package patterns.</p>
+    `,
+  },
+  {
     id: "wasm",
     category: "Tutorial",
     title: "Ship WebAssembly",
@@ -270,6 +374,41 @@ zig build wasm-web-demo-serve</code></pre>
           Serves the browser demo on <code>http://127.0.0.1:8000</code>.
         </div>
       </div>
+    `,
+  },
+  {
+    id: "wasm-browser-walkthrough",
+    category: "Tutorial",
+    title: "Ship a browser wasm demo",
+    summary: "Build a wasm module, stage the web files, and serve the result locally.",
+    body: `
+      <div class="callout"><strong>Goal</strong><br>Produce a browser demo from the build graph instead of hand assembling files after the build.</div>
+      <h3>Use the existing example first</h3>
+      <pre><code>zig build wasm-web-demo
+zig build wasm-web-demo-smoke
+zig build wasm-web-demo-serve</code></pre>
+      <h3>What gets staged</h3>
+      <pre><code>zig-out/www/wasm-exports/
+  index.html
+  app.js
+  wasm_exports_demo.wasm</code></pre>
+      <h3>Flow</h3>
+      <div class="step-group">
+        <div class="step-card">
+          <strong>Build the wasm module</strong>
+          The Zig source is compiled to a browser-loadable wasm file.
+        </div>
+        <div class="step-card">
+          <strong>Stage the browser files</strong>
+          The build copies the HTML and JavaScript harness into a stable output folder.
+        </div>
+        <div class="step-card">
+          <strong>Verify over HTTP</strong>
+          The smoke target fetches the staged page and assets through a local server path.
+        </div>
+      </div>
+      <h3>Why this matters</h3>
+      <p>It keeps the web demo in the same build graph as the native targets. The browser output stops being a side project.</p>
     `,
   },
   {
