@@ -57,36 +57,32 @@ pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
     web_step.dependOn(&install_web_html.step);
     web_step.dependOn(&install_web_js.step);
 
-    const web_smoke = b.addSystemCommand(&.{
-        "sh",
-        "-c",
-        "python3 -m http.server 8123 --directory zig-out/www/wasm-exports >/tmp/vex-wasm-web-demo.log 2>&1 & "
-            ++ "pid=$!; "
-            ++ "trap 'kill $pid >/dev/null 2>&1 || true' EXIT; "
-            ++ "for _ in 1 2 3 4 5 6 7 8 9 10; do "
-            ++ "curl -fsS http://127.0.0.1:8123/index.html >/dev/null && break; "
-            ++ "sleep 1; "
-            ++ "done; "
-            ++ "curl -fsS http://127.0.0.1:8123/index.html >/dev/null; "
-            ++ "curl -fsS http://127.0.0.1:8123/app.js >/dev/null; "
-            ++ "curl -fsS http://127.0.0.1:8123/wasm_exports_demo.wasm >/dev/null",
+    const server = b.addExecutable(.{
+        .name = "vex_static_server",
+        .root_source_file = b.path("build_lib/static_server.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
     });
+
+    const web_smoke = b.addRunArtifact(server);
     web_smoke.setName("wasm-web-demo-smoke-cmd");
+    web_smoke.addArg("smoke");
+    web_smoke.addArg(web_root);
+    web_smoke.addArg("8123");
+    web_smoke.addArg("/index.html");
+    web_smoke.addArg("/app.js");
+    web_smoke.addArg("/wasm_exports_demo.wasm");
     web_smoke.stdio = .inherit;
     web_smoke.step.dependencies.append(web_step) catch unreachable;
 
     const web_smoke_step = b.step("wasm-web-demo-smoke", "Smoke-test the staged browser WebAssembly demo");
     web_smoke_step.dependOn(&web_smoke.step);
 
-    const serve = b.addSystemCommand(&.{
-        "python3",
-        "-m",
-        "http.server",
-        "8000",
-        "--directory",
-        web_root,
-    });
+    const serve = b.addRunArtifact(server);
     serve.setName("wasm-web-demo-serve-cmd");
+    serve.addArg("serve");
+    serve.addArg(web_root);
+    serve.addArg("8000");
     serve.stdio = .inherit;
     serve.step.dependencies.append(web_step) catch unreachable;
 
