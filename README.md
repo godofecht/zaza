@@ -1,222 +1,129 @@
-# Vex: Modern C++ Build System with Zig
+# Vex
 
-A sophisticated build system that leverages Zig's powerful C++ compilation capabilities to provide a modern alternative to traditional build systems like CMake.
+Vex is a Zig-driven build system for modern C, C++, Zig, CMake-interop, and WebAssembly workflows.
 
-## 📋 Table of Contents
+The project goal is straightforward: make new native projects feel simpler than CMake without giving up serious target graphs, package flows, generated code, cross-compilation, or browser-adjacent outputs.
 
-1. [Quick Start](#quick-start)
-2. [Installation](#installation)
-3. [Tutorial: Building Your First Project](#tutorial-building-your-first-project)
-4. [Advanced Usage](#advanced-usage)
-5. [Dependency Management](#dependency-management)
-6. [Comparison with CMake](#comparison-with-cmake)
-7. [Build System Features](#build-system-features)
-8. [Examples](#examples)
-9. [Examples Guide](#examples-guide)
-10. [Syntax Reference](#syntax-reference)
-11. [Troubleshooting](#troubleshooting)
-12. [Roadmap](#roadmap)
-13. [Wiki Website](#wiki-website)
+## Why Vex
 
-## 🚀 Quick Start
+- Zig build graph as the control plane instead of a separate DSL
+- First-class mixed-language workflows: C, C++, and Zig in one repo
+- Real examples for generated sources, shared plugins, packaging, presets, CMake interop, and wasm
+- One verified matrix command for the example surface
+
+## Status
+
+Vex is usable and heavily example-driven, but it is not pretending to have a final polished API yet.
+
+Current reality:
+
+- the verified example matrix is runnable with `zig build example-matrix`
+- the repo includes package producer/consumer, mixed C/C++/Zig, wasm, browser demo, cross-compile, and CMake interop examples
+- some flows remain environment-sensitive
+  - `VEX_PRESET=asan` depends on sanitizer runtime availability
+  - `VEX_PRESET=lto` depends on linker/toolchain configuration
+  - the C++20 modules example uses LLVM Clang on this machine rather than `zig c++`
+
+## Quick Start
+
+Prerequisites:
+
+- Zig 0.14.0 or newer
+- Git for dependency fetch flows
+- Python 3 for the local browser demo server/smoke path
+- optional: `direnv` for repo-local cache setup
+
+Clone and verify the repo:
 
 ```bash
-# Optional: load repo-local cache dirs (recommended)
-# Requires direnv: https://direnv.net
+git clone <repo-url>
+cd <repo-dir>
+
+# optional
 direnv allow
+
+zig build test
+zig build example-matrix
 ```
 
+Useful first commands:
+
 ```bash
-# Build (default)
-zig build
-
-# Run all tests explicitly
-zig build test
-
-# Run the verified example matrix
-zig build example-matrix
-
-# Run the mixed Zig + C++ example
 zig build run-hello-vex
-
-# Run the package producer/consumer flow
 zig build package-consumer-run
-
-# Run the browser-facing wasm smoke test
+zig build mixed-stack-run
 zig build wasm-web-demo-smoke
-
-# Serve the browser-facing wasm demo
 zig build wasm-web-demo-serve
 ```
 
-```bash
-# Enable system commands (git/cmake) when needed
-VEX_SYSTEM_CMDS=1 zig build
-# (fallback) zig build -Dsystem-cmds=true
-```
+If a target needs external tools such as `git` or `cmake`, enable them explicitly:
 
 ```bash
-# Zero-shell build (no git/cmake). Uses local deps via build.zig.zon.
-VEX_SYSTEM_CMDS=0 zig build
-# (fallback) zig build -Dsystem-cmds=false
+VEX_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
-## 📦 Installation
+## What It Covers
 
-### Prerequisites
-- **Zig 0.14.0** or later
-- **C++17 compatible compiler** (clang, gcc, or msvc)
-- **Git** (for dependency fetching)
+The current verified example surface includes:
 
-### Install Zig
-```bash
-# macOS (using Homebrew)
-brew install zig
+- mixed Zig + C++ executables
+- static, shared, object, and interface-style target graphs
+- generated source and generated header workflows
+- package install/export plus downstream consumption
+- runtime assets under `zig-out/share/...`
+- C ABI bindings between Zig and C++
+- preset/profile-driven builds
+- cross-compilation
+- CMake-based dependency integration
+- WebAssembly for WASI, host embedding, and browser delivery
 
-# Or download directly from ziglang.org
-curl -L https://ziglang.org/download/0.14.0/zig-macos-x86_64-0.14.0.tar.xz | tar xJ
-```
-
-## 🧭 Wiki Website
-
-A wiki-style documentation site lives in `wiki/` and explains:
-- what Vex is,
-- current capabilities,
-- how to use it clearly,
-- and a phased strategy to replace CMake-centric workflows.
-
-Run it locally:
-
-```bash
-cd wiki
-python3 -m http.server 8000
-```
-
-Then open `http://localhost:8000`.
-
-## 📚 Registry (Auto-Fetch)
-
-Vex ships a lightweight registry and **auto-fetches** dependencies into `build.zig.zon`
-when you run `zig build`. (Disable with `VEX_REGISTRY=0`.)
-
-```bash
-# auto-fetch and pin dependencies from registry/registry.json
-zig build
-```
-
-```bash
-# optional: presets
-VEX_PRESET=release zig build
-```
-
-```bash
-# lockfile (vex.lock) is updated when registry fetch runs
-```
-
-```bash
-# limit which examples auto-wire into the build
-VEX_EXAMPLES=juce zig build
-```
-
-## 📦 Install / Export (CMake-style)
-
-Vex can install headers/libs and emit a minimal CMake config for consumers.
-
-```zig
-pub var example = cpp.CppExample{
-    .name = "hello_vex_cpp",
-    .source_files = &.{"src/main.cpp"},
-    .install_headers = &.{"include/hello_vex.h"},
-    .export_cmake = true,
-};
-```
-
-This produces:
-- `zig-out/include/<name>/...`
-- `zig-out/lib/...` (if `install_libs` provided)
-- `zig-out/cmake/<name>/<name>Config.cmake`
-- `zig-out/share/vex/<name>.json`
-
-## ✅ Verified Surface
-
-The repo now has a single matrix target for the verified example surface:
+Run the full matrix:
 
 ```bash
 zig build example-matrix
 ```
 
-This runs the currently verified targets sequentially:
+## Example Highlights
 
-- `run-hello-vex`
-- `proof-library-run`
-- `generated-code-run`
-- `package-consumer-run`
-- `mixed-stack-run`
-- `interface-object-graph-run`
-- `test-workflows-run`
-- `generated-headers-run`
-- `shared-plugin-run`
-- `preset-profiles-run`
-- `cross-compile-cli-report`
-- `resources-bundle-run`
-- `bindings-run`
-- `benchmark-workflow-run`
-- `cxx20-modules-run`
-- `wasm-wasi-report`
-- `wasm-exports-run`
-- `wasm-web-demo-smoke`
+These are the highest-signal example entry points:
 
-## 🧰 Tooling (compile_commands.json)
+| Workflow | Command |
+| --- | --- |
+| Mixed Zig + C++ | `zig build run-hello-vex` |
+| Package producer / consumer | `zig build package-consumer-run` |
+| Mixed C + C++ + Zig | `zig build mixed-stack-run` |
+| Interface + object + static graph | `zig build interface-object-graph-run` |
+| Shared plugin loading | `zig build shared-plugin-run` |
+| Cross-compile artifact report | `zig build cross-compile-cli-report` |
+| C++20 modules | `zig build cxx20-modules-run` |
+| WASI artifact validation | `zig build wasm-wasi-report` |
+| Host-loaded wasm exports | `zig build wasm-exports-run` |
+| Browser wasm demo | `zig build wasm-web-demo-smoke` |
 
-Vex emits `compile_commands.json` for Zig-built C++ targets and enables
-`CMAKE_EXPORT_COMPILE_COMMANDS=ON` for CMake builds.
+Full per-example explanations and diagrams live in [`docs/EXAMPLES.md`](docs/EXAMPLES.md).
 
-## 🧩 Generator Expressions (subset)
+## Build and Command Model
 
-Vex supports a minimal subset of CMake-style config expressions on list fields:
+Current naming conventions:
 
-```
-$<CONFIG:Debug>-DDEBUG_ONLY=1
-```
+- `<name>`: build or stage the artifact
+- `<name>-run`: execute something real
+- `<name>-report`: inspect or validate an artifact
+- `<name>-serve`: start a local server
 
-These are filtered per build configuration in Zig builds and passed through to CMake unchanged.
-
-## 📚 Tutorial: Building Your First Project
-
-### Step 1: Project Setup
-
-Create a new C++ project with Vex:
+Examples:
 
 ```bash
-mkdir my_vex_project
-cd my_vex_project
-# Copy the Vex build system files
-cp -r /path/to/vex_zig/-Vex/build .
-cp /path/to/vex_zig/-Vex/build.zig .
+zig build hello-vex
+zig build run-hello-vex
+zig build cross-compile-cli-report
+zig build wasm-web-demo-serve
 ```
 
-### Step 2: Create Your Source Code
+The practical syntax reference for the current repo surface lives in [`docs/SYNTAX_REFERENCE.md`](docs/SYNTAX_REFERENCE.md).
 
-Create `src/main.cpp`:
-```cpp
-#include <iostream>
-#include <nlohmann/json.hpp>
+## Minimal Example
 
-int main() {
-    nlohmann::json config = {
-        {"app_name", "My Vex Project"},
-        {"version", "1.0.0"},
-        {"debug", true}
-    };
-    
-    std::cout << "Configuration:\n" << config.dump(4) << std::endl;
-    return 0;
-}
-```
-
-### Step 3: Configure Build System
-
-Create a simple `build.zig`:
 ```zig
 const std = @import("std");
 const cpp = @import("build/cpp_example.zig");
@@ -224,14 +131,10 @@ const cpp = @import("build/cpp_example.zig");
 pub fn build(b: *std.Build) !void {
     const exe = try cpp.CppExample{
         .name = "my_app",
-        .description = "My Vex Application",
+        .kind = .executable,
         .source_files = &.{"src/main.cpp"},
-        .public_include_dirs = &.{"deps/json/single_include"},
-        .public_defines = &.{"HAS_JSON=1"},
-        .cpp_flags = &.{"-D_HAS_EXCEPTIONS=1"},
-        .deps = &.{
-            .{ .name = "json", .url = "https://github.com/nlohmann/json.git", .type = .Zig },
-        },
+        .public_include_dirs = &.{"include"},
+        .public_defines = &.{"MY_APP=1"},
         .configs = &.{.{ .mode = .Debug }},
         .deps_build_system = .Zig,
         .main_build_system = .Zig,
@@ -239,329 +142,36 @@ pub fn build(b: *std.Build) !void {
     }.build(b);
 
     const run_cmd = b.addRunArtifact(exe);
-    const run_step = b.step("run", "Run the application");
+    const run_step = b.step("run", "Run my_app");
     run_step.dependOn(&run_cmd.step);
 }
 ```
 
-### Step 4: Build and Run
+For the broader syntax surface, use the reference docs instead of treating this README as API documentation.
 
-```bash
-# Fetch dependencies and build
-zig build --fetch
-zig build
+## Replacing CMake
 
-# Run your application
-zig build run
-```
+The intent is not to mimic CMake syntax one-for-one. The intent is to cover the workflows people actually need when starting new projects.
 
-### Step 5: Advanced Configuration
+Rough mental mapping:
 
-Add multiple build configurations:
-```zig
-const configs = &.{
-    .{ .mode = .Debug, .defines = &.{"DEBUG=1"} },
-    .{ .mode = .ReleaseFast, .defines = &.{"NDEBUG=1"} },
-    .{ .mode = .ReleaseSafe, .defines = &.{"DEBUG=1", "NDEBUG=1"} },
-};
-```
+| CMake concept | Vex shape |
+| --- | --- |
+| `CMakeLists.txt` | `build.zig` |
+| `add_executable()` | executable target / `CppExample{ .kind = .executable }` |
+| `add_library(STATIC ...)` | `CppExample{ .kind = .static_library }` |
+| `target_include_directories()` | include-dir fields on the target |
+| `target_compile_definitions()` | `public_defines` / `private_defines` / config defines |
+| `add_custom_command()` | `custom_commands` |
+| `install()` / `export()` | install/export fields and Vex package metadata |
+| `find_package()` consumer flow | package producer / consumer example |
 
-## 🔧 Advanced Usage
+See [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the parity framing.
 
-### Custom C++ Flags
-```zig
-const cpp_flags = &.{
-    "-D_HAS_EXCEPTIONS=1",
-    "-Wall",
-    "-Wextra",
-    "-O2",
-};
-```
+## WebAssembly
 
-### Multiple Source Files
-```zig
-.source_files = &.{
-    "src/main.cpp",
-    "src/utils.cpp",
-    "src/config.cpp",
-},
-```
+Vex already has concrete wasm workflows:
 
-### System Dependencies
-```zig
-exe.linkSystemLibrary("pthread", .{});
-exe.linkSystemLibrary("ssl", .{});
-exe.linkSystemLibrary("crypto", .{});
-```
-
-## � Dependency Management
-
-Vex provides automatic dependency management:
-
-### Header-Only Libraries
-```zig
-.deps = &.{
-    .{ 
-        .name = "json", 
-        .url = "https://github.com/nlohmann/json.git", 
-        .include_path = "single_include" 
-    },
-},
-```
-
-### Compiled Libraries
-```zig
-.deps = &.{
-    .{ 
-        .name = "fmt", 
-        .url = "https://github.com/fmtlib/fmt.git", 
-        .type = .CMake 
-    },
-},
-```
-
-### Local Dependencies
-```zig
-.include_dirs = &.{
-    "deps/json/single_include",
-    "external/my_lib/include",
-},
-```
-
-## ⚔️ Comparison with CMake
-
-| Feature | Vex (Zig) | CMake |
-|---------|-----------|-------|
-| **Learning Curve** | Low (Zig language) | High (CMake syntax) |
-| **Performance** | Fast (native Zig) | Slower (interpreted) |
-| **Dependency Management** | Built-in Git fetching | External (FetchContent, Conan) |
-| **Cross-Compilation** | First-class support | Complex configuration |
-| **Language Integration** | Native C++ support | Generator-based |
-| **Build Times** | Fast (incremental) | Slower (regeneration) |
-| **IDE Support** | Growing | Mature |
-| **Ecosystem** | Growing | Extensive |
-
-### Advantages of Vex over CMake
-
-1. **Unified Language**: Build scripts written in Zig, not CMake's custom language
-2. **Better Performance**: Native compilation vs. interpreted scripts
-3. **Modern Dependency Management**: Git-based fetching with version control
-4. **Simpler Syntax**: More readable and maintainable build configurations
-5. **Better Error Messages**: Clear, actionable error reporting
-6. **Cross-Platform**: Truly cross-compilation ready
-
-### When to Use CMake Instead
-
-- **Legacy Projects**: Existing CMake-based codebases
-- **IDE Integration**: Better support in some IDEs
-- **Complex Dependencies**: Some third-party libraries only provide CMake
-- **Team Expertise**: Team already familiar with CMake
-
-## �️ Build System Features
-
-### Automatic Dependency Management
-```zig
-.deps = &.{
-    .{ .name = "json", .url = "https://github.com/nlohmann/json.git" },
-},
-```
-
-### Cross-Platform Compilation
-```zig
-const target = b.standardTargetOptions(.{});
-const mode = b.standardReleaseOptions();
-```
-
-### Incremental Builds
-```bash
-zig build
-```
-
-### Fast Build Times
-```bash
-zig build --fetch
-```
-
-### Clear Error Messages
-```bash
-zig build --verbose
-```
-
-### Native C++ Support
-```cpp
-#include <iostream>
-#include <nlohmann/json.hpp>
-```
-
-### Unified Language
-```zig
-const std = @import("std");
-const cpp = @import("build/cpp_example.zig");
-```
-
-## 🧭 Replacing CMake (Mental Model)
-
-Here is how Vex maps common CMake concepts to Zig build code:
-
-- `CMakeLists.txt` -> `build.zig`
-- `add_executable()` -> `b.addExecutable(...)` or `CppExample.build(...)`
-- `target_include_directories()` -> `exe.addIncludePath(...)`
-- `target_compile_options()` -> `CppExample.cpp_flags`
-- `FetchContent` / `ExternalProject` -> `Dependency` with `.url` + optional `VEX_SYSTEM_CMDS=1`
-- `cmake --build` -> `zig build`
-
-## 🔀 Mixed Zig + CMake
-
-You can build Zig targets and C++ targets in one `build.zig`, and selectively run CMake for deps that only ship CMake.
-
-Example (from `examples/hello_vex`):
-- `hello_vex_zig` is a pure Zig executable.
-- `hello_vex_cpp` is a C++ executable built via Vex.
-
-Run it:
-
-```bash
-zig build hello-vex
-zig build run-hello-vex
-```
-
-For CMake-based dependencies (shim):
-
-```bash
-VEX_SYSTEM_CMDS=1 zig build cmake-shim
-```
-
-## 📦 Zig Package Manager (No System Commands)
-
-This repo uses `build.zig.zon` for dependencies and ships a vendored copy of
-`nlohmann/json` in `deps/json`. This means `zig build` works **without** running
-`git` or `cmake`.
-
-If you want to switch to remote fetches, replace the `.path` entry in
-`build.zig.zon` with a `.url` + `.hash` (see Zig's package manager docs), then
-run `zig fetch` once to populate the hash.
-
-## 📝 Examples
-
-Detailed per-example explanations and diagrams live in
-[`docs/EXAMPLES.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/EXAMPLES.md).
-
-### Hello Vex (Zig + C++)
-```bash
-zig build hello-vex
-zig build run-hello-vex
-```
-
-### Package Producer / Consumer
-```bash
-zig build package-producer-run
-zig build package-consumer-run
-```
-
-### Mixed C + C++ + Zig
-```bash
-zig build mixed-stack-run
-```
-
-### Interface / Object / Static Graph
-```bash
-zig build interface-object-graph-run
-```
-
-### Workflow Modes (args + env + cwd)
-```bash
-zig build test-workflows-run
-zig build test-workflows-unit
-zig build test-workflows-integration
-```
-
-### Generated Source
-```bash
-zig build generated-code-run
-```
-
-### Generated Header
-```bash
-zig build generated-headers-run
-```
-
-### Shared Plugin
-```bash
-zig build shared-plugin-run
-```
-
-### Preset Profiles
-```bash
-zig build preset-profiles-run
-VEX_PRESET=asan zig build preset-profiles-run
-VEX_PRESET=lto zig build preset-profiles-run
-```
-
-Notes:
-- On this machine, `asan` is blocked by missing sanitizer runtime support.
-- On this machine, `lto` is blocked unless the toolchain is using LLD.
-
-### Cross-Compile CLI
-```bash
-zig build cross-compile-cli
-zig build cross-compile-cli-report
-```
-
-### CMake Combo (fmt + spdlog)
-```bash
-zig build cmake-combo
-zig build cmake-combo-run
-```
-
-### CMake Net (curl + zlib + mbedtls)
-```bash
-zig build cmake-net
-zig build cmake-net-run
-```
-
-### CMake Shim (mixed Zig + CMake)
-```bash
-VEX_SYSTEM_CMDS=1 zig build cmake-shim
-```
-
-### Proof Library
-```bash
-zig build proof-library
-zig build proof-library-run
-```
-
-### Resources Bundle
-```bash
-zig build resources-bundle-run
-```
-
-### Zig <-> C++ Bindings
-```bash
-zig build bindings-run
-```
-
-### Benchmark Workflow
-```bash
-zig build benchmark-workflow-run
-zig build benchmark-workflow-quick
-```
-
-### JUCE (versioned)
-```bash
-# JUCE 7.x via FetchContent
-JUCE_GIT_TAG=7.0.9 VEX_EXAMPLES=juce zig build juce
-```
-
-### C++20 Modules
-```bash
-zig build cxx20-modules-run
-```
-
-The modules example intentionally uses Homebrew LLVM Clang on this machine rather
-than `zig c++`, because the local `zig c++` driver does not currently expose a
-working C++20 modules flow here.
-
-### WebAssembly
 ```bash
 zig build wasm-wasi-report
 zig build wasm-exports-run
@@ -570,32 +180,50 @@ zig build wasm-web-demo-smoke
 zig build wasm-web-demo-serve
 ```
 
-`wasm-web-demo-serve` serves the staged browser demo at
-`http://127.0.0.1:8000`.
+`wasm-web-demo-serve` stages and serves a browser harness at `http://127.0.0.1:8000`.
 
-## 📚 Examples Guide
+## Documentation
 
-See [`docs/EXAMPLES.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/EXAMPLES.md).
+- Examples guide: [`docs/EXAMPLES.md`](docs/EXAMPLES.md)
+- Syntax reference: [`docs/SYNTAX_REFERENCE.md`](docs/SYNTAX_REFERENCE.md)
+- Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- CMake parity framing: [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md)
+- JUCE on Windows notes: [`docs/JUCE_WINDOWS.md`](docs/JUCE_WINDOWS.md)
+- Wiki site source: [`wiki`](wiki)
 
-## 🔤 Syntax Reference
+## Repository Layout
 
-See [`docs/SYNTAX_REFERENCE.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/SYNTAX_REFERENCE.md).
+| Path | Purpose |
+| --- | --- |
+| [`build.zig`](build.zig) | root build graph |
+| [`build_lib`](build_lib) | reusable build helpers |
+| [`examples`](examples) | example projects and workflows |
+| [`tests`](tests) | Zig-side test coverage |
+| [`registry`](registry) | lightweight registry metadata |
+| [`wiki`](wiki) | static docs site |
 
-## 🤔 Troubleshooting
+## Contributing
 
-### Common Issues
-- **Missing dependencies**: Run `zig build --fetch` to fetch dependencies
-- **Build errors**: Check error messages for clues, or run `zig build --verbose` for more information
-- **Runtime errors**: Check your code for bugs, or run your application with a debugger
+Until more public project files are added, the current contribution bar is:
 
-### Getting Help
-- **Vex documentation**: Check the Vex documentation for more information on build system features and usage
-- **Zig documentation**: Check the Zig documentation for more information on the Zig language and standard library
-- **Community support**: Join the Vex community for help and support from other users
+```bash
+zig build test
+zig build example-matrix
+```
 
-### JUCE on Windows
-See `docs/JUCE_WINDOWS.md` for Zig 0.14 workarounds.
+And keep changes scoped:
 
-## 🛣 Roadmap
+- do not mix generated junk into commits
+- keep command names explicit and grep-friendly
+- prefer verified example coverage over vague feature claims
 
-See `docs/ROADMAP.md`.
+## Public Repo Checklist
+
+Before broader publication, the repo should still gain a few standard project files:
+
+- `LICENSE`
+- `CONTRIBUTING.md`
+- `CODE_OF_CONDUCT.md`
+- `SECURITY.md`
+
+The code and docs are in better shape now; those repo-level hygiene files are the remaining obvious GitHub-facing gap.
