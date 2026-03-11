@@ -30,7 +30,6 @@ Prerequisites:
 
 - Zig 0.14.0 or newer
 - Git for dependency fetch flows
-- Python 3 for the local browser demo server/smoke path
 - optional: `direnv` for repo-local cache setup
 
 Clone and verify the repo:

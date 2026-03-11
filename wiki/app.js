@@ -10,7 +10,7 @@ const articles = [
       <ul>
         <li>Install Zig 0.14.0 or newer.</li>
         <li>Use Git for normal dependency flows.</li>
-        <li>Use Python 3 if you want to try the browser demo later.</li>
+        <li>Use the built-in Zig server when you want to try the browser demo later.</li>
       </ul>
       <h3>Step 1</h3>
       <div class="step-card">

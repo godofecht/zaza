@@ -15,7 +15,7 @@ The writing style should stay simple and direct:
 
 ```bash
 cd wiki
-python3 -m http.server 8000
+zig run ../build_lib/static_server.zig -- serve . 8000
 ```
 
 Open `http://localhost:8000`.
