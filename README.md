@@ -190,6 +190,10 @@ zig build wasm-web-demo-serve
 - CMake parity framing: [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md)
 - JUCE on Windows notes: [`docs/JUCE_WINDOWS.md`](docs/JUCE_WINDOWS.md)
 - Wiki site source: [`wiki`](wiki)
+- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
+- License: [`LICENSE`](LICENSE)
 
 ## Repository Layout
 
@@ -204,7 +208,7 @@ zig build wasm-web-demo-serve
 
 ## Contributing
 
-Until more public project files are added, the current contribution bar is:
+The current contribution bar is:
 
 ```bash
 zig build test
@@ -217,13 +221,4 @@ And keep changes scoped:
 - keep command names explicit and grep-friendly
 - prefer verified example coverage over vague feature claims
 
-## Public Repo Checklist
-
-Before broader publication, the repo should still gain a few standard project files:
-
-- `LICENSE`
-- `CONTRIBUTING.md`
-- `CODE_OF_CONDUCT.md`
-- `SECURITY.md`
-
-The code and docs are in better shape now; those repo-level hygiene files are the remaining obvious GitHub-facing gap.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the repo workflow details.
