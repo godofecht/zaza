@@ -128,17 +128,13 @@ const std = @import("std");
 const cpp = @import("build/cpp_example.zig");
 
 pub fn build(b: *std.Build) !void {
-    const exe = try cpp.CppExample{
+    const exe = try cpp.CppExample.executable(.{
         .name = "my_app",
-        .kind = .executable,
         .source_files = &.{"src/main.cpp"},
         .public_include_dirs = &.{"include"},
         .public_defines = &.{"MY_APP=1"},
-        .configs = &.{.{ .mode = .Debug }},
-        .deps_build_system = .Zig,
-        .main_build_system = .Zig,
         .cpp_std = "17",
-    }.build(b);
+    }).build(b);
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run my_app");

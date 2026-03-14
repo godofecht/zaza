@@ -4,6 +4,36 @@
     .fingerprint = 0xe969ab1c9eb2b445,
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
+        .mbedtls = .{
+            .url = "https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.6.2.tar.gz",
+            .hash = "N-V-__8AAPnFhALfI8HonTAfQwJlGPkOdcv9kdkvnmLlJDJo",
+        },
+
+        .zlib = .{
+            .url = "https://github.com/madler/zlib/archive/refs/tags/v1.3.1.tar.gz",
+            .hash = "N-V-__8AAB0eQwD-0MdOEBmz7intriBReIsIDNlukNVoNu6o",
+        },
+
+        .curl = .{
+            .url = "https://github.com/curl/curl/archive/refs/tags/curl-8_6_0.tar.gz",
+            .hash = "N-V-__8AAOkkFAE4POHDkpd4ye9HZkjAjRJ1BMnO6G_KpJlJ",
+        },
+
+        .spdlog = .{
+            .url = "https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz",
+            .hash = "N-V-__8AAJSgEQBm_CX16IKfCtcWMyIFbucHpA9_ojS59TbP",
+        },
+
+        .fmt = .{
+            .url = "https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz",
+            .hash = "N-V-__8AAC6NMwAvQbscvKb1VaN4g85RA3S5yld-1c0RfXHH",
+        },
+
+        .juce = .{
+            .url = "https://github.com/juce-framework/JUCE/archive/refs/tags/7.0.9.tar.gz",
+            .hash = "N-V-__8AAOmb4gPVbhDsN4EPQGAek7bubgG7dMdK8_vNlB4X",
+        },
+
         .nlohmann_json = .{
             .path = "deps/json",
         },

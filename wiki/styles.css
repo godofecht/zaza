@@ -31,14 +31,14 @@ body {
 }
 
 .topbar {
-  padding: 28px 20px 18px;
+  padding: 18px 20px 12px;
 }
 
 .topbar-inner {
   max-width: 1240px;
   margin: 0 auto;
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .eyebrow,
@@ -62,21 +62,49 @@ h1,
 }
 
 h1 {
-  margin: 10px 0 8px;
-  font-size: clamp(2.2rem, 5vw, 4.3rem);
-  line-height: 1.02;
-  max-width: 11ch;
+  margin: 4px 0 0;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  line-height: 1.06;
+}
+
+.brand-row {
+  display: grid;
+  gap: 12px;
+  align-items: center;
 }
 
 .brand-sub {
   margin: 0;
-  max-width: 62ch;
+  max-width: 72ch;
   color: var(--muted);
-  font-size: 1.02rem;
+  font-size: 0.98rem;
+}
+
+.topnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.topnav a {
+  text-decoration: none;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(210, 210, 215, 0.9);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.94rem;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.topnav a:hover {
+  border-color: rgba(0, 113, 227, 0.25);
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
 .search-wrap {
-  max-width: 560px;
+  max-width: 460px;
 }
 
 #search {
@@ -299,12 +327,21 @@ mark {
 
 @media (min-width: 960px) {
   .topbar {
-    padding: 34px 24px 20px;
+    padding: 22px 24px 14px;
   }
 
   .topbar-inner {
     grid-template-columns: minmax(0, 1fr) 340px;
     align-items: end;
+  }
+
+  .brand-row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .topnav {
+    justify-content: flex-start;
+    align-self: center;
   }
 
   .layout {

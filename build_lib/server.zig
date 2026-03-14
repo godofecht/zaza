@@ -173,7 +173,7 @@ fn saveConfig(allocator: std.mem.Allocator, json_str: []const u8) !void {
     );
 
     // Write the new build.zig
-    try std.fs.cwd().writeFile("build.zig", buf.items);
+    try std.fs.cwd().writeFile(.{ .sub_path = "build.zig", .data = buf.items });
 }
 
 pub fn main() !void {
@@ -197,10 +197,9 @@ pub fn main() !void {
 
     // Start HTTP server
     const address = try std.net.Address.parseIp("127.0.0.1", Port);
-    var server = std.net.StreamServer.init(.{});
+    var server = try address.listen(.{ .reuse_address = true });
     defer server.deinit();
 
-    try server.listen(address);
     std.debug.print("\nServer running at http://localhost:{d}\n", .{Port});
 
     // Open browser using spawnProcess instead of Child.run

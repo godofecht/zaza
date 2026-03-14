@@ -81,30 +81,57 @@ pub const Deps = struct {
 
 /// Common build configurations
 pub const BuildConfigs = struct {
-    pub const debug_release = &.{
-        .{
+    pub const debug_release: []const BuildConfig = &.{
+        BuildConfig{
             .mode = .Debug,
             .defines = &.{"DEBUG=1"},
         },
-        .{
+        BuildConfig{
             .mode = .Release,
             .defines = &.{"NDEBUG=1"},
         },
     };
 
-    pub const debug_only = &.{
-        .{
+    pub const debug_only: []const BuildConfig = &.{
+        BuildConfig{
             .mode = .Debug,
             .defines = &.{"DEBUG=1"},
         },
     };
 
-    pub const release_only = &.{
-        .{
+    pub const release_only: []const BuildConfig = &.{
+        BuildConfig{
             .mode = .Release,
             .defines = &.{"NDEBUG=1"},
         },
     };
+};
+
+pub const TargetOptions = struct {
+    name: []const u8,
+    description: ?[]const u8 = null,
+    source_files: []const []const u8,
+    include_dirs: []const []const u8 = &.{},
+    public_include_dirs: []const []const u8 = &.{},
+    private_include_dirs: []const []const u8 = &.{},
+    cpp_flags: []const []const u8 = &.{},
+    public_defines: []const []const u8 = &.{},
+    private_defines: []const []const u8 = &.{},
+    public_link_libs: []const []const u8 = &.{},
+    private_link_libs: []const []const u8 = &.{},
+    install_headers: []const []const u8 = &.{},
+    install_libs: []const []const u8 = &.{},
+    export_cmake: bool = false,
+    export_name: ?[]const u8 = null,
+    generated_source_files: []const []const u8 = &.{},
+    custom_commands: []const CustomCommand = &.{},
+    deps: []const Dependency = &.{},
+    configs: ?[]const BuildConfig = null,
+    deps_build_system: BuildSystem = .Zig,
+    main_build_system: BuildSystem = .Zig,
+    cpp_std: ?[]const u8 = "17",
+    cmake_config: ?CMakeConfig = null,
+    enable_system_commands: bool = false,
 };
 
 pub const BuildSystem = enum {
@@ -463,6 +490,56 @@ pub const CppExample = struct {
     cpp_std: ?[]const u8,
     cmake_config: ?CMakeConfig = null,
     enable_system_commands: bool = false,
+
+    pub fn make(kind: TargetKind, options: TargetOptions) CppExample {
+        return .{
+            .name = options.name,
+            .description = options.description orelse options.name,
+            .kind = kind,
+            .source_files = options.source_files,
+            .include_dirs = options.include_dirs,
+            .public_include_dirs = options.public_include_dirs,
+            .private_include_dirs = options.private_include_dirs,
+            .cpp_flags = options.cpp_flags,
+            .public_defines = options.public_defines,
+            .private_defines = options.private_defines,
+            .public_link_libs = options.public_link_libs,
+            .private_link_libs = options.private_link_libs,
+            .install_headers = options.install_headers,
+            .install_libs = options.install_libs,
+            .export_cmake = options.export_cmake,
+            .export_name = options.export_name,
+            .generated_source_files = options.generated_source_files,
+            .custom_commands = options.custom_commands,
+            .deps = options.deps,
+            .configs = options.configs orelse BuildConfigs.debug_only,
+            .deps_build_system = options.deps_build_system,
+            .main_build_system = options.main_build_system,
+            .cpp_std = options.cpp_std,
+            .cmake_config = options.cmake_config,
+            .enable_system_commands = options.enable_system_commands,
+        };
+    }
+
+    pub fn executable(options: TargetOptions) CppExample {
+        return make(.executable, options);
+    }
+
+    pub fn staticLibrary(options: TargetOptions) CppExample {
+        return make(.static_library, options);
+    }
+
+    pub fn sharedLibrary(options: TargetOptions) CppExample {
+        return make(.shared_library, options);
+    }
+
+    pub fn objectLibrary(options: TargetOptions) CppExample {
+        return make(.object_library, options);
+    }
+
+    pub fn interfaceLibrary(options: TargetOptions) CppExample {
+        return make(.interface_library, options);
+    }
 
     pub fn deinit(self: CppExample, allocator: std.mem.Allocator) void {
         allocator.free(self.name);

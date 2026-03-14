@@ -1,6 +1,11 @@
 const std = @import("std");
 const cpp = @import("../../build_lib/cpp_example.zig");
 
+pub const Artifacts = struct {
+    zig_exe: *std.Build.Step.Compile,
+    cpp_exe: *std.Build.Step.Compile,
+};
+
 pub var cpp_example = cpp.CppExample{
     .name = "hello_vex_cpp",
     .description = "C++ example built via Vex (Zig build system)",
@@ -22,7 +27,7 @@ pub var cpp_example = cpp.CppExample{
     .export_cmake = true,
 };
 
-pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
+pub fn addArtifacts(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !Artifacts {
     // Zig target (pure Zig)
     const zig_exe = b.addExecutable(.{
         .name = "hello_vex_zig",
@@ -30,14 +35,23 @@ pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.buil
         .target = target,
         .optimize = optimize,
     });
-    b.installArtifact(zig_exe);
 
     // C++ target (built via Vex)
     const cpp_exe = try cpp_example.buildWithTarget(b, target);
-    b.installArtifact(cpp_exe);
 
-    const run_zig = b.addRunArtifact(zig_exe);
-    const run_cpp = b.addRunArtifact(cpp_exe);
+    return .{
+        .zig_exe = zig_exe,
+        .cpp_exe = cpp_exe,
+    };
+}
+
+pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
+    const artifacts = try addArtifacts(b, target, optimize);
+    b.installArtifact(artifacts.zig_exe);
+    b.installArtifact(artifacts.cpp_exe);
+
+    const run_zig = b.addRunArtifact(artifacts.zig_exe);
+    const run_cpp = b.addRunArtifact(artifacts.cpp_exe);
 
     const run_step = b.step("run-hello-vex", "Run both hello_vex executables");
     run_step.dependOn(&run_zig.step);

@@ -127,23 +127,27 @@ The current repo still relies heavily on `CppExample`.
 Typical shape:
 
 ```zig
-pub var example = cpp.CppExample{
+pub var example = cpp.CppExample.executable(.{
     .name = "my_app",
     .description = "demo",
-    .kind = .executable,
     .source_files = &.{"src/main.cpp"},
-    .include_dirs = &.{},
     .public_include_dirs = &.{"include"},
-    .cpp_flags = &.{"-Wall"},
     .public_defines = &.{"MY_API=1"},
     .public_link_libs = &.{"pthread"},
     .deps = &.{},
-    .configs = &.{.{ .mode = .Debug }},
-    .deps_build_system = .Zig,
-    .main_build_system = .Zig,
     .cpp_std = "17",
-};
+});
 ```
+
+Shortcuts for the common cases:
+
+- `cpp.CppExample.executable(...)`
+- `cpp.CppExample.staticLibrary(...)`
+- `cpp.CppExample.sharedLibrary(...)`
+- `cpp.CppExample.objectLibrary(...)`
+- `cpp.CppExample.interfaceLibrary(...)`
+
+These all feed the same generic target model underneath through `CppExample.make(...)`.
 
 ## 5. `CppExample` Fields
 
