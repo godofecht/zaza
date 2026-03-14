@@ -6,10 +6,9 @@ const Port = 3000;
 
 pub fn startServer(allocator: std.mem.Allocator, example: cpp.CppExample) !void {
     const address = try std.net.Address.parseIp("127.0.0.1", Port);
-    var server = std.net.StreamServer.init(.{});
+    var server = try address.listen(.{ .reuse_address = true });
     defer server.deinit();
 
-    try server.listen(address);
     std.debug.print("Server listening on http://127.0.0.1:{d}\n", .{Port});
 
     while (true) {
@@ -119,7 +118,7 @@ fn saveConfig(allocator: std.mem.Allocator, json_str: []const u8) !void {
     );
 
     // Write the new build.zig
-    try std.fs.cwd().writeFile("build.zig", buf.items);
+    try std.fs.cwd().writeFile(.{ .sub_path = "build.zig", .data = buf.items });
 }
 
 fn getString(value: std.json.Value) ![]const u8 {

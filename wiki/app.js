@@ -53,17 +53,13 @@ zig build example-matrix</code></pre>
 const cpp = @import("build/cpp_example.zig");
 
 pub fn build(b: *std.Build) !void {
-    const exe = try cpp.CppExample{
+    const exe = try cpp.CppExample.executable(.{
         .name = "my_app",
-        .kind = .executable,
         .source_files = &.{"src/main.cpp"},
         .public_include_dirs = &.{"include"},
         .public_defines = &.{"MY_APP=1"},
-        .configs = &.{.{ .mode = .Debug }},
-        .deps_build_system = .Zig,
-        .main_build_system = .Zig,
         .cpp_std = "17",
-    }.build(b);
+    }).build(b);
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run my_app");
@@ -212,6 +208,13 @@ zig build run</code></pre>
 .custom_commands
 .generated_source_files
 .configs</code></pre>
+      <h3>Simple constructors</h3>
+      <pre><code>cpp.CppExample.executable(...)
+cpp.CppExample.staticLibrary(...)
+cpp.CppExample.sharedLibrary(...)
+cpp.CppExample.objectLibrary(...)
+cpp.CppExample.interfaceLibrary(...)</code></pre>
+      <p>These stay generic. They are just shorter entry points into the same target model through <code>CppExample.make(...)</code>.</p>
       <h3>Useful environment variables</h3>
       <table>
         <thead>

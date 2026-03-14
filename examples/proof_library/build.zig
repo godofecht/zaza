@@ -1,22 +1,15 @@
 const std = @import("std");
 const cpp = @import("../../build_lib/cpp_example.zig");
 
-pub var library = cpp.CppExample{
+pub var library = cpp.CppExample.staticLibrary(.{
     .name = "proof_math",
     .description = "Proof library example with install/export metadata",
-    .kind = .static_library,
     .source_files = &.{"examples/proof_library/src/proof_math.cpp"},
-    .include_dirs = &.{},
     .public_include_dirs = &.{"examples/proof_library/include"},
-    .cpp_flags = &.{},
     .install_headers = &.{"examples/proof_library/include/proof_math.hpp"},
     .export_cmake = true,
-    .deps = &.{},
-    .configs = &.{.{ .mode = .Debug }},
-    .deps_build_system = .Zig,
-    .main_build_system = .Zig,
     .cpp_std = "17",
-};
+});
 
 pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !void {
     const lib = try library.buildWithTarget(b, target);

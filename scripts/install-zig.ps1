@@ -5,7 +5,7 @@ $tempDir = Join-Path $env:TEMP "zig-install"
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 # Download Zig
-$zigVersion = "0.11.0"
+$zigVersion = "0.14.0"
 $zigUrl = "https://ziglang.org/download/$zigVersion/zig-windows-x86_64-$zigVersion.zip"
 $zipPath = Join-Path $tempDir "zig.zip"
 Write-Host "Downloading Zig $zigVersion..."

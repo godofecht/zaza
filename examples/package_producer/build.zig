@@ -1,22 +1,15 @@
 const std = @import("std");
 const cpp = @import("../../build_lib/cpp_example.zig");
 
-pub var library = cpp.CppExample{
+pub var library = cpp.CppExample.staticLibrary(.{
     .name = "package_math",
     .description = "Reusable package producer library with install/export metadata",
-    .kind = .static_library,
     .source_files = &.{"examples/package_producer/src/package_math.cpp"},
-    .include_dirs = &.{},
     .public_include_dirs = &.{"examples/package_producer/include"},
-    .cpp_flags = &.{},
     .install_headers = &.{"examples/package_producer/include/package_math.hpp"},
     .export_cmake = true,
-    .deps = &.{},
-    .configs = &.{.{ .mode = .Debug }},
-    .deps_build_system = .Zig,
-    .main_build_system = .Zig,
     .cpp_std = "17",
-};
+});
 
 pub const BuildResult = struct {
     lib: *std.Build.Step.Compile,
