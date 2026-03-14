@@ -7,7 +7,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    std.debug.print("📈 Vex Scalability Benchmark Suite\n");
+    std.debug.print("📈 Zaza Scalability Benchmark Suite\n");
     std.debug.print("================================\n\n");
 
     // Test scalability across different dimensions

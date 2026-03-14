@@ -2,7 +2,7 @@
 
 ## Scope
 
-Vex is trying to prove a serious replacement path for new CMake-based native
+Zaza is trying to prove a serious replacement path for new CMake-based native
 projects. Contributions should improve one of these:
 
 - target graph capability
@@ -36,7 +36,7 @@ If you are working on targets that need external system tools, enable them
 explicitly:
 
 ```bash
-VEX_SYSTEM_CMDS=1 zig build cmake-shim
+ZAZA_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
 ## Change Expectations

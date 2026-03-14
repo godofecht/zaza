@@ -15,5 +15,5 @@ support directly. The current default is Homebrew LLVM:
 Override with:
 
 ```bash
-VEX_MODULES_CXX=/path/to/clang++ ./zig build cxx20-modules-run
+ZAZA_MODULES_CXX=/path/to/clang++ ./zig build cxx20-modules-run
 ```

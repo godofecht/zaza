@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const package_prefix = b.option([]const u8, "package-prefix", "Prefix where the producer package was installed") orelse "../../zig-out";
 
-    const manifest_path = b.pathJoin(&.{ package_prefix, "share", "vex", "package_math.json" });
+    const manifest_path = b.pathJoin(&.{ package_prefix, "share", "zaza", "package_math.json" });
     const manifest = try readPackageManifest(b.allocator, manifest_path);
 
     const exe = b.addExecutable(.{

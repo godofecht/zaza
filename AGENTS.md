@@ -2,7 +2,7 @@
 
 ## Documentation Sync
 
-Any user-visible change to Vex is not complete until the docs are reviewed and updated.
+Any user-visible change to Zaza is not complete until the docs are reviewed and updated.
 
 This includes:
 
@@ -16,6 +16,6 @@ This includes:
 Minimum rule:
 
 - update the relevant repo docs in `README.md`, `docs/EXAMPLES.md`, and `docs/SYNTAX_REFERENCE.md` when needed
-- update the wiki tutorial site in `wiki/app.js` and `wiki/README.md` when the change affects how users learn or use Vex
+- update the wiki tutorial site in `wiki/app.js` and `wiki/README.md` when the change affects how users learn or use Zaza
 
 Do not leave the wiki behind after API or workflow changes.

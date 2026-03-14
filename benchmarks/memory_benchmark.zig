@@ -7,7 +7,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    std.debug.print("🧠 Vex Memory Usage Benchmark Suite\n");
+    std.debug.print("🧠 Zaza Memory Usage Benchmark Suite\n");
     std.debug.print("===================================\n\n");
 
     // Test different project sizes

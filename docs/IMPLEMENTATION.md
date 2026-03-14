@@ -1,19 +1,19 @@
-# Vex Implementation Plan: Technical Deep Dive
+# Zaza Implementation Plan: Technical Deep Dive
 
 ## 🏗️ Architecture Overview
 
 ### Core Components
 
 ```zig
-// Core Vex Architecture
-pub const Vex = struct {
+// Core Zaza Architecture
+pub const Zaza = struct {
     allocator: std.mem.Allocator,
     config: Config,
     dependency_manager: DependencyManager,
     build_engine: BuildEngine,
     plugin_system: PluginSystem,
     
-    pub fn init(allocator: std.mem.Allocator) !Vex {
+    pub fn init(allocator: std.mem.Allocator) !Zaza {
         return .{
             .allocator = allocator,
             .config = try Config.load(),
@@ -72,7 +72,7 @@ pub const IntelligentCache = struct {
 
 ## 📦 Package Registry Implementation
 
-### VPR (Vex Package Registry)
+### ZPR (Zaza Package Registry)
 
 ```zig
 // Package Registry Protocol
@@ -150,7 +150,7 @@ pub const SemanticVersion = struct {
 ### Language Server Protocol (LSP)
 
 ```zig
-pub const VexLanguageServer = struct {
+pub const ZazaLanguageServer = struct {
     client: lsp.Client,
     workspace: Workspace,
     
@@ -173,8 +173,8 @@ pub const VexLanguageServer = struct {
     
     fn provideZigCompletions(self: *Self, completions: *std.ArrayList(lsp.CompletionItem), 
                              document: Document, position: lsp.Position) !void {
-        // Provide Vex-specific completions
-        const vex_completions = [_]lsp.CompletionItem{
+        // Provide Zaza-specific completions
+        const zaza_completions = [_]lsp.CompletionItem{
             .{
                 .label = "addExecutable",
                 .kind = .Function,
@@ -191,7 +191,7 @@ pub const VexLanguageServer = struct {
             },
         };
         
-        for (vex_completions) |completion| {
+        for (zaza_completions) |completion| {
             try completions.append(completion);
         }
     }
@@ -203,10 +203,10 @@ pub const VexLanguageServer = struct {
 ```typescript
 // VS Code Extension (TypeScript)
 import * as vscode from 'vscode';
-import { VexLanguageServer } from './language-server';
+import { ZazaLanguageServer } from './language-server';
 
-export class VexExtension {
-    private languageServer: VexLanguageServer;
+export class ZazaExtension {
+    private languageServer: ZazaLanguageServer;
     
     activate(context: vscode.ExtensionContext) {
         // Register language features
@@ -220,11 +220,11 @@ export class VexExtension {
     
     private registerCommands(context: vscode.ExtensionContext) {
         const commands = [
-            vscode.commands.registerCommand('vex.initProject', () => this.initProject()),
-            vscode.commands.registerCommand('vex.build', () => this.buildProject()),
-            vscode.commands.registerCommand('vex.run', () => this.runProject()),
-            vscode.commands.registerCommand('vex.clean', () => this.cleanProject()),
-            vscode.commands.registerCommand('vex.addDependency', () => this.addDependency()),
+            vscode.commands.registerCommand('zaza.initProject', () => this.initProject()),
+            vscode.commands.registerCommand('zaza.build', () => this.buildProject()),
+            vscode.commands.registerCommand('zaza.run', () => this.runProject()),
+            vscode.commands.registerCommand('zaza.clean', () => this.cleanProject()),
+            vscode.commands.registerCommand('zaza.addDependency', () => this.addDependency()),
         ];
         
         commands.forEach(cmd => context.subscriptions.push(cmd));
@@ -439,7 +439,7 @@ pub const MemoryOptimizedBuilder = struct {
 
 ## 🔄 Migration Tools
 
-### CMake to Vex Converter
+### CMake to Zaza Converter
 
 ```zig
 pub const CMakeConverter = struct {
@@ -447,27 +447,27 @@ pub const CMakeConverter = struct {
         var parser = CMakeParser.init(cmake_content);
         const cmake_project = try parser.parse();
         
-        var vex_config = VexConfig.init();
+        var zaza_config = ZazaConfig.init();
         
         // Convert project configuration
-        try self.convertProjectConfig(&vex_config, cmake_project.project);
+        try self.convertProjectConfig(&zaza_config, cmake_project.project);
         
         // Convert targets
         for (cmake_project.targets) |target| {
-            const vex_target = try self.convertTarget(target);
-            try vex_config.addTarget(vex_target);
+            const zaza_target = try self.convertTarget(target);
+            try zaza_config.addTarget(zaza_target);
         }
         
         // Convert dependencies
         for (cmake_project.dependencies) |dep| {
-            const vex_dep = try self.convertDependency(dep);
-            try vex_config.addDependency(vex_dep);
+            const zaza_dep = try self.convertDependency(dep);
+            try zaza_config.addDependency(zaza_dep);
         }
         
-        return vex_config.toZigCode();
+        return zaza_config.toZigCode();
     }
     
-    fn convertTarget(self: *Self, cmake_target: CMakeTarget) !VexTarget {
+    fn convertTarget(self: *Self, cmake_target: CMakeTarget) !ZazaTarget {
         return switch (cmake_target.type) {
             .executable => .{
                 .name = cmake_target.name,
@@ -644,4 +644,4 @@ pub const PerformanceMonitor = struct {
 - **Library Compatibility**: 100+ major libraries
 - **Educational Content**: 50+ tutorials/courses
 
-This comprehensive implementation plan provides the technical foundation and strategic roadmap needed to make Vex the de-facto C++ build system.
+This comprehensive implementation plan provides the technical foundation and strategic roadmap needed to make Zaza the de-facto C++ build system.

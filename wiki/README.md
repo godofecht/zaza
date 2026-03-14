@@ -1,6 +1,6 @@
-# Vex Wiki Site
+# Zaza Wiki Site
 
-This folder contains the static tutorial site for Vex.
+This folder contains the static tutorial site for Zaza.
 
 The writing style should stay simple and direct:
 

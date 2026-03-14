@@ -7,15 +7,15 @@ pub const Artifacts = struct {
 };
 
 pub var cpp_example = cpp.CppExample{
-    .name = "hello_vex_cpp",
-    .description = "C++ example built via Vex (Zig build system)",
-    .source_files = &.{"examples/hello_vex/src/main.cpp"},
+    .name = "hello_zaza_cpp",
+    .description = "C++ example built via Zaza (Zig build system)",
+    .source_files = &.{"examples/hello_zaza/src/main.cpp"},
     .include_dirs = &.{},
-    .public_include_dirs = &.{"examples/hello_vex/include"},
+    .public_include_dirs = &.{"examples/hello_zaza/include"},
     .private_include_dirs = &.{},
     .cpp_flags = &.{},
-    .public_defines = &.{"HELLO_VEX_PUBLIC=1"},
-    .private_defines = &.{"HELLO_VEX_PRIVATE=1"},
+    .public_defines = &.{"HELLO_ZAZA_PUBLIC=1"},
+    .private_defines = &.{"HELLO_ZAZA_PRIVATE=1"},
     .public_link_libs = &.{},
     .private_link_libs = &.{},
     .deps = &.{},
@@ -23,20 +23,20 @@ pub var cpp_example = cpp.CppExample{
     .deps_build_system = .Zig,
     .main_build_system = .Zig,
     .cpp_std = "17",
-    .install_headers = &.{"examples/hello_vex/include/hello_vex.h"},
+    .install_headers = &.{"examples/hello_zaza/include/hello_zaza.h"},
     .export_cmake = true,
 };
 
 pub fn addArtifacts(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) !Artifacts {
     // Zig target (pure Zig)
     const zig_exe = b.addExecutable(.{
-        .name = "hello_vex_zig",
-        .root_source_file = b.path("examples/hello_vex/src/main.zig"),
+        .name = "hello_zaza_zig",
+        .root_source_file = b.path("examples/hello_zaza/src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // C++ target (built via Vex)
+    // C++ target (built via Zaza)
     const cpp_exe = try cpp_example.buildWithTarget(b, target);
 
     return .{
@@ -53,7 +53,7 @@ pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.buil
     const run_zig = b.addRunArtifact(artifacts.zig_exe);
     const run_cpp = b.addRunArtifact(artifacts.cpp_exe);
 
-    const run_step = b.step("run-hello-vex", "Run both hello_vex executables");
+    const run_step = b.step("run-hello-zaza", "Run both hello_zaza executables");
     run_step.dependOn(&run_zig.step);
     run_step.dependOn(&run_cpp.step);
 }

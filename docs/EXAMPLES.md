@@ -1,4 +1,4 @@
-# Vex Examples Guide
+# Zaza Examples Guide
 
 This document explains what each verified example is doing, why it exists, and
 which target to run.
@@ -28,30 +28,30 @@ Each example also names the syntax it is demonstrating.
 - nested build: a root target that intentionally shells out into another `build.zig`
 - wasm target: an example whose important output is a `.wasm` artifact rather than a native executable
 
-## 1. Hello Vex
+## 1. Hello Zaza
 
 Targets:
 
 ```bash
-zig build hello-vex
-zig build run-hello-vex
+zig build hello-zaza
+zig build run-hello-zaza
 ```
 
 What it proves:
 - mixed Zig and C++ artifacts can live in one build graph
-- Vex can build both and run both from one top-level step
+- Zaza can build both and run both from one top-level step
 
 Syntax focus:
-- root target naming with `hello-vex` and `run-hello-vex`
+- root target naming with `hello-zaza` and `run-hello-zaza`
 - mixed-language orchestration with a Zig executable and a C++ executable in one graph
 
 Diagram:
 
 ```text
-main.zig  ---> hello_vex_zig
-main.cpp  ---> hello_vex_cpp
+main.zig  ---> hello_zaza_zig
+main.cpp  ---> hello_zaza_cpp
                    |
-                   +--> run-hello-vex
+                   +--> run-hello-zaza
 ```
 
 ## 2. Package Producer / Consumer
@@ -64,13 +64,13 @@ zig build package-consumer-run
 ```
 
 What it proves:
-- a library can be installed with headers, libs, and Vex package metadata
+- a library can be installed with headers, libs, and Zaza package metadata
 - a downstream project can consume the installed package from a separate build
 
 Syntax focus:
 - install/export fields such as `install_headers`, `install_libs`, and `export_cmake`
 - nested build flow for a true downstream consumer
-- package metadata resolved from `zig-out/share/vex/<name>.json`
+- package metadata resolved from `zig-out/share/zaza/<name>.json`
 
 Diagram:
 
@@ -78,7 +78,7 @@ Diagram:
 package_producer
   -> zig-out/include/package_math/...
   -> zig-out/lib/libpackage_math_*.a
-  -> zig-out/share/vex/package_math.json
+  -> zig-out/share/zaza/package_math.json
 
 package_consumer
   -> reads package_math.json
@@ -273,16 +273,16 @@ Targets:
 
 ```bash
 zig build preset-profiles-run
-VEX_PRESET=asan zig build preset-profiles-run
-VEX_PRESET=lto zig build preset-profiles-run
+ZAZA_PRESET=asan zig build preset-profiles-run
+ZAZA_PRESET=lto zig build preset-profiles-run
 ```
 
 What it proves:
-- `VEX_PRESET` changes the selected build configuration set
+- `ZAZA_PRESET` changes the selected build configuration set
 - examples can make the active preset visible in output
 
 Syntax focus:
-- `VEX_PRESET`
+- `ZAZA_PRESET`
 - `BuildConfig`
 - profile-driven configuration selection
 
@@ -293,7 +293,7 @@ Notes:
 Diagram:
 
 ```text
-VEX_PRESET -> presetConfigs(...) -> BuildConfig list -> example compile flags/defines
+ZAZA_PRESET -> presetConfigs(...) -> BuildConfig list -> example compile flags/defines
 ```
 
 ## 11. Cross-Compile CLI
@@ -405,13 +405,13 @@ zig build cxx20-modules-run
 ```
 
 What it proves:
-- Vex can orchestrate a real C++20 module pipeline
+- Zaza can orchestrate a real C++20 module pipeline
 - compiler strategy can be explicit when `zig c++` is not the correct driver
 
 Syntax focus:
 - nested compiler orchestration
 - explicit `.pcm` and object generation steps
-- environment override with `VEX_MODULES_CXX`
+- environment override with `ZAZA_MODULES_CXX`
 
 Important:
 - this example intentionally uses Homebrew LLVM Clang on this machine
@@ -435,7 +435,7 @@ zig build wasm-wasi-report
 ```
 
 What it proves:
-- Vex can emit a `wasm32-wasi-musl` executable artifact
+- Zaza can emit a `wasm32-wasi-musl` executable artifact
 - the output can be validated as a real wasm binary
 
 Syntax focus:
@@ -459,7 +459,7 @@ zig build wasm-exports-run
 ```
 
 What it proves:
-- Vex can emit a freestanding exported wasm module
+- Zaza can emit a freestanding exported wasm module
 - host environments can load and call exported functions
 
 Syntax focus:
@@ -514,21 +514,21 @@ Targets:
 ```bash
 zig build cmake-combo-run
 zig build cmake-net-run
-VEX_SYSTEM_CMDS=1 zig build cmake-shim
+ZAZA_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
 What they prove:
-- CMake-built third-party dependencies can be brought under the Vex graph
+- CMake-built third-party dependencies can be brought under the Zaza graph
 - system-command-gated flows can still be modeled explicitly
 
 Syntax focus:
-- `VEX_SYSTEM_CMDS=1`
-- CMake dependency orchestration inside a Vex-owned graph
+- `ZAZA_SYSTEM_CMDS=1`
+- CMake dependency orchestration inside a Zaza-owned graph
 
 Diagram:
 
 ```text
-Vex graph
+Zaza graph
   -> clone/configure/build/install CMake deps
   -> link final artifact
   -> run or inspect

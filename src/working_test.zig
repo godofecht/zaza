@@ -8,9 +8,9 @@ test "basic math" {
 }
 
 test "string operations" {
-    const str = "Hello Vex!";
-    try testing.expect(str.len == 10);
-    try testing.expect(std.mem.eql(u8, str, "Hello Vex!"));
+    const str = "Hello Zaza!";
+    try testing.expect(str.len == 11);
+    try testing.expect(std.mem.eql(u8, str, "Hello Zaza!"));
 }
 
 test "array operations" {
@@ -28,7 +28,7 @@ test "allocator basic" {
 }
 
 pub fn main() !void {
-    std.debug.print("=== Vex Zig Test ===\n", .{});
+    std.debug.print("=== Zaza Zig Test ===\n", .{});
     
     // Test basic functionality
     const result = 2 + 2;

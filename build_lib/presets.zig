@@ -9,10 +9,10 @@ pub fn presetConfigs(preset: []const u8) []const cpp.BuildConfig {
         return &.{.{ .mode = .Release }};
     }
     if (std.ascii.eqlIgnoreCase(preset, "asan")) {
-        return &.{.{ .mode = .Debug, .cpp_flags = &.{"-fsanitize=address"}, .defines = &.{"VEX_ASAN=1"} }};
+        return &.{.{ .mode = .Debug, .cpp_flags = &.{"-fsanitize=address"}, .defines = &.{"ZAZA_ASAN=1"} }};
     }
     if (std.ascii.eqlIgnoreCase(preset, "lto")) {
-        return &.{.{ .mode = .Release, .want_lto = true, .defines = &.{"VEX_LTO=1"} }};
+        return &.{.{ .mode = .Release, .want_lto = true, .defines = &.{"ZAZA_LTO=1"} }};
     }
     if (std.ascii.eqlIgnoreCase(preset, "relwithdebinfo")) {
         return &.{.{ .mode = .RelWithDebInfo }};

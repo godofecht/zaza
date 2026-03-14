@@ -6,7 +6,7 @@ Do not open a public issue for a security vulnerability.
 
 Report vulnerabilities privately to:
 
-- `security@vex.build`
+- `security@zaza.build`
 
 Please include:
 

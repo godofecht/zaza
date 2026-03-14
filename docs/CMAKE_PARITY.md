@@ -1,11 +1,11 @@
-# Vex CMake Parity Plan
+# Zaza CMake Parity Plan
 
-This is the practical feature plan for making Vex good enough to replace CMake
+This is the practical feature plan for making Zaza good enough to replace CMake
 for new projects, not a vague wishlist.
 
 ## Goal
 
-Vex does not need to clone every historical CMake feature. It needs to cover the
+Zaza does not need to clone every historical CMake feature. It needs to cover the
 subset that modern C/C++ projects actually depend on:
 
 - native executable/library targets
@@ -16,7 +16,7 @@ subset that modern C/C++ projects actually depend on:
 - cross compilation and toolchain control
 - IDE/tooling outputs
 
-If Vex does those reliably, new projects can start on Vex without feeling like
+If Zaza does those reliably, new projects can start on Zaza without feeling like
 they are giving something important up.
 
 ## Current Position
@@ -49,7 +49,7 @@ Still missing or incomplete for true replacement:
 
 ### Tier 0: Must Work
 
-Without this, Vex is not a credible replacement for new projects.
+Without this, Zaza is not a credible replacement for new projects.
 
 1. First-class target API
 - `addExecutable`
@@ -69,7 +69,7 @@ Without this, Vex is not a credible replacement for new projects.
 3. Install/export/package consumption
 - install binaries, headers, libs, resources
 - generate importable package metadata
-- consume installed Vex packages cleanly from another project
+- consume installed Zaza packages cleanly from another project
 - stable package layout in `zig-out`
 
 4. Deterministic dependencies
@@ -110,7 +110,7 @@ These are common in serious projects and should follow immediately after Tier 0.
 - local override file ignored by git
 
 2. Package discovery model
-- a Vex equivalent to `find_package`
+- a Zaza equivalent to `find_package`
 - explicit imported targets from installed packages
 - version constraints
 
@@ -145,14 +145,14 @@ These improve performance and polish enough to matter commercially.
 - better graph parallelism diagnostics
 
 2. Developer ergonomics
-- `vex fmt`, `vex doctor`, `vex graph`, `vex deps`
+- `zaza fmt`, `zaza doctor`, `zaza graph`, `zaza deps`
 - explain-why rebuild diagnostics
 - cache inspection and cleanup commands
 
 3. Editor support
 - VS Code extension
 - target/task discovery
-- hover/help for Vex target APIs
+- hover/help for Zaza target APIs
 
 4. CI/release workflows
 - test report export
@@ -170,7 +170,7 @@ Useful, but not required for replacing CMake on most new projects.
 
 ## Concrete Feature Mapping
 
-| CMake concept | Vex requirement | Status |
+| CMake concept | Zaza requirement | Status |
 | --- | --- | --- |
 | `add_executable` | stable executable target API | partial |
 | `add_library(STATIC/SHARED)` | native library target API | missing |
@@ -274,7 +274,7 @@ These are the highest-value changes implied by the current codebase:
 
 ## Success Standard
 
-Vex is ready to replace CMake for new projects when a team can start a
+Zaza is ready to replace CMake for new projects when a team can start a
 cross-platform C++ library/executable project with tests, third-party
 dependencies, install/export packaging, generated code, and editor tooling
 without needing to fall back to CMake for any core workflow.

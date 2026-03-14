@@ -58,7 +58,7 @@ pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
     web_step.dependOn(&install_web_js.step);
 
     const server = b.addExecutable(.{
-        .name = "vex_static_server",
+        .name = "zaza_static_server",
         .root_source_file = b.path("build_lib/static_server.zig"),
         .target = b.graph.host,
         .optimize = optimize,

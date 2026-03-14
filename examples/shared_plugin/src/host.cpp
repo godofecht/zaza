@@ -19,8 +19,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const auto plugin_name = reinterpret_cast<plugin_name_fn>(dlsym(handle, "vex_plugin_name"));
-    const auto plugin_compute = reinterpret_cast<plugin_compute_fn>(dlsym(handle, "vex_plugin_compute"));
+    const auto plugin_name = reinterpret_cast<plugin_name_fn>(dlsym(handle, "zaza_plugin_name"));
+    const auto plugin_compute = reinterpret_cast<plugin_compute_fn>(dlsym(handle, "zaza_plugin_compute"));
     if (plugin_name == nullptr || plugin_compute == nullptr) {
         std::cerr << "dlsym failed\n";
         dlclose(handle);

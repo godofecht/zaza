@@ -70,6 +70,6 @@ pub fn build(b: *std.Build) !void {
     const run_comparison = b.addRunArtifact(cmake_comparison);
     run_comparison.step.dependOn(&b.getInstallStep());
     
-    const comparison_step = b.step("compare", "Compare Vex performance with CMake");
+    const comparison_step = b.step("compare", "Compare Zaza performance with CMake");
     comparison_step.dependOn(&run_comparison.step);
 }

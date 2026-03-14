@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const vex_cmd = @import("../../../build_lib/vex_cmd.zig");
+const zaza_cmd = @import("../../../build_lib/zaza_cmd.zig");
 
 pub const Dependency = struct {
     name: []const u8,
@@ -462,7 +462,7 @@ pub const CppExample = struct {
         if (target.result.os.tag == .windows and target.result.abi == .msvc and self.main_build_system == .Zig) {
             @panic(
                 "Zig 0.14 cannot compile C++ with the MSVC ABI (see Zig issue #18685). "
-                ++ "Use VEX_WINDOWS_TOOLCHAIN=gnu or VEX_TARGET=x86_64-windows-gnu, "
+                ++ "Use ZAZA_WINDOWS_TOOLCHAIN=gnu or ZAZA_TARGET=x86_64-windows-gnu, "
                 ++ "or switch this example to a system toolchain (CMake)."
             );
         }
@@ -485,7 +485,7 @@ pub const CppExample = struct {
             if (self.enable_system_commands) {
                 for (self.deps) |dep| {
                     // Clone step
-                    const clone_step = vex_cmd.addCommandStep(
+                    const clone_step = zaza_cmd.addCommandStep(
                         b,
                         b.fmt("clone_{s}_{s}", .{ dep.name, config_name }),
                         makeCloneCommand(b, dep),
@@ -503,7 +503,7 @@ pub const CppExample = struct {
                         const dep_build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{"deps", dep.name, "build", config_name});
                         const extra_configure_args = buildDefaultCMakeArgs(b, dep.name, cmake_cfg.configure_args);
 
-                        const configure_step = vex_cmd.addCommandStep(
+                        const configure_step = zaza_cmd.addCommandStep(
                             b,
                             b.fmt("configure_{s}_{s}", .{ dep.name, config_name }),
                             makeCMakeConfigureCommand(
@@ -522,7 +522,7 @@ pub const CppExample = struct {
                         }
                         last_step = configure_step;
 
-                        const build_step = vex_cmd.addCommandStep(
+                        const build_step = zaza_cmd.addCommandStep(
                             b,
                             b.fmt("build_{s}_{s}", .{ dep.name, config_name }),
                             makeCMakeBuildCommand(
@@ -535,7 +535,7 @@ pub const CppExample = struct {
                         build_step.dependencies.append(configure_step) catch unreachable;
                         last_step = build_step;
                         if (cmake_cfg.install) {
-                            const install_step = vex_cmd.addCommandStep(
+                            const install_step = zaza_cmd.addCommandStep(
                                 b,
                                 b.fmt("install_{s}_{s}", .{ dep.name, config_name }),
                                 makeCMakeInstallCommand(
@@ -550,7 +550,7 @@ pub const CppExample = struct {
                             last_step = install_step;
                         }
                     } else if (dep.build_command.len > 0) {
-                        const cmd_step = vex_cmd.addCommandStep(
+                        const cmd_step = zaza_cmd.addCommandStep(
                             b,
                             b.fmt("build_{s}_{s}", .{ dep.name, config_name }),
                             dep.build_command,
@@ -570,7 +570,7 @@ pub const CppExample = struct {
                 const cmake_cfg = self.cmake_config orelse CMakeConfig{};
                 const source_dir = cmake_cfg.source_dir orelse ".";
                 const build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{"build", config_name});
-                const cmake_configure = vex_cmd.addCommandStep(
+                const cmake_configure = zaza_cmd.addCommandStep(
                     b,
                     b.fmt("configure_{s}_{s}", .{ self.name, config_name }),
                     makeCMakeConfigureCommand(
@@ -586,7 +586,7 @@ pub const CppExample = struct {
                 );
                 if (last_step) |prev| cmake_configure.dependencies.append(prev) catch unreachable;
 
-                const cmake_build = vex_cmd.addCommandStep(
+                const cmake_build = zaza_cmd.addCommandStep(
                     b,
                     b.fmt("build_{s}_{s}", .{ self.name, config_name }),
                     makeCMakeBuildCommand(
@@ -599,7 +599,7 @@ pub const CppExample = struct {
                 cmake_build.dependencies.append(cmake_configure) catch unreachable;
                 last_step = cmake_build;
                 if (cmake_cfg.install) {
-                    const cmake_install = vex_cmd.addCommandStep(
+                    const cmake_install = zaza_cmd.addCommandStep(
                         b,
                         b.fmt("install_{s}_{s}", .{ self.name, config_name }),
                         makeCMakeInstallCommand(
@@ -1095,11 +1095,11 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
         var content = std.ArrayList(u8).init(b.allocator);
         defer content.deinit();
 
-        try content.appendSlice("get_filename_component(_VEX_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
-        try content.writer().print("set(VEX_INCLUDE_DIR \"${{_VEX_PREFIX}}/include/{s}\")\n", .{export_name});
-        try content.appendSlice("set(VEX_LIB_DIR \"${_VEX_PREFIX}/lib\")\n");
+        try content.appendSlice("get_filename_component(_ZAZA_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
+        try content.writer().print("set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
+        try content.appendSlice("set(ZAZA_LIB_DIR \"${_ZAZA_PREFIX}/lib\")\n");
         if (self.public_link_libs.len > 0 or self.private_link_libs.len > 0) {
-            try content.appendSlice("set(VEX_LIBRARIES ");
+            try content.appendSlice("set(ZAZA_LIBRARIES ");
             for (self.public_link_libs) |lib| {
                 try content.writer().print("{s} ", .{lib});
             }

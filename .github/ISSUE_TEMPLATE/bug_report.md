@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible defect in Vex or one of the example workflows
+about: Report a reproducible defect in Zaza or one of the example workflows
 title: "[bug] "
 labels: bug
 assignees: ""
