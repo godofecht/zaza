@@ -1,53 +1,117 @@
-# Zaza
+<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+<a id="readme-top"></a>
 
-Zaza is a Zig-driven build system for modern C, C++, Zig, CMake-interop, and WebAssembly workflows.
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
 
-The project goal is straightforward: make new native projects feel simpler than CMake without giving up serious target graphs, package flows, generated code, cross-compilation, or browser-adjacent outputs.
+<br />
+<div align="center">
 
-## Why Zaza
+<h3 align="center">Zaza</h3>
 
-- Zig build graph as the control plane instead of a separate DSL
-- First-class mixed-language workflows: C, C++, and Zig in one repo
-- Real examples for generated sources, shared plugins, packaging, presets, CMake interop, and wasm
-- One verified matrix command for the example surface
+  <p align="center">
+    A Zig-driven build system for modern C, C++, Zig, CMake-interop, and WebAssembly workflows.
+    <br />
+    <a href="docs/SYNTAX_REFERENCE.md"><strong>Explore the docs &raquo;</strong></a>
+    <br />
+    <br />
+    <a href="#example-highlights">View Examples</a>
+    &middot;
+    <a href="https://github.com/godofecht/zaza/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    &middot;
+    <a href="https://github.com/godofecht/zaza/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+  </p>
+</div>
 
-## Status
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#example-highlights">Example Highlights</a></li>
+    <li><a href="#replacing-cmake">Replacing CMake</a></li>
+    <li><a href="#webassembly">WebAssembly</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgments">Acknowledgments</a></li>
+  </ol>
+</details>
 
-Zaza is usable and heavily example-driven, but it is not pretending to have a final polished API yet.
+## About The Project
 
-Current reality:
+Zaza makes new native projects feel simpler than CMake without giving up serious target graphs, package flows, generated code, cross-compilation, or browser-adjacent outputs.
 
-- the verified example matrix is runnable with `zig build example-matrix`
-- the repo includes package producer/consumer, mixed C/C++/Zig, wasm, browser demo, cross-compile, and CMake interop examples
-- some flows remain environment-sensitive
-  - `ZAZA_PRESET=asan` depends on sanitizer runtime availability
-  - `ZAZA_PRESET=lto` depends on linker/toolchain configuration
-  - the C++20 modules example uses LLVM Clang on this machine rather than `zig c++`
+**Why Zaza:**
+* Zig build graph as the control plane instead of a separate DSL
+* First-class mixed-language workflows: C, C++, and Zig in one repo
+* Real examples for generated sources, shared plugins, packaging, presets, CMake interop, and wasm
+* One verified matrix command for the entire example surface
 
-## Quick Start
+**Status:** Zaza is usable and heavily example-driven, but it is not pretending to have a final polished API yet. The verified example matrix is runnable with `zig build example-matrix`.
 
-Prerequisites:
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- Zig 0.14.0 or newer
-- Git for dependency fetch flows
-- optional: `direnv` for repo-local cache setup
+### Built With
 
-Clone and verify the repo:
+* [![Zig][Zig-badge]][Zig-url]
+* C / C++
+* CMake (interop layer)
+* WebAssembly
 
-```bash
-git clone <repo-url>
-cd <repo-dir>
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-# optional
-direnv allow
+## Getting Started
 
-zig build test
-zig build example-matrix
-```
+### Prerequisites
+
+* [Zig](https://ziglang.org/download/) 0.14.0 or newer
+* Git (for dependency fetch flows)
+* Optional: [direnv](https://direnv.net/) for repo-local cache setup
+
+### Installation
+
+1. Clone the repo
+   ```sh
+   git clone https://github.com/godofecht/zaza.git
+   ```
+2. Enter the project directory
+   ```sh
+   cd zaza
+   ```
+3. (Optional) Allow direnv
+   ```sh
+   direnv allow
+   ```
+4. Verify the build
+   ```sh
+   zig build test
+   zig build example-matrix
+   ```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Usage
 
 Useful first commands:
 
-```bash
+```sh
 zig build run-hello-zaza
 zig build package-consumer-run
 zig build mixed-stack-run
@@ -57,71 +121,20 @@ zig build wasm-web-demo-serve
 
 If a target needs external tools such as `git` or `cmake`, enable them explicitly:
 
-```bash
+```sh
 ZAZA_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
-## What It Covers
+**Naming conventions:**
 
-The current verified example surface includes:
-
-- mixed Zig + C++ executables
-- static, shared, object, and interface-style target graphs
-- generated source and generated header workflows
-- package install/export plus downstream consumption
-- runtime assets under `zig-out/share/...`
-- C ABI bindings between Zig and C++
-- preset/profile-driven builds
-- cross-compilation
-- CMake-based dependency integration
-- WebAssembly for WASI, host embedding, and browser delivery
-
-Run the full matrix:
-
-```bash
-zig build example-matrix
-```
-
-## Example Highlights
-
-These are the highest-signal example entry points:
-
-| Workflow | Command |
+| Pattern | Meaning |
 | --- | --- |
-| Mixed Zig + C++ | `zig build run-hello-zaza` |
-| Package producer / consumer | `zig build package-consumer-run` |
-| Mixed C + C++ + Zig | `zig build mixed-stack-run` |
-| Interface + object + static graph | `zig build interface-object-graph-run` |
-| Shared plugin loading | `zig build shared-plugin-run` |
-| Cross-compile artifact report | `zig build cross-compile-cli-report` |
-| C++20 modules | `zig build cxx20-modules-run` |
-| WASI artifact validation | `zig build wasm-wasi-report` |
-| Host-loaded wasm exports | `zig build wasm-exports-run` |
-| Browser wasm demo | `zig build wasm-web-demo-smoke` |
+| `<name>` | Build or stage the artifact |
+| `<name>-run` | Execute something real |
+| `<name>-report` | Inspect or validate an artifact |
+| `<name>-serve` | Start a local server |
 
-Full per-example explanations and diagrams live in [`docs/EXAMPLES.md`](docs/EXAMPLES.md).
-
-## Build and Command Model
-
-Current naming conventions:
-
-- `<name>`: build or stage the artifact
-- `<name>-run`: execute something real
-- `<name>-report`: inspect or validate an artifact
-- `<name>-serve`: start a local server
-
-Examples:
-
-```bash
-zig build hello-zaza
-zig build run-hello-zaza
-zig build cross-compile-cli-report
-zig build wasm-web-demo-serve
-```
-
-The practical syntax reference for the current repo surface lives in [`docs/SYNTAX_REFERENCE.md`](docs/SYNTAX_REFERENCE.md).
-
-## Minimal Example
+**Minimal `build.zig` example:**
 
 ```zig
 const std = @import("std");
@@ -142,13 +155,32 @@ pub fn build(b: *std.Build) !void {
 }
 ```
 
-For the broader syntax surface, use the reference docs instead of treating this README as API documentation.
+_For the full syntax surface, please refer to the [Syntax Reference](docs/SYNTAX_REFERENCE.md)._
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Example Highlights
+
+| Workflow | Command |
+| --- | --- |
+| Mixed Zig + C++ | `zig build run-hello-zaza` |
+| Package producer / consumer | `zig build package-consumer-run` |
+| Mixed C + C++ + Zig | `zig build mixed-stack-run` |
+| Interface + object + static graph | `zig build interface-object-graph-run` |
+| Shared plugin loading | `zig build shared-plugin-run` |
+| Cross-compile artifact report | `zig build cross-compile-cli-report` |
+| C++20 modules | `zig build cxx20-modules-run` |
+| WASI artifact validation | `zig build wasm-wasi-report` |
+| Host-loaded wasm exports | `zig build wasm-exports-run` |
+| Browser wasm demo | `zig build wasm-web-demo-smoke` |
+
+Full per-example explanations and diagrams live in [`docs/EXAMPLES.md`](docs/EXAMPLES.md).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Replacing CMake
 
 The intent is not to mimic CMake syntax one-for-one. The intent is to cover the workflows people actually need when starting new projects.
-
-Rough mental mapping:
 
 | CMake concept | Zaza shape |
 | --- | --- |
@@ -161,13 +193,15 @@ Rough mental mapping:
 | `install()` / `export()` | install/export fields and Zaza package metadata |
 | `find_package()` consumer flow | package producer / consumer example |
 
-See [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the parity framing.
+See [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full parity framing.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## WebAssembly
 
-Zaza already has concrete wasm workflows:
+Zaza has concrete wasm workflows:
 
-```bash
+```sh
 zig build wasm-wasi-report
 zig build wasm-exports-run
 zig build wasm-web-demo
@@ -177,48 +211,98 @@ zig build wasm-web-demo-serve
 
 `wasm-web-demo-serve` stages and serves a browser harness at `http://127.0.0.1:8000`.
 
-## Documentation
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- Examples guide: [`docs/EXAMPLES.md`](docs/EXAMPLES.md)
-- Syntax reference: [`docs/SYNTAX_REFERENCE.md`](docs/SYNTAX_REFERENCE.md)
-- Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
-- CMake parity framing: [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md)
-- JUCE on Windows notes: [`docs/JUCE_WINDOWS.md`](docs/JUCE_WINDOWS.md)
-- Wiki site source: [`wiki`](wiki)
-- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
-- Security policy: [`SECURITY.md`](SECURITY.md)
-- License: [`LICENSE`](LICENSE)
+## Roadmap
+
+- [x] Mixed C/C++/Zig target graphs
+- [x] Package producer/consumer workflow
+- [x] WebAssembly (WASI, host embedding, browser)
+- [x] CMake interop layer
+- [x] Verified example matrix
+- [ ] Polished public API
+- [ ] Registry and package discovery
+- [ ] IDE integration (language server, VS Code extension)
+
+See the [open issues](https://github.com/godofecht/zaza/issues) for a full list of proposed features (and known issues). See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed roadmap.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contributing
+
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+
+The current contribution bar is:
+
+```sh
+zig build test
+zig build example-matrix
+```
+
+If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Don't forget to give the project a star! Thanks again!
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full repo workflow details.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+### Top contributors:
+
+<a href="https://github.com/godofecht/zaza/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=godofecht/zaza" alt="contrib.rocks image" />
+</a>
+
+## License
+
+Distributed under the MIT License. See [`LICENSE`](LICENSE) for more information.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Contact
+
+Abhishek Shivakumar - security@zaza.build
+
+Project Link: [https://github.com/godofecht/zaza](https://github.com/godofecht/zaza)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Acknowledgments
+
+* [Zig](https://ziglang.org/) - the language and build system that makes this possible
+* [Best-README-Template](https://github.com/othneildrew/Best-README-Template) - README template
+* All contributors and the open source community
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Repository Layout
 
 | Path | Purpose |
 | --- | --- |
-| [`build.zig`](build.zig) | root build graph |
-| [`build_lib`](build_lib) | reusable build helpers |
-| [`examples`](examples) | example projects and workflows |
+| [`build.zig`](build.zig) | Root build graph |
+| [`build_lib`](build_lib) | Reusable build helpers |
+| [`examples`](examples) | Example projects and workflows |
 | [`tests`](tests) | Zig-side test coverage |
-| [`registry`](registry) | lightweight registry metadata |
-| [`wiki`](wiki) | static docs site |
+| [`registry`](registry) | Lightweight registry metadata |
+| [`wiki`](wiki) | Static docs site |
+| [`docs`](docs) | Documentation |
 
-## Contributing
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-The current contribution bar is:
-
-```bash
-zig build test
-zig build example-matrix
-```
-
-And keep changes scoped:
-
-- do not mix generated junk into commits
-- keep command names explicit and grep-friendly
-- prefer verified example coverage over vague feature claims
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the repo workflow details.
-
-GitHub repo support files are in place for public use:
-
-- issue templates in [`.github/ISSUE_TEMPLATE`](.github/ISSUE_TEMPLATE)
-- PR template in [`.github/pull_request_template.md`](.github/pull_request_template.md)
+<!-- MARKDOWN LINKS & IMAGES -->
+[contributors-shield]: https://img.shields.io/github/contributors/godofecht/zaza.svg?style=for-the-badge
+[contributors-url]: https://github.com/godofecht/zaza/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/godofecht/zaza.svg?style=for-the-badge
+[forks-url]: https://github.com/godofecht/zaza/network/members
+[stars-shield]: https://img.shields.io/github/stars/godofecht/zaza.svg?style=for-the-badge
+[stars-url]: https://github.com/godofecht/zaza/stargazers
+[issues-shield]: https://img.shields.io/github/issues/godofecht/zaza.svg?style=for-the-badge
+[issues-url]: https://github.com/godofecht/zaza/issues
+[license-shield]: https://img.shields.io/github/license/godofecht/zaza.svg?style=for-the-badge
+[license-url]: https://github.com/godofecht/zaza/blob/main/LICENSE
+[Zig-badge]: https://img.shields.io/badge/Zig-F7A41D?style=for-the-badge&logo=zig&logoColor=white
+[Zig-url]: https://ziglang.org/
