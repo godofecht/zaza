@@ -1,5 +1,5 @@
 const std = @import("std");
-const vex_cmd = @import("../../build_lib/vex_cmd.zig");
+const zaza_cmd = @import("../../build_lib/zaza_cmd.zig");
 
 pub const BuildResult = struct {
     build_step: *std.Build.Step,
@@ -8,7 +8,7 @@ pub const BuildResult = struct {
 
 pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) BuildResult {
     const gen_header = "zig-out/gen/generated_message.hpp";
-    const generate_header = vex_cmd.addCommandStep(
+    const generate_header = zaza_cmd.addCommandStep(
         b,
         "generate_generated_header",
         &.{ "sh", "examples/generated_headers/scripts/generate_header.sh", gen_header },

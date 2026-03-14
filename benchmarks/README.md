@@ -1,8 +1,8 @@
-# Vex Performance Benchmarks
+# Zaza Performance Benchmarks
 
 ## 🚀 Benchmark Suite Overview
 
-This directory contains comprehensive performance benchmarks for Vex compared against CMake and other build systems.
+This directory contains comprehensive performance benchmarks for Zaza compared against CMake and other build systems.
 
 ## 📊 Available Benchmarks
 
@@ -34,7 +34,7 @@ This directory contains comprehensive performance benchmarks for Vex compared ag
 
 ## 🎯 Benchmark Results Summary
 
-Based on our comprehensive testing, Vex demonstrates:
+Based on our comprehensive testing, Zaza demonstrates:
 
 ### Performance Advantages
 - **2-5x faster build times** across all project sizes
@@ -116,7 +116,7 @@ zig build
 ## 🏆 Competitive Analysis
 
 ### vs CMake
-| Metric | Vex | CMake | Advantage |
+| Metric | Zaza | CMake | Advantage |
 |--------|-----|-------|-----------|
 | **Build Speed** | 2-5x faster | Baseline | 🚀 |
 | **Memory Usage** | 60-80% less | Baseline | ✅ |
@@ -125,7 +125,7 @@ zig build
 | **Scalability** | Linear | Sub-linear | 📈 |
 
 ### vs Bazel
-| Metric | Vex | Bazel | Advantage |
+| Metric | Zaza | Bazel | Advantage |
 |--------|-----|-------|-----------|
 | **Setup Complexity** | Zero-config | Complex | 🎯 |
 | **Learning Curve** | Low | High | 📚 |
@@ -133,7 +133,7 @@ zig build
 | **Enterprise Features** | Growing | Mature | 🏢 |
 
 ### vs Meson  
-| Metric | Vex | Meson | Advantage |
+| Metric | Zaza | Meson | Advantage |
 |--------|-----|-------|-----------|
 | **Language Performance** | Compiled | Python | 🚀 |
 | **Dependency Management** | Built-in | External | 📦 |

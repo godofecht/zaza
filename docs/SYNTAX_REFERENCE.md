@@ -1,4 +1,4 @@
-# Vex Syntax Reference
+# Zaza Syntax Reference
 
 This is the practical syntax and command reference for the current repo.
 
@@ -30,73 +30,73 @@ Target naming:
 Examples:
 
 ```bash
-zig build hello-vex
-zig build run-hello-vex
+zig build hello-zaza
+zig build run-hello-zaza
 zig build cross-compile-cli-report
 zig build wasm-web-demo-serve
 ```
 
 ## 2. Environment Variables
 
-### `VEX_EXAMPLES`
+### `ZAZA_EXAMPLES`
 
 Limits which examples wire into the root graph.
 
 ```bash
-VEX_EXAMPLES=juce zig build
-VEX_EXAMPLES=package-consumer,wasm-exports zig build example-matrix
+ZAZA_EXAMPLES=juce zig build
+ZAZA_EXAMPLES=package-consumer,wasm-exports zig build example-matrix
 ```
 
-### `VEX_SYSTEM_CMDS`
+### `ZAZA_SYSTEM_CMDS`
 
 Enables build steps that depend on external tools like `git` and `cmake`.
 
 ```bash
-VEX_SYSTEM_CMDS=1 zig build cmake-shim
+ZAZA_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
-### `VEX_PRESET`
+### `ZAZA_PRESET`
 
 Applies a named preset to examples that opt into preset configs.
 
 ```bash
-VEX_PRESET=debug zig build preset-profiles-run
-VEX_PRESET=release zig build
-VEX_PRESET=asan zig build preset-profiles-run
-VEX_PRESET=lto zig build preset-profiles-run
+ZAZA_PRESET=debug zig build preset-profiles-run
+ZAZA_PRESET=release zig build
+ZAZA_PRESET=asan zig build preset-profiles-run
+ZAZA_PRESET=lto zig build preset-profiles-run
 ```
 
-### `VEX_TARGET`
+### `ZAZA_TARGET`
 
 Overrides the root target triple for the main build graph.
 
 ```bash
-VEX_TARGET=x86_64-windows-gnu zig build
-VEX_TARGET=aarch64-linux-musl zig build
+ZAZA_TARGET=x86_64-windows-gnu zig build
+ZAZA_TARGET=aarch64-linux-musl zig build
 ```
 
-### `VEX_WINDOWS_TOOLCHAIN`
+### `ZAZA_WINDOWS_TOOLCHAIN`
 
 Special-case selector for Windows target behavior.
 
 ```bash
-VEX_WINDOWS_TOOLCHAIN=gnu zig build
+ZAZA_WINDOWS_TOOLCHAIN=gnu zig build
 ```
 
-### `VEX_REGISTRY`
+### `ZAZA_REGISTRY`
 
 Turns registry-driven dependency mutation on or off.
 
 ```bash
-VEX_REGISTRY=0 zig build
+ZAZA_REGISTRY=0 zig build
 ```
 
-### `VEX_MODULES_CXX`
+### `ZAZA_MODULES_CXX`
 
 Overrides the compiler used by the C++20 modules example.
 
 ```bash
-VEX_MODULES_CXX=/path/to/clang++ zig build cxx20-modules-run
+ZAZA_MODULES_CXX=/path/to/clang++ zig build cxx20-modules-run
 ```
 
 ## 3. Root Build Targets
@@ -108,16 +108,16 @@ Important top-level targets:
 - `example-matrix`: verified example surface
 - `run-cpp`: ad hoc single-file C++ execution
 - `run-zig`: ad hoc single-file Zig execution
-- `vex-fetch`: registry fetch helper
+- `zaza-fetch`: registry fetch helper
 
 Examples:
 
 ```bash
 zig build test
 zig build example-matrix
-zig build run-cpp -- examples/hello_vex/src/main.cpp
-zig build run-zig -- examples/hello_vex/src/main.zig
-zig build vex-fetch -- fmt
+zig build run-cpp -- examples/hello_zaza/src/main.cpp
+zig build run-zig -- examples/hello_zaza/src/main.zig
+zig build zaza-fetch -- fmt
 ```
 
 ## 4. `CppExample` Mental Model
@@ -215,7 +215,7 @@ These produce things like:
 zig-out/include/<export_name>/...
 zig-out/lib/...
 zig-out/cmake/<export_name>/<export_name>Config.cmake
-zig-out/share/vex/<export_name>.json
+zig-out/share/zaza/<export_name>.json
 ```
 
 ### Dependencies
@@ -253,7 +253,7 @@ Example:
     .{
         .mode = .Release,
         .want_lto = true,
-        .defines = &.{"NDEBUG=1", "VEX_LTO=1"},
+        .defines = &.{"NDEBUG=1", "ZAZA_LTO=1"},
     },
 },
 ```
@@ -306,7 +306,7 @@ The repo is aiming for these syntax rules:
 - `report` means inspect/validate without pretending execution is the point
 - `serve` means long-running local hosting
 - nested builds should be explicit when they model real project boundaries
-- environment variables should be short, grep-friendly, and scoped under `VEX_`
+- environment variables should be short, grep-friendly, and scoped under `ZAZA_`
 
 ## 10. Current Limitations
 

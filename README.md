@@ -1,10 +1,10 @@
-# Vex
+# Zaza
 
-Vex is a Zig-driven build system for modern C, C++, Zig, CMake-interop, and WebAssembly workflows.
+Zaza is a Zig-driven build system for modern C, C++, Zig, CMake-interop, and WebAssembly workflows.
 
 The project goal is straightforward: make new native projects feel simpler than CMake without giving up serious target graphs, package flows, generated code, cross-compilation, or browser-adjacent outputs.
 
-## Why Vex
+## Why Zaza
 
 - Zig build graph as the control plane instead of a separate DSL
 - First-class mixed-language workflows: C, C++, and Zig in one repo
@@ -13,15 +13,15 @@ The project goal is straightforward: make new native projects feel simpler than 
 
 ## Status
 
-Vex is usable and heavily example-driven, but it is not pretending to have a final polished API yet.
+Zaza is usable and heavily example-driven, but it is not pretending to have a final polished API yet.
 
 Current reality:
 
 - the verified example matrix is runnable with `zig build example-matrix`
 - the repo includes package producer/consumer, mixed C/C++/Zig, wasm, browser demo, cross-compile, and CMake interop examples
 - some flows remain environment-sensitive
-  - `VEX_PRESET=asan` depends on sanitizer runtime availability
-  - `VEX_PRESET=lto` depends on linker/toolchain configuration
+  - `ZAZA_PRESET=asan` depends on sanitizer runtime availability
+  - `ZAZA_PRESET=lto` depends on linker/toolchain configuration
   - the C++20 modules example uses LLVM Clang on this machine rather than `zig c++`
 
 ## Quick Start
@@ -48,7 +48,7 @@ zig build example-matrix
 Useful first commands:
 
 ```bash
-zig build run-hello-vex
+zig build run-hello-zaza
 zig build package-consumer-run
 zig build mixed-stack-run
 zig build wasm-web-demo-smoke
@@ -58,7 +58,7 @@ zig build wasm-web-demo-serve
 If a target needs external tools such as `git` or `cmake`, enable them explicitly:
 
 ```bash
-VEX_SYSTEM_CMDS=1 zig build cmake-shim
+ZAZA_SYSTEM_CMDS=1 zig build cmake-shim
 ```
 
 ## What It Covers
@@ -88,7 +88,7 @@ These are the highest-signal example entry points:
 
 | Workflow | Command |
 | --- | --- |
-| Mixed Zig + C++ | `zig build run-hello-vex` |
+| Mixed Zig + C++ | `zig build run-hello-zaza` |
 | Package producer / consumer | `zig build package-consumer-run` |
 | Mixed C + C++ + Zig | `zig build mixed-stack-run` |
 | Interface + object + static graph | `zig build interface-object-graph-run` |
@@ -113,8 +113,8 @@ Current naming conventions:
 Examples:
 
 ```bash
-zig build hello-vex
-zig build run-hello-vex
+zig build hello-zaza
+zig build run-hello-zaza
 zig build cross-compile-cli-report
 zig build wasm-web-demo-serve
 ```
@@ -150,7 +150,7 @@ The intent is not to mimic CMake syntax one-for-one. The intent is to cover the 
 
 Rough mental mapping:
 
-| CMake concept | Vex shape |
+| CMake concept | Zaza shape |
 | --- | --- |
 | `CMakeLists.txt` | `build.zig` |
 | `add_executable()` | executable target / `CppExample{ .kind = .executable }` |
@@ -158,14 +158,14 @@ Rough mental mapping:
 | `target_include_directories()` | include-dir fields on the target |
 | `target_compile_definitions()` | `public_defines` / `private_defines` / config defines |
 | `add_custom_command()` | `custom_commands` |
-| `install()` / `export()` | install/export fields and Vex package metadata |
+| `install()` / `export()` | install/export fields and Zaza package metadata |
 | `find_package()` consumer flow | package producer / consumer example |
 
 See [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the parity framing.
 
 ## WebAssembly
 
-Vex already has concrete wasm workflows:
+Zaza already has concrete wasm workflows:
 
 ```bash
 zig build wasm-wasi-report

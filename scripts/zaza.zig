@@ -27,7 +27,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, cmd, "deps")) {
-        try listCurrentDependencies(allocator, "build.zig.zon", "vex.lock");
+        try listCurrentDependencies(allocator, "build.zig.zon", "zaza.lock");
         return;
     }
 
@@ -40,7 +40,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, cmd, "init")) {
-        const project_name = if (args.len >= 3) args[2] else "my-vex-project";
+        const project_name = if (args.len >= 3) args[2] else "my-zaza-project";
         try initProject(allocator, project_name);
         return;
     }
@@ -60,13 +60,13 @@ fn usage() !void {
     const stderr = std.io.getStdErr().writer();
     try stderr.print(
         \\Usage:
-        \\  vex fetch <name>    Fetch a package from the registry into build.zig.zon (alias: add)
-        \\  vex add <name>      Alias for fetch
-        \\  vex remove <name>   Remove a dependency from build.zig.zon (alias: rm)
-        \\  vex list            List all packages available in the registry (alias: ls)
-        \\  vex deps            List dependencies from build.zig.zon and lockfile state
-        \\  vex search <query>  Search packages by name
-        \\  vex init [name]     Scaffold a new Vex project in the current directory
+        \\  zaza fetch <name>    Fetch a package from the registry into build.zig.zon (alias: add)
+        \\  zaza add <name>      Alias for fetch
+        \\  zaza remove <name>   Remove a dependency from build.zig.zon (alias: rm)
+        \\  zaza list            List all packages available in the registry (alias: ls)
+        \\  zaza deps            List dependencies from build.zig.zon and lockfile state
+        \\  zaza search <query>  Search packages by name
+        \\  zaza init [name]     Scaffold a new Zaza project in the current directory
         \\
         , .{},
     );
@@ -95,7 +95,7 @@ fn fetchIntoZon(
     defer allocator.free(updated);
 
     try writeFile(zon_path, updated);
-    try updateLock(allocator, "vex.lock", name, url, hash);
+    try updateLock(allocator, "zaza.lock", name, url, hash);
 
     const stdout = std.io.getStdOut().writer();
     try stdout.print("added {s}\n", .{name});
@@ -279,7 +279,7 @@ pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name
     try out.appendSlice(zon[0..line_start]);
     try out.appendSlice(zon[remove_end..]);
     try writeFile(zon_path, out.items);
-    removeLockEntry(allocator, "vex.lock", name) catch {};
+    removeLockEntry(allocator, "zaza.lock", name) catch {};
 
     const stdout = std.io.getStdOut().writer();
     try stdout.print("removed {s}\n", .{name});
@@ -348,7 +348,7 @@ fn initProject(allocator: std.mem.Allocator, name: []const u8) !void {
         \\#include <iostream>
         \\
         \\int main() {
-        \\    std::cout << "Hello from Vex!\n";
+        \\    std::cout << "Hello from Zaza!\n";
         \\    return 0;
         \\}
         \\

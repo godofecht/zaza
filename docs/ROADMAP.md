@@ -1,9 +1,9 @@
-# Vex Roadmap
+# Zaza Roadmap
 
-Short-term execution plan for making Vex credible as a CMake replacement.
+Short-term execution plan for making Zaza credible as a CMake replacement.
 
 For the full parity matrix, priorities, and success criteria, see
-[`docs/CMAKE_PARITY.md`](/Users/abhishekshivakumar/vex_zig/-Vex/docs/CMAKE_PARITY.md).
+[`docs/CMAKE_PARITY.md`](/Users/abhishekshivakumar/vex_zig/-Zaza/docs/CMAKE_PARITY.md).
 
 ## Current Status
 
@@ -43,8 +43,8 @@ Still notably incomplete:
 - lockfile with exact fetched revisions/hashes
 - local dependency overrides for development
 - package install/export layout that downstream projects can consume cleanly
-- `vex deps` listing (source, build system, install prefix, lock state)
-- `vex clean-deps` to wipe `deps/` + `zig-out/deps`
+- `zaza deps` listing (source, build system, install prefix, lock state)
+- `zaza clean-deps` to wipe `deps/` + `zig-out/deps`
 - cache info command (shows `ZIG_*_CACHE_DIR` + writability)
 
 ## 3) Project Workflows

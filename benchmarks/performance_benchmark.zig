@@ -21,7 +21,7 @@ pub fn main() !void {
     try benchmark_suite.addBenchmark("Parallel Compilation", benchmarkParallelCompilation);
 
     // Run benchmarks
-    std.debug.print("🚀 Vex Performance Benchmark Suite\n");
+    std.debug.print("🚀 Zaza Performance Benchmark Suite\n");
     std.debug.print("=====================================\n\n");
 
     const results = try benchmark_suite.runAll();
@@ -147,7 +147,7 @@ fn benchmarkSimpleCpp(allocator: std.mem.Allocator) !void {
         .data = cpp_content,
     });
     
-    // Build with Vex
+    // Build with Zaza
     var result = try std.process.Child.run(.{
         .allocator = allocator,
         .argv = &[_][]const u8{ "zig", "build-exe", cpp_file, "-lc++" },
@@ -185,7 +185,7 @@ fn benchmarkJsonIntegration(allocator: std.mem.Allocator) !void {
         .data = cpp_content,
     });
     
-    // Build with Vex (including JSON dependency)
+    // Build with Zaza (including JSON dependency)
     var result = try std.process.Child.run(.{
         .allocator = allocator,
         .argv = &[_][]const u8{ 
@@ -271,7 +271,7 @@ fn benchmarkMultipleSources(allocator: std.mem.Allocator) !void {
         .data = calculator_cpp,
     });
     
-    // Build with Vex
+    // Build with Zaza
     var result = try std.process.Child.run(.{
         .allocator = allocator,
         .argv = &[_][]const u8{ 
@@ -522,7 +522,7 @@ fn compareWithCMake(results: []BenchmarkResult) !void {
         .{ "Parallel Compilation", 420.0 },
     });
     
-    var total_vex: f64 = 0.0;
+    var total_zaza: f64 = 0.0;
     var total_cmake: f64 = 0.0;
     
     for (results) |result| {
@@ -530,28 +530,28 @@ fn compareWithCMake(results: []BenchmarkResult) !void {
         const speedup = cmake_time / result.duration_ms;
         
         std.debug.print("{s}:\n", .{result.name});
-        std.debug.print("  Vex:  {d:.2}ms\n", .{result.duration_ms});
+        std.debug.print("  Zaza:  {d:.2}ms\n", .{result.duration_ms});
         std.debug.print("  CMake: {d:.2}ms\n", .{cmake_time});
         std.debug.print("  Speedup: {d:.1}x {s}\n", .{speedup, if (speedup > 1.0) "🚀" else "🐌"});
         std.debug.print("\n");
         
-        total_vex += result.duration_ms;
+        total_zaza += result.duration_ms;
         total_cmake += cmake_time;
     }
     
-    const overall_speedup = total_cmake / total_vex;
+    const overall_speedup = total_cmake / total_zaza;
     std.debug.print("Overall Performance:\n");
-    std.debug.print("  Vex Total:  {d:.2}ms\n", .{total_vex});
+    std.debug.print("  Zaza Total:  {d:.2}ms\n", .{total_zaza});
     std.debug.print("  CMake Total: {d:.2}ms\n", .{total_cmake});
     std.debug.print("  Overall Speedup: {d:.1}x {s}\n", .{overall_speedup, if (overall_speedup > 1.0) "🎉" else "😐"});
     
     if (overall_speedup > 2.0) {
-        std.debug.print("\n🏆 EXCELLENT: Vex is more than 2x faster than CMake!\n");
+        std.debug.print("\n🏆 EXCELLENT: Zaza is more than 2x faster than CMake!\n");
     } else if (overall_speedup > 1.5) {
-        std.debug.print("\n✅ GOOD: Vex shows significant performance improvement\n");
+        std.debug.print("\n✅ GOOD: Zaza shows significant performance improvement\n");
     } else if (overall_speedup > 1.0) {
-        std.debug.print("\n👍 DECENT: Vex is faster than CMake\n");
+        std.debug.print("\n👍 DECENT: Zaza is faster than CMake\n");
     } else {
-        std.debug.print("\n⚠️  NEEDS WORK: Vex is slower than CMake\n");
+        std.debug.print("\n⚠️  NEEDS WORK: Zaza is slower than CMake\n");
     }
 }

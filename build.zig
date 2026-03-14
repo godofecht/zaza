@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 const json_example = @import("examples/json/build.zig");
 const juce_example = @import("examples/juce/build.zig");
 const cmake_shim_example = @import("examples/cmake_shim/build.zig");
-const hello_vex_example = @import("examples/hello_vex/build.zig");
+const hello_zaza_example = @import("examples/hello_zaza/build.zig");
 const cmake_combo_example = @import("examples/cmake_combo/build.zig");
 const cmake_net_example = @import("examples/cmake_net/build.zig");
 const proof_library_example = @import("examples/proof_library/build.zig");
@@ -21,7 +21,7 @@ const benchmark_workflow_example = @import("examples/benchmark_workflow/build.zi
 const cxx20_modules_example = @import("examples/cxx20_modules/build.zig");
 const wasm_wasi_example = @import("examples/wasm_wasi/build.zig");
 const wasm_exports_example = @import("examples/wasm_exports/build.zig");
-const vex_cmd = @import("build_lib/vex_cmd.zig");
+const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
 
@@ -34,16 +34,16 @@ pub fn build(b: *std.Build) !void {
         );
     }
 
-    const system_cmds = b.option(bool, "system-cmds", "Enable git/cmake steps in build") orelse (envBool(b, "VEX_SYSTEM_CMDS") orelse false);
+    const system_cmds = b.option(bool, "system-cmds", "Enable git/cmake steps in build") orelse (envBool(b, "ZAZA_SYSTEM_CMDS") orelse false);
     const verbose = b.option(bool, "verbose", "Print build status messages") orelse true;
     const target = selectTarget(b);
     const optimize = b.standardOptimizeOption(.{});
 
-    // Auto-fetch registry deps into build.zig.zon (can disable with VEX_REGISTRY=0)
+    // Auto-fetch registry deps into build.zig.zon (can disable with ZAZA_REGISTRY=0)
     try ensureRegistryDeps(b);
 
     // Apply preset configs to examples (optional)
-    if (envString(b, "VEX_PRESET")) |preset| {
+    if (envString(b, "ZAZA_PRESET")) |preset| {
         defer b.allocator.free(preset);
         applyPresetToExample(&cmake_combo_example.example, preset);
         applyPresetToExample(&cmake_net_example.example, preset);
@@ -63,14 +63,14 @@ pub fn build(b: *std.Build) !void {
         juce_step.dependOn(b.getInstallStep());
     }
 
-    const hello_step = b.step("hello-vex", "Build hello_vex (Zig + C++ via Vex)");
-    const hello_artifacts = try hello_vex_example.addArtifacts(b, target, optimize);
+    const hello_step = b.step("hello-zaza", "Build hello_zaza (Zig + C++ via Zaza)");
+    const hello_artifacts = try hello_zaza_example.addArtifacts(b, target, optimize);
     hello_step.dependOn(&b.addInstallArtifact(hello_artifacts.zig_exe, .{}).step);
     hello_step.dependOn(&b.addInstallArtifact(hello_artifacts.cpp_exe, .{}).step);
 
     const hello_run_zig = b.addRunArtifact(hello_artifacts.zig_exe);
     const hello_run_cpp = b.addRunArtifact(hello_artifacts.cpp_exe);
-    const hello_run_step = b.step("run-hello-vex", "Run both hello_vex executables");
+    const hello_run_step = b.step("run-hello-zaza", "Run both hello_zaza executables");
     hello_run_step.dependOn(&hello_run_zig.step);
     hello_run_step.dependOn(&hello_run_cpp.step);
 
@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) !void {
 
         const producer_install = b.addSystemCommand(&.{
             "env",
-            "VEX_EXAMPLES=package-producer",
+            "ZAZA_EXAMPLES=package-producer",
             "./zig",
             "build",
             "install",
@@ -236,11 +236,11 @@ pub fn build(b: *std.Build) !void {
         const cmake_shim_step = b.step("cmake-shim", "Build the CMake shim example");
         cmake_shim_step_opt = cmake_shim_step;
         if (!system_cmds) {
-            std.debug.print("[cmake-shim] skipped: system-cmds=false. Run with -Dsystem-cmds=true or VEX_SYSTEM_CMDS=1 to enable.\n", .{});
+            std.debug.print("[cmake-shim] skipped: system-cmds=false. Run with -Dsystem-cmds=true or ZAZA_SYSTEM_CMDS=1 to enable.\n", .{});
         }
         if (system_cmds) {
             cmake_shim_example.example.enable_system_commands = true;
-            const cmake_check = vex_cmd.addCommandStep(b, "cmake-version", &.{"cmake", "--version"});
+            const cmake_check = zaza_cmd.addCommandStep(b, "cmake-version", &.{"cmake", "--version"});
             cmake_shim_step.dependOn(cmake_check);
             const cmake_exe = try cmake_shim_example.buildWithTarget(b, target);
             cmake_shim_step.dependOn(&b.addInstallArtifact(cmake_exe, .{}).step);
@@ -291,8 +291,8 @@ pub fn build(b: *std.Build) !void {
             t.root_module.addImport("cpp_example", b.createModule(.{
                 .root_source_file = b.path("build_lib/cpp_example.zig"),
             }));
-            t.root_module.addImport("vex_cli", b.createModule(.{
-                .root_source_file = b.path("scripts/vex.zig"),
+            t.root_module.addImport("zaza_cli", b.createModule(.{
+                .root_source_file = b.path("scripts/zaza.zig"),
             }));
         }
         if (std.mem.eql(u8, path, "tests/test_workflows.zig")) {
@@ -336,7 +336,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (verbose) {
-        std.debug.print("\n\x1b[1;34m=== VEX BUILD ===\x1b[0m\n", .{});
+        std.debug.print("\n\x1b[1;34m=== ZAZA BUILD ===\x1b[0m\n", .{});
         std.debug.print("[phase] start\n", .{});
         if (system_cmds) {
             std.debug.print("[config] system-cmds=true (git/cmake enabled)\n", .{});
@@ -348,7 +348,7 @@ pub fn build(b: *std.Build) !void {
 
     const example_matrix_step = b.step("example-matrix", "Run the verified example matrix sequentially");
     const matrix_targets: []const []const u8 = &.{
-        "run-hello-vex",
+        "run-hello-zaza",
         "proof-library-run",
         "generated-code-run",
         "package-consumer-run",
@@ -387,7 +387,7 @@ pub fn build(b: *std.Build) !void {
         if (cmake_install_step) |step| all_step.dependOn(step);
     }
     if (verbose) {
-        std.debug.print("[build] outputs in zig-out/bin (json_example_Debug, hello_vex_*)\n", .{});
+        std.debug.print("[build] outputs in zig-out/bin (json_example_Debug, hello_zaza_*)\n", .{});
         std.debug.print("[phase] done\n", .{});
     }
     b.default_step = all_step;
@@ -436,15 +436,15 @@ pub fn build(b: *std.Build) !void {
         }
     }
 
-    // Registry fetch: zig build vex-fetch -- <name>
-    const fetch_step = b.step("vex-fetch", "Fetch a dependency into build.zig.zon (usage: zig build vex-fetch -- <name>)");
+    // Registry fetch: zig build zaza-fetch -- <name>
+    const fetch_step = b.step("zaza-fetch", "Fetch a dependency into build.zig.zon (usage: zig build zaza-fetch -- <name>)");
     if (b.args) |args| {
         if (args.len >= 1) {
             const name = args[0];
             const cmd = b.addSystemCommand(&.{
                 "zig",
                 "run",
-                "scripts/vex.zig",
+                "scripts/zaza.zig",
                 "--",
                 "fetch",
                 name,
@@ -456,7 +456,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn ensureRegistryDeps(b: *std.Build) !void {
-    const enabled = envBool(b, "VEX_REGISTRY") orelse true;
+    const enabled = envBool(b, "ZAZA_REGISTRY") orelse true;
     if (!enabled) return;
 
     // Only fetch deps for enabled examples to avoid unnecessary downloads.
@@ -483,7 +483,7 @@ fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
     var child = std.process.Child.init(&.{
         "zig",
         "run",
-        "scripts/vex.zig",
+        "scripts/zaza.zig",
         "--",
         "fetch",
         name,
@@ -496,7 +496,7 @@ fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
         else => return error.CommandFailed,
     }
 
-    std.debug.print("\\n[vex] added dependency '{s}' to build.zig.zon; re-run zig build\\n", .{name});
+    std.debug.print("\\n[zaza] added dependency '{s}' to build.zig.zon; re-run zig build\\n", .{name});
     @panic("dependency added; re-run zig build");
 }
 
@@ -551,7 +551,7 @@ fn addBannerStep(b: *std.Build, name: []const u8, msg: []const u8) *std.Build.St
         &.{ "cmd.exe", "/c", b.fmt("echo {s}", .{msg}) }
     else
         &.{ "sh", "-c", b.fmt("printf '\\n\\033[1;32m%s\\033[0m\\n' \"{s}\"", .{msg}) };
-    return vex_cmd.addCommandStep(b, b.fmt("banner_{s}", .{name}), cmd);
+    return zaza_cmd.addCommandStep(b, b.fmt("banner_{s}", .{name}), cmd);
 }
 
 fn addInfoStep(b: *std.Build, name: []const u8, msg: []const u8) *std.Build.Step {
@@ -559,7 +559,7 @@ fn addInfoStep(b: *std.Build, name: []const u8, msg: []const u8) *std.Build.Step
         &.{ "cmd.exe", "/c", b.fmt("echo {s}", .{msg}) }
     else
         &.{ "sh", "-c", b.fmt("printf '\\033[0;36m%s\\033[0m\\n' \"{s}\"", .{msg}) };
-    return vex_cmd.addCommandStep(b, name, cmd);
+    return zaza_cmd.addCommandStep(b, name, cmd);
 }
 
 fn addNestedBuildStep(b: *std.Build, target_name: []const u8) *std.Build.Step {
@@ -630,7 +630,7 @@ fn envString(b: *std.Build, name: []const u8) ?[]const u8 {
 }
 
 fn exampleEnabled(b: *std.Build, name: []const u8) bool {
-    if (envString(b, "VEX_EXAMPLES")) |raw| {
+    if (envString(b, "ZAZA_EXAMPLES")) |raw| {
         defer b.allocator.free(raw);
         var it = std.mem.splitScalar(u8, raw, ',');
         while (it.next()) |entry| {
@@ -648,14 +648,14 @@ fn applyPresetToExample(example: *cpp.CppExample, preset: []const u8) void {
 }
 
 fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
-    if (envString(b, "VEX_TARGET")) |target_str| {
+    if (envString(b, "ZAZA_TARGET")) |target_str| {
         defer b.allocator.free(target_str);
         const query = std.Build.parseTargetQuery(.{ .arch_os_abi = target_str }) catch
-            @panic("VEX_TARGET is invalid. Use a Zig target triple like x86_64-windows-gnu");
+            @panic("ZAZA_TARGET is invalid. Use a Zig target triple like x86_64-windows-gnu");
         return b.resolveTargetQuery(query);
     }
     if (builtin.os.tag == .windows) {
-        if (envString(b, "VEX_WINDOWS_TOOLCHAIN")) |toolchain| {
+        if (envString(b, "ZAZA_WINDOWS_TOOLCHAIN")) |toolchain| {
             defer b.allocator.free(toolchain);
             if (std.ascii.eqlIgnoreCase(toolchain, "gnu")) {
                 const query = std.Build.parseTargetQuery(.{ .arch_os_abi = "native-windows-gnu" }) catch

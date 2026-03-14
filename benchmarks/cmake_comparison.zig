@@ -7,7 +7,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    std.debug.print("⚔️  Vex vs CMake Performance Comparison\n");
+    std.debug.print("⚔️  Zaza vs CMake Performance Comparison\n");
     std.debug.print("=====================================\n\n");
 
     // Run comprehensive comparison
@@ -34,15 +34,15 @@ fn compareBuildPerformance(allocator: std.mem.Allocator) !void {
     for (test_cases) |test_case| {
         std.debug.print("Testing {s} ({d} files)...\n", .{ test_case.name, test_case.files });
 
-        // Test Vex performance
-        const vex_result = try benchmarkVexBuild(allocator, test_case.files);
+        // Test Zaza performance
+        const zaza_result = try benchmarkZazaBuild(allocator, test_case.files);
         
         // Test CMake performance (simulated)
         const cmake_result = try benchmarkCMakeBuild(allocator, test_case.files);
         
-        const speedup = cmake_result.build_time_ms / vex_result.build_time_ms;
+        const speedup = cmake_result.build_time_ms / zaza_result.build_time_ms;
         
-        std.debug.print("  Vex:  {d:8.2}ms\n", .{vex_result.build_time_ms});
+        std.debug.print("  Zaza:  {d:8.2}ms\n", .{zaza_result.build_time_ms});
         std.debug.print("  CMake: {d:8.2}ms\n", .{cmake_result.build_time_ms});
         std.debug.print("  Speedup: {d:.1}x {s}\n", .{speedup, if (speedup > 1.0) "🚀" else "🐌"});
         std.debug.print("\n");
@@ -58,12 +58,12 @@ fn compareMemoryUsage(allocator: std.mem.Allocator) !void {
     for (project_sizes) |size| {
         std.debug.print("Project size: {d} files\n", .{size});
 
-        const vex_memory = try estimateVexMemory(size);
+        const zaza_memory = try estimateZazaMemory(size);
         const cmake_memory = try estimateCMakeMemory(size);
         
-        const memory_efficiency = cmake_memory / vex_memory;
+        const memory_efficiency = cmake_memory / zaza_memory;
         
-        std.debug.print("  Vex:  {d:6.2}MB\n", .{vex_memory});
+        std.debug.print("  Zaza:  {d:6.2}MB\n", .{zaza_memory});
         std.debug.print("  CMake: {d:6.2}MB\n", .{cmake_memory});
         std.debug.print("  Efficiency: {d:.1}x {s}\n", .{memory_efficiency, if (memory_efficiency > 1.0) "✅" else "❌"});
         std.debug.print("\n");
@@ -80,16 +80,16 @@ fn compareIncrementalBuilds(allocator: std.mem.Allocator) !void {
     for (change_percentages) |change_pct| {
         std.debug.print("Change percentage: {d:.1}%\n", .{change_pct * 100.0});
 
-        const vex_incremental = try benchmarkVexIncremental(allocator, project_size, change_pct);
+        const zaza_incremental = try benchmarkZazaIncremental(allocator, project_size, change_pct);
         const cmake_incremental = try benchmarkCMakeIncremental(allocator, project_size, change_pct);
         
-        const speedup = cmake_incremental.incremental_time_ms / vex_incremental.incremental_time_ms;
+        const speedup = cmake_incremental.incremental_time_ms / zaza_incremental.incremental_time_ms;
         
-        std.debug.print("  Vex:  {d:7.2}ms ({d:.1}x speedup)\n", 
-            .{ vex_incremental.incremental_time_ms, vex_incremental.speedup_factor });
+        std.debug.print("  Zaza:  {d:7.2}ms ({d:.1}x speedup)\n", 
+            .{ zaza_incremental.incremental_time_ms, zaza_incremental.speedup_factor });
         std.debug.print("  CMake: {d:7.2}ms ({d:.1}x speedup)\n", 
             .{ cmake_incremental.incremental_time_ms, cmake_incremental.speedup_factor });
-        std.debug.print("  Vex advantage: {d:.1}x {s}\n", 
+        std.debug.print("  Zaza advantage: {d:.1}x {s}\n", 
             .{ speedup, if (speedup > 1.0) "🎉" else "😐" });
         std.debug.print("\n");
     }
@@ -104,12 +104,12 @@ fn compareDependencyResolution(allocator: std.mem.Allocator) !void {
     for (dep_counts) |dep_count| {
         std.debug.print("Dependencies: {d}\n", .{dep_count});
 
-        const vex_deps = try benchmarkVexDependencies(allocator, dep_count);
+        const zaza_deps = try benchmarkZazaDependencies(allocator, dep_count);
         const cmake_deps = try benchmarkCMakeDependencies(allocator, dep_count);
         
-        const speedup = cmake_deps.resolution_time_ms / vex_deps.resolution_time_ms;
+        const speedup = cmake_deps.resolution_time_ms / zaza_deps.resolution_time_ms;
         
-        std.debug.print("  Vex:  {d:6.2}ms\n", .{vex_deps.resolution_time_ms});
+        std.debug.print("  Zaza:  {d:6.2}ms\n", .{zaza_deps.resolution_time_ms});
         std.debug.print("  CMake: {d:6.2}ms\n", .{cmake_deps.resolution_time_ms});
         std.debug.print("  Speedup: {d:.1}x {s}\n", .{speedup, if (speedup > 1.0) "⚡" else "🐌"});
         std.debug.print("\n");
@@ -125,12 +125,12 @@ fn compareScalability(allocator: std.mem.Allocator) !void {
     for (file_counts) |file_count| {
         std.debug.print("Files: {d}\n", .{file_count});
 
-        const vex_scaling = try benchmarkVexScalability(allocator, file_count);
+        const zaza_scaling = try benchmarkZazaScalability(allocator, file_count);
         const cmake_scaling = try benchmarkCMakeScalability(allocator, file_count);
         
-        const scaling_advantage = cmake_scaling.scaling_factor / vex_scaling.scaling_factor;
+        const scaling_advantage = cmake_scaling.scaling_factor / zaza_scaling.scaling_factor;
         
-        std.debug.print("  Vex scaling:  {d:.2}x\n", .{vex_scaling.scaling_factor});
+        std.debug.print("  Zaza scaling:  {d:.2}x\n", .{zaza_scaling.scaling_factor});
         std.debug.print("  CMake scaling: {d:.2}x\n", .{cmake_scaling.scaling_factor});
         std.debug.print("  Advantage:    {d:.1}x {s}\n", 
             .{ scaling_advantage, if (scaling_advantage > 1.0) "🏆" else "📉" });
@@ -138,10 +138,10 @@ fn compareScalability(allocator: std.mem.Allocator) !void {
     }
 }
 
-// Benchmark functions for Vex
+// Benchmark functions for Zaza
 
-fn benchmarkVexBuild(allocator: std.mem.Allocator, file_count: u32) !BuildResult {
-    const temp_dir = "vex_build_temp";
+fn benchmarkZazaBuild(allocator: std.mem.Allocator, file_count: u32) !BuildResult {
+    const temp_dir = "zaza_build_temp";
     try std.fs.cwd().makePath(temp_dir);
     defer std.fs.cwd().deleteTree(temp_dir) catch {};
 
@@ -162,7 +162,7 @@ fn benchmarkVexBuild(allocator: std.mem.Allocator, file_count: u32) !BuildResult
         });
     }
 
-    // Time Vex build
+    // Time Zaza build
     const start_time = time.nanoTimestamp();
 
     var args = std.ArrayList([]const u8).init(allocator);
@@ -194,10 +194,10 @@ fn benchmarkVexBuild(allocator: std.mem.Allocator, file_count: u32) !BuildResult
     };
 }
 
-fn benchmarkVexIncremental(allocator: std.mem.Allocator, project_size: u32, change_percentage: f32) !IncrementalResult {
-    // Simulate Vex incremental build performance
+fn benchmarkZazaIncremental(allocator: std.mem.Allocator, project_size: u32, change_percentage: f32) !IncrementalResult {
+    // Simulate Zaza incremental build performance
     const base_time = 100.0; // Base build time in ms
-    const change_factor = change_percentage * 0.1; // Vex is very efficient with incremental builds
+    const change_factor = change_percentage * 0.1; // Zaza is very efficient with incremental builds
     const incremental_time = base_time * change_factor;
     const speedup_factor = base_time / incremental_time;
 
@@ -207,8 +207,8 @@ fn benchmarkVexIncremental(allocator: std.mem.Allocator, project_size: u32, chan
     };
 }
 
-fn benchmarkVexDependencies(allocator: std.mem.Allocator, dep_count: u32) !DependencyResult {
-    // Simulate Vex dependency resolution (very fast due to built-in Git fetching)
+fn benchmarkZazaDependencies(allocator: std.mem.Allocator, dep_count: u32) !DependencyResult {
+    // Simulate Zaza dependency resolution (very fast due to built-in Git fetching)
     const base_time = 5.0; // Base time in ms
     const resolution_time = base_time + (@as(f64, @floatFromInt(dep_count)) * 0.5);
 
@@ -217,8 +217,8 @@ fn benchmarkVexDependencies(allocator: std.mem.Allocator, dep_count: u32) !Depen
     };
 }
 
-fn benchmarkVexScalability(allocator: std.mem.Allocator, file_count: u32) !ScalabilityResult {
-    // Simulate Vex scaling (near-linear)
+fn benchmarkZazaScalability(allocator: std.mem.Allocator, file_count: u32) !ScalabilityResult {
+    // Simulate Zaza scaling (near-linear)
     const base_files = 100;
     const base_time = 50.0; // Base time for 100 files
     const scaling_factor = @as(f64, @floatFromInt(file_count)) / @as(f64, @floatFromInt(base_files));
@@ -234,7 +234,7 @@ fn benchmarkVexScalability(allocator: std.mem.Allocator, file_count: u32) !Scala
 
 fn benchmarkCMakeBuild(allocator: std.mem.Allocator, file_count: u32) !BuildResult {
     // Simulate CMake build performance (slower due to generation step)
-    const base_time = 200.0; // Base time in ms (higher than Vex)
+    const base_time = 200.0; // Base time in ms (higher than Zaza)
     const per_file_time = 2.5; // Time per file in ms
     const generation_overhead = 50.0; // CMake generation overhead
     
@@ -260,7 +260,7 @@ fn benchmarkCMakeIncremental(allocator: std.mem.Allocator, project_size: u32, ch
 
 fn benchmarkCMakeDependencies(allocator: std.mem.Allocator, dep_count: u32) !DependencyResult {
     // Simulate CMake dependency resolution (slower due to external tools)
-    const base_time = 20.0; // Base time in ms (higher than Vex)
+    const base_time = 20.0; // Base time in ms (higher than Zaza)
     const resolution_time = base_time + (@as(f64, @floatFromInt(dep_count)) * 2.0);
 
     return DependencyResult{
@@ -271,9 +271,9 @@ fn benchmarkCMakeDependencies(allocator: std.mem.Allocator, dep_count: u32) !Dep
 fn benchmarkCMakeScalability(allocator: std.mem.Allocator, file_count: u32) !ScalabilityResult {
     // Simulate CMake scaling (worse than linear due to generation complexity)
     const base_files = 100;
-    const base_time = 150.0; // Base time for 100 files (higher than Vex)
+    const base_time = 150.0; // Base time for 100 files (higher than Zaza)
     const scaling_factor = @as(f64, @floatFromInt(file_count)) / @as(f64, @floatFromInt(base_files));
-    const actual_time = base_time * scaling_factor * 1.3; // 30% overhead (worse than Vex)
+    const actual_time = base_time * scaling_factor * 1.3; // 30% overhead (worse than Zaza)
 
     return ScalabilityResult{
         .scaling_factor = scaling_factor,
@@ -283,8 +283,8 @@ fn benchmarkCMakeScalability(allocator: std.mem.Allocator, file_count: u32) !Sca
 
 // Helper functions
 
-fn estimateVexMemory(file_count: u32) !f64 {
-    // Vex memory estimation (more efficient)
+fn estimateZazaMemory(file_count: u32) !f64 {
+    // Zaza memory estimation (more efficient)
     const base_memory = 10.0; // MB base
     const per_file_memory = 0.02; // MB per file (very efficient)
     return base_memory + (@as(f64, @floatFromInt(file_count)) * per_file_memory);
@@ -321,7 +321,7 @@ fn generateComparisonReport() !void {
     std.debug.print("📊 Final Comparison Report\n");
     std.debug.print("========================\n\n");
     
-    std.debug.print("🏆 Vex Advantages:\n");
+    std.debug.print("🏆 Zaza Advantages:\n");
     std.debug.print("  ✅ 2-5x faster build times\n");
     std.debug.print("  ✅ 60-80% less memory usage\n");
     std.debug.print("  ✅ 3-10x faster incremental builds\n");
@@ -342,5 +342,5 @@ fn generateComparisonReport() !void {
     std.debug.print("  🥇 Superior dependency management\n");
     std.debug.print("  🥇 Excellent scalability\n\n");
     
-    std.debug.print("🚀 Conclusion: Vex outperforms CMake across all metrics!\n");
+    std.debug.print("🚀 Conclusion: Zaza outperforms CMake across all metrics!\n");
 }

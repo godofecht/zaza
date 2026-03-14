@@ -1,7 +1,7 @@
 .{
-    .name = .vex,
+    .name = .zaza,
     .version = "0.2.0",
-    .fingerprint = 0xe969ab1c9eb2b445,
+    .fingerprint = 0x83b6fe41c3dada73,
     .minimum_zig_version = "0.14.0",
     .dependencies = .{
         .mbedtls = .{
@@ -50,9 +50,9 @@
         "README.md",
         ".envrc",
         "zig-build",
-        "vex",
+        "zaza",
         "registry",
         "scripts",
-        "vex.lock",
+        "zaza.lock",
     },
 }

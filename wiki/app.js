@@ -2,7 +2,7 @@ const articles = [
   {
     id: "start",
     category: "Get started",
-    title: "Start with Vex",
+    title: "Start with Zaza",
     summary: "Build the repo, run the tests, and see a working example in a few minutes.",
     body: `
       <div class="callout"><strong>What you learn</strong><br>How to build the repo, verify it, and run one example that shows Zig and C++ in the same build graph.</div>
@@ -21,7 +21,7 @@ zig build example-matrix</code></pre>
       <h3>Step 2</h3>
       <div class="step-card">
         <strong>Run the first example.</strong>
-        <pre><code>zig build run-hello-vex</code></pre>
+        <pre><code>zig build run-hello-zaza</code></pre>
         <p>This example builds one Zig executable and one C++ executable. Then it runs both.</p>
       </div>
       <h3>What just happened</h3>
@@ -35,7 +35,7 @@ zig build example-matrix</code></pre>
           Runs the verified examples in sequence. This is the fastest way to see the real supported surface.
         </div>
         <div class="step-card">
-          <strong><code>zig build run-hello-vex</code></strong>
+          <strong><code>zig build run-hello-zaza</code></strong>
           Builds and runs a small mixed Zig and C++ example.
         </div>
       </div>
@@ -73,7 +73,7 @@ pub fn build(b: *std.Build) !void {
         </div>
         <div class="step-card">
           <strong><code>.kind = .executable</code></strong>
-          This tells Vex to build a runnable program.
+          This tells Zaza to build a runnable program.
         </div>
         <div class="step-card">
           <strong><code>.source_files</code></strong>
@@ -108,7 +108,7 @@ zig build run</code></pre>
       <pre><code>#include &lt;iostream&gt;
 
 int main() {
-    std::cout &lt;&lt; "hello from vex" &lt;&lt; "\\n";
+    std::cout &lt;&lt; "hello from zaza" &lt;&lt; "\\n";
     return 0;
 }</code></pre>
       <h3>Build file</h3>
@@ -163,7 +163,7 @@ zig build run</code></pre>
           <tr><th>Topic</th><th>Command</th><th>What it teaches</th></tr>
         </thead>
         <tbody>
-          <tr><td>Mixed Zig and C++</td><td><code>zig build run-hello-vex</code></td><td>Two language targets in one graph.</td></tr>
+          <tr><td>Mixed Zig and C++</td><td><code>zig build run-hello-zaza</code></td><td>Two language targets in one graph.</td></tr>
           <tr><td>Packaging</td><td><code>zig build package-consumer-run</code></td><td>Install, export, and downstream use.</td></tr>
           <tr><td>Generated code</td><td><code>zig build generated-headers-run</code></td><td>Generate a header before compile time.</td></tr>
           <tr><td>Shared library</td><td><code>zig build shared-plugin-run</code></td><td>Build a shared plugin and load it at runtime.</td></tr>
@@ -179,7 +179,7 @@ zig build run</code></pre>
     id: "syntax",
     category: "Tutorial",
     title: "Read the syntax",
-    summary: "Learn the small set of names and patterns that show up again and again in Vex.",
+    summary: "Learn the small set of names and patterns that show up again and again in Zaza.",
     body: `
       <h3>Target names</h3>
       <div class="step-group">
@@ -221,10 +221,10 @@ cpp.CppExample.interfaceLibrary(...)</code></pre>
           <tr><th>Name</th><th>Use</th></tr>
         </thead>
         <tbody>
-          <tr><td><code>VEX_SYSTEM_CMDS</code></td><td>Allow external tools such as Git and CMake when needed.</td></tr>
-          <tr><td><code>VEX_PRESET</code></td><td>Select a preset such as debug, release, asan, or lto.</td></tr>
-          <tr><td><code>VEX_EXAMPLES</code></td><td>Limit which examples wire into the root graph.</td></tr>
-          <tr><td><code>VEX_MODULES_CXX</code></td><td>Override the compiler used by the C++20 modules example.</td></tr>
+          <tr><td><code>ZAZA_SYSTEM_CMDS</code></td><td>Allow external tools such as Git and CMake when needed.</td></tr>
+          <tr><td><code>ZAZA_PRESET</code></td><td>Select a preset such as debug, release, asan, or lto.</td></tr>
+          <tr><td><code>ZAZA_EXAMPLES</code></td><td>Limit which examples wire into the root graph.</td></tr>
+          <tr><td><code>ZAZA_MODULES_CXX</code></td><td>Override the compiler used by the C++20 modules example.</td></tr>
         </tbody>
       </table>
       <p>For the full syntax surface, read <code>docs/SYNTAX_REFERENCE.md</code>.</p>
@@ -284,7 +284,7 @@ zig build generated-headers-run</code></pre>
         </div>
         <div class="step-card">
           <strong>Generated file wiring</strong>
-          Vex then treats the output as a real input to the target.
+          Zaza then treats the output as a real input to the target.
         </div>
       </div>
     `,
@@ -302,7 +302,7 @@ zig build package-consumer-run</code></pre>
       <ul>
         <li><code>zig-out/include/&lt;name&gt;/...</code></li>
         <li><code>zig-out/lib/...</code></li>
-        <li><code>zig-out/share/vex/&lt;name&gt;.json</code></li>
+        <li><code>zig-out/share/zaza/&lt;name&gt;.json</code></li>
       </ul>
       <h3>Why this is important</h3>
       <p>This is the clean answer to a common CMake workflow. One project exports a usable package. Another project reads it and links against it.</p>
@@ -332,7 +332,7 @@ zig build package-consumer-run</code></pre>
       <div class="step-group">
         <div class="step-card">
           <strong>Read package metadata</strong>
-          The consumer reads <code>zig-out/share/vex/math_lib.json</code>.
+          The consumer reads <code>zig-out/share/zaza/math_lib.json</code>.
         </div>
         <div class="step-card">
           <strong>Add include and lib paths</strong>
@@ -356,7 +356,7 @@ zig build package-consumer-run</code></pre>
     title: "Ship WebAssembly",
     summary: "Build a wasm module, load it in Node, and stage it for a browser demo.",
     body: `
-      <div class="callout"><strong>Three levels</strong><br>Vex supports a WASI module, a freestanding export module, and a browser demo that stages HTML, JavaScript, and wasm together.</div>
+      <div class="callout"><strong>Three levels</strong><br>Zaza supports a WASI module, a freestanding export module, and a browser demo that stages HTML, JavaScript, and wasm together.</div>
       <h3>Try the commands</h3>
       <pre><code>zig build wasm-wasi-report
 zig build wasm-exports-run
@@ -430,11 +430,11 @@ zig build wasm-web-demo-serve</code></pre>
       <h3>Useful commands</h3>
       <pre><code>zig build cmake-combo-run
 zig build cmake-net-run
-VEX_SYSTEM_CMDS=1 zig build cmake-shim</code></pre>
+ZAZA_SYSTEM_CMDS=1 zig build cmake-shim</code></pre>
       <h3>Mental model</h3>
       <table>
         <thead>
-          <tr><th>CMake</th><th>Vex</th></tr>
+          <tr><th>CMake</th><th>Zaza</th></tr>
         </thead>
         <tbody>
           <tr><td><code>CMakeLists.txt</code></td><td><code>build.zig</code></td></tr>
