@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    env:
+      # Disable the C++ examples. They compile against deps/ (nlohmann/json,
+      # zlib, curl, mbedtls, spdlog, fmt), which is gitignored and only
+      # populated by -Dsystem-cmds=true. Cloning all of them on every run is
+      # far more than the Zig test suite needs.
+      ZAZA_EXAMPLES: none
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.1
+
+      # `zig build test` only. The default target also configures the JUCE
+      # examples, which currently fail against the macOS 15 SDK: JUCE 7.0.9
+      # calls CGWindowListCreateImage, removed in macOS 15, so juceaide will
+      # not compile. Widen this once JUCE is bumped.
+      - name: Test
+        run: zig build test --summary all
