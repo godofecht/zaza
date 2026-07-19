@@ -6,6 +6,9 @@ zig-out/
 
 # Build outputs
 build/
+# The top-level build/ holds Zig sources that build.zig imports, so it is
+# not generated output and must stay tracked.
+!/build/
 bin/
 dist/
 *.o
