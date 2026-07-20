@@ -1,6 +1,7 @@
 <!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
 <a id="readme-top"></a>
 
+[![CI][ci-shield]][ci-url]
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
@@ -294,6 +295,8 @@ Project Link: [https://github.com/godofecht/zaza](https://github.com/godofecht/z
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
+[ci-shield]: https://img.shields.io/github/actions/workflow/status/godofecht/zaza/ci.yml?branch=main&style=for-the-badge&label=CI
+[ci-url]: https://github.com/godofecht/zaza/actions/workflows/ci.yml
 [contributors-shield]: https://img.shields.io/github/contributors/godofecht/zaza.svg?style=for-the-badge
 [contributors-url]: https://github.com/godofecht/zaza/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/godofecht/zaza.svg?style=for-the-badge
