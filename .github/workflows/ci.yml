@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     env:
       # Disable the C++ examples. They compile against deps/ (nlohmann/json,
       # zlib, curl, mbedtls, spdlog, fmt), which is gitignored and only
