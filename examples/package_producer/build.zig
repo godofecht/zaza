@@ -22,8 +22,10 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const demo = b.addExecutable(.{
         .name = "package_producer_demo",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     demo.addCSourceFiles(.{
         .files = &.{"examples/package_producer/src/demo.cpp"},

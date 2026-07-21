@@ -31,25 +31,27 @@ fn writeResponse(
     body: []const u8,
     head_only: bool,
 ) !void {
-    var writer = stream.writer();
-    try writer.print(
+    var header_buf: [1024]u8 = undefined;
+    const header = try std.fmt.bufPrint(
+        &header_buf,
         "HTTP/1.1 {s}\r\nContent-Type: {s}\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n",
         .{ status, content_type, body.len },
     );
+    try stream.writeAll(header);
     if (!head_only) {
-        try writer.writeAll(body);
+        try stream.writeAll(body);
     }
 }
 
 fn handleConnection(allocator: std.mem.Allocator, root: []const u8, stream: std.net.Stream) !void {
-    var request = std.ArrayList(u8).init(allocator);
-    defer request.deinit();
+    var request: std.ArrayListUnmanaged(u8) = .empty;
+    defer request.deinit(allocator);
 
     var buf: [1024]u8 = undefined;
     while (request.items.len < 4096) {
         const n = try stream.read(&buf);
         if (n == 0) break;
-        try request.appendSlice(buf[0..n]);
+        try request.appendSlice(allocator, buf[0..n]);
         if (std.mem.indexOf(u8, request.items, "\r\n\r\n") != null) break;
     }
 
@@ -118,20 +120,22 @@ fn requestHead(allocator: std.mem.Allocator, port: u16, path: []const u8) !void 
     const stream = try std.net.tcpConnectToAddress(address);
     defer stream.close();
 
-    try stream.writer().print(
+    var request_buf: [1024]u8 = undefined;
+    const request = try std.fmt.bufPrint(
+        &request_buf,
         "HEAD {s} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
         .{path},
     );
+    try stream.writeAll(request);
 
-    var response = std.ArrayList(u8).init(allocator);
-    defer response.deinit();
+    var response: std.ArrayListUnmanaged(u8) = .empty;
+    defer response.deinit(allocator);
 
-    var reader = stream.reader();
     var buf: [1024]u8 = undefined;
     while (true) {
-        const n = try reader.read(&buf);
+        const n = try stream.read(&buf);
         if (n == 0) break;
-        try response.appendSlice(buf[0..n]);
+        try response.appendSlice(allocator, buf[0..n]);
     }
 
     if (std.mem.indexOf(u8, response.items, " 200 ") == null) {
@@ -154,7 +158,7 @@ fn smoke(root: []const u8, port: u16, paths: []const []const u8) !void {
     var attempt: usize = 0;
     while (attempt < 20) : (attempt += 1) {
         requestHead(std.heap.page_allocator, port, paths[0]) catch {
-            std.time.sleep(100 * std.time.ns_per_ms);
+            std.Thread.sleep(100 * std.time.ns_per_ms);
             continue;
         };
         ready = true;

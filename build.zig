@@ -276,13 +276,19 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run all tests");
     
     const clean_tests = b.addTest(.{
-        .root_source_file = b.path("build/clean_tests.zig"),
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build/clean_tests.zig"),
+            .target = b.graph.host,
+        }),
     });
     test_step.dependOn(&b.addRunArtifact(clean_tests).step);
     
     // Also add working simple tests
     const working_tests = b.addTest(.{
-        .root_source_file = b.path("src/working_test.zig"),
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/working_test.zig"),
+            .target = b.graph.host,
+        }),
     });
     test_step.dependOn(&b.addRunArtifact(working_tests).step);
 
@@ -303,7 +309,12 @@ pub fn build(b: *std.Build) !void {
         // "tests/test_zaza_juce.zig",
     };
     for (standalone_tests) |path| {
-        const t = b.addTest(.{ .root_source_file = b.path(path) });
+        const t = b.addTest(.{
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(path),
+                .target = b.graph.host,
+            }),
+        });
         if (std.mem.eql(u8, path, "tests/test_cpp_targets.zig")) {
             t.root_module.addImport("cpp_example", b.createModule(.{
                 .root_source_file = b.path("build_lib/cpp_example.zig"),
@@ -376,7 +387,12 @@ pub fn build(b: *std.Build) !void {
         "tests/test_deps_import_only.zig",
     };
     for (build_module_tests) |path| {
-        const t = b.addTest(.{ .root_source_file = b.path(path) });
+        const t = b.addTest(.{
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(path),
+                .target = b.graph.host,
+            }),
+        });
         t.root_module.addImport("dependencies", deps_mod);
         t.root_module.addImport("builder", builder_mod);
         test_step.dependOn(&b.addRunArtifact(t).step);
@@ -633,12 +649,12 @@ fn parseExtraFlags(args: []const []const u8) []const []const u8 {
 
 fn joinArgs(b: *std.Build, args: []const []const u8) []const u8 {
     if (args.len == 0) return "(none)";
-    var buf = std.ArrayList(u8).init(b.allocator);
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
     for (args, 0..) |arg, idx| {
-        if (idx > 0) buf.appendSlice(" ") catch unreachable;
-        buf.appendSlice(arg) catch unreachable;
+        if (idx > 0) buf.appendSlice(b.allocator, " ") catch unreachable;
+        buf.appendSlice(b.allocator, arg) catch unreachable;
     }
-    return buf.toOwnedSlice() catch unreachable;
+    return buf.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn buildCompileArgs(
@@ -647,10 +663,10 @@ fn buildCompileArgs(
     out: []const u8,
     extra_flags: []const []const u8,
 ) []const []const u8 {
-    var args = std.ArrayList([]const u8).init(b.allocator);
-    args.appendSlice(&.{ "zig", "c++", src, "-o", out }) catch unreachable;
-    args.appendSlice(extra_flags) catch unreachable;
-    return args.toOwnedSlice() catch unreachable;
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    args.appendSlice(b.allocator, &.{ "zig", "c++", src, "-o", out }) catch unreachable;
+    args.appendSlice(b.allocator, extra_flags) catch unreachable;
+    return args.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn envBool(b: *std.Build, name: []const u8) ?bool {

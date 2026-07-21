@@ -161,24 +161,24 @@ fn benchmarkFileCount(allocator: std.mem.Allocator, file_count: u32) !FileCountR
     , .{});
     defer allocator.free(main_content);
 
-    var main_writer = std.ArrayList(u8).init(allocator);
-    defer main_writer.deinit();
+    var main_writer: std.ArrayListUnmanaged(u8) = .empty;
+    defer main_writer.deinit(allocator);
     
-    try main_writer.appendSlice(main_content);
+    try main_writer.appendSlice(allocator, main_content);
     
     for (0..file_count) |i| {
         try main_writer.appendSlice(try std.fmt.allocPrint(allocator,
             "extern \"C\" int func_{}();\n", .{i}));
     }
     
-    try main_writer.appendSlice("\nint main() {\n    int sum = 0;\n");
+    try main_writer.appendSlice(allocator, "\nint main() {\n    int sum = 0;\n");
     
     for (0..file_count) |i| {
         try main_writer.appendSlice(try std.fmt.allocPrint(allocator,
             "    sum += func_{}();\n", .{i}));
     }
     
-    try main_writer.appendSlice("    std::cout << sum << std::endl;\n    return 0;\n}\n");
+    try main_writer.appendSlice(allocator, "    std::cout << sum << std::endl;\n    return 0;\n}\n");
 
     try std.fs.cwd().writeFile(.{
         .sub_path = try std.fmt.allocPrint(allocator, "{s}/main.cpp", .{temp_dir}),
@@ -188,19 +188,19 @@ fn benchmarkFileCount(allocator: std.mem.Allocator, file_count: u32) !FileCountR
     // Time the build
     const start_time = time.nanoTimestamp();
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append("main.cpp");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, "main.cpp");
 
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "file_{}.cpp", .{i});
-        try args.append(file_name);
+        try args.append(allocator, file_name);
     }
 
-    try args.append("-lc++");
+    try args.append(allocator, "-lc++");
 
     var result = try std.process.Child.run(.{
         .allocator = allocator,
@@ -231,17 +231,17 @@ fn benchmarkDependencyCount(allocator: std.mem.Allocator, dep_count: u32) !Depen
     defer std.fs.cwd().deleteTree(temp_dir) catch {};
 
     // Create main file with includes
-    var main_content = std.ArrayList(u8).init(allocator);
-    defer main_content.deinit();
+    var main_content: std.ArrayListUnmanaged(u8) = .empty;
+    defer main_content.deinit(allocator);
 
-    try main_content.appendSlice("#include <iostream>\n");
+    try main_content.appendSlice(allocator, "#include <iostream>\n");
 
     for (0..dep_count) |i| {
         try main_content.appendSlice(try std.fmt.allocPrint(allocator,
             "#include \"dep_{}.h\"\n", .{i}));
     }
 
-    try main_content.appendSlice("\nint main() {\n    return 0;\n}\n");
+    try main_content.appendSlice(allocator, "\nint main() {\n    return 0;\n}\n");
 
     try std.fs.cwd().writeFile(.{
         .sub_path = try std.fmt.allocPrint(allocator, "{s}/main.cpp", .{temp_dir}),
@@ -268,13 +268,13 @@ fn benchmarkDependencyCount(allocator: std.mem.Allocator, dep_count: u32) !Depen
     // Time the build
     const start_time = time.nanoTimestamp();
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append("main.cpp");
-    try args.append("-lc++");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, "main.cpp");
+    try args.append(allocator, "-lc++");
 
     var result = try std.process.Child.run(.{
         .allocator = allocator,
@@ -324,24 +324,24 @@ fn benchmarkParallelCompilation(allocator: std.mem.Allocator, thread_count: u32)
     }
 
     // Create main file
-    var main_content = std.ArrayList(u8).init(allocator);
-    defer main_content.deinit();
+    var main_content: std.ArrayListUnmanaged(u8) = .empty;
+    defer main_content.deinit(allocator);
 
-    try main_content.appendSlice("#include <iostream>\n");
+    try main_content.appendSlice(allocator, "#include <iostream>\n");
 
     for (0..file_count) |i| {
         try main_content.appendSlice(try std.fmt.allocPrint(allocator,
             "extern \"C\" int func_{}();\n", .{i}));
     }
 
-    try main_content.appendSlice("\nint main() {\n    int sum = 0;\n");
+    try main_content.appendSlice(allocator, "\nint main() {\n    int sum = 0;\n");
 
     for (0..file_count) |i| {
         try main_content.appendSlice(try std.fmt.allocPrint(allocator,
             "    sum += func_{}();\n", .{i}));
     }
 
-    try main_content.appendSlice("    std::cout << sum << std::endl;\n    return 0;\n}\n");
+    try main_content.appendSlice(allocator, "    std::cout << sum << std::endl;\n    return 0;\n}\n");
 
     try std.fs.cwd().writeFile(.{
         .sub_path = try std.fmt.allocPrint(allocator, "{s}/main.cpp", .{temp_dir}),
@@ -351,22 +351,22 @@ fn benchmarkParallelCompilation(allocator: std.mem.Allocator, thread_count: u32)
     // Time the build with specified thread count
     const start_time = time.nanoTimestamp();
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append("main.cpp");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, "main.cpp");
 
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "file_{}.cpp", .{i});
-        try args.append(file_name);
+        try args.append(allocator, file_name);
     }
 
-    try args.append("-lc++");
+    try args.append(allocator, "-lc++");
 
     // Add thread count parameter (simulated - in reality would use build system flags)
-    try args.append(try std.fmt.allocPrint(allocator, "-j{d}", .{thread_count}));
+    try args.append(allocator, try std.fmt.allocPrint(allocator, "-j{d}", .{thread_count}));
 
     var result = try std.process.Child.run(.{
         .allocator = allocator,
@@ -472,19 +472,19 @@ fn benchmarkMemoryScalability(allocator: std.mem.Allocator, project_size: u32) !
 }
 
 fn runFullBuild(allocator: std.mem.Allocator, temp_dir: []const u8, file_count: u32) !void {
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append("main.cpp");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, "main.cpp");
 
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "file_{}.cpp", .{i});
-        try args.append(file_name);
+        try args.append(allocator, file_name);
     }
 
-    try args.append("-lc++");
+    try args.append(allocator, "-lc++");
 
     var result = try std.process.Child.run(.{
         .allocator = allocator,

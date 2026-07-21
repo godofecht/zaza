@@ -6,10 +6,13 @@ pub const BuildResult = struct {
 };
 
 pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) BuildResult {
-    const plugin = b.addSharedLibrary(.{
+    const plugin = b.addLibrary(.{
         .name = "shared_plugin",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .dynamic,
     });
     plugin.addCSourceFiles(.{
         .files = &.{"examples/shared_plugin/src/plugin.cpp"},
@@ -19,8 +22,10 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const host = b.addExecutable(.{
         .name = "shared_plugin_host",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     host.addCSourceFiles(.{
         .files = &.{"examples/shared_plugin/src/host.cpp"},

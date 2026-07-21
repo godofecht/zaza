@@ -82,7 +82,7 @@ Zaza makes new native projects feel simpler than CMake without giving up serious
 
 ### Prerequisites
 
-* [Zig](https://ziglang.org/download/) 0.14.0 or newer
+* [Zig](https://ziglang.org/download/) 0.14.1 or 0.15.2
 * Git (for dependency fetch flows)
 * Optional: [direnv](https://direnv.net/) for repo-local cache setup
 

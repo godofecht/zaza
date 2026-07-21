@@ -101,10 +101,10 @@ fn saveConfig(allocator: std.mem.Allocator, json_str: []const u8) !void {
     const root = try getObject(tree.value);
     
     // Generate the new build.zig content
-    var buf = std.ArrayList(u8).init(allocator);
-    defer buf.deinit();
+    var buf: std.ArrayListUnmanaged(u8) = .empty;
+    defer buf.deinit(allocator);
     
-    try buf.writer().writeAll(
+    try buf.writer(allocator).writeAll(
         \\const std = @import("std");
         \\const cpp = @import("build_lib/cpp_example.zig");
         \\
@@ -113,55 +113,55 @@ fn saveConfig(allocator: std.mem.Allocator, json_str: []const u8) !void {
     );
 
     // Write name and description
-    try buf.writer().print("    .name = \"{s}\",\n", .{try getString(root.get("name").?)});
-    try buf.writer().print("    .description = \"{s}\",\n", .{try getString(root.get("description").?)});
+    try buf.writer(allocator).print("    .name = \"{s}\",\n", .{try getString(root.get("name").?)});
+    try buf.writer(allocator).print("    .description = \"{s}\",\n", .{try getString(root.get("description").?)});
 
     // Write source files
-    try buf.writer().writeAll("    .source_files = &.{");
+    try buf.writer(allocator).writeAll("    .source_files = &.{");
     for (try getArray(root.get("source_files").?)) |src| {
-        try buf.writer().print("\"{s}\",", .{try getString(src)});
+        try buf.writer(allocator).print("\"{s}\",", .{try getString(src)});
     }
-    try buf.writer().writeAll("},\n");
+    try buf.writer(allocator).writeAll("},\n");
 
     // Write include dirs
-    try buf.writer().writeAll("    .include_dirs = &.{");
+    try buf.writer(allocator).writeAll("    .include_dirs = &.{");
     for (try getArray(root.get("include_dirs").?)) |dir| {
-        try buf.writer().print("\"{s}\",", .{try getString(dir)});
+        try buf.writer(allocator).print("\"{s}\",", .{try getString(dir)});
     }
-    try buf.writer().writeAll("},\n");
+    try buf.writer(allocator).writeAll("},\n");
 
     // Write cpp flags
-    try buf.writer().writeAll("    .cpp_flags = &.{");
+    try buf.writer(allocator).writeAll("    .cpp_flags = &.{");
     for (try getArray(root.get("cpp_flags").?)) |flag| {
-        try buf.writer().print("\"{s}\",", .{try getString(flag)});
+        try buf.writer(allocator).print("\"{s}\",", .{try getString(flag)});
     }
-    try buf.writer().writeAll("},\n");
+    try buf.writer(allocator).writeAll("},\n");
 
     // Write dependencies
-    try buf.writer().writeAll("    .deps = &.{\n");
+    try buf.writer(allocator).writeAll("    .deps = &.{\n");
     for (try getArray(root.get("dependencies").?)) |dep_val| {
         const dep = try getObject(dep_val);
-        try buf.writer().print("        .{{ .name = \"{s}\", .url = \"{s}\", .type = .{s} }},\n", 
+        try buf.writer(allocator).print("        .{{ .name = \"{s}\", .url = \"{s}\", .type = .{s} }},\n", 
             .{
                 try getString(dep.get("name").?),
                 try getString(dep.get("url").?),
                 try getString(dep.get("build_system").?),
             });
     }
-    try buf.writer().writeAll("    },\n");
+    try buf.writer(allocator).writeAll("    },\n");
 
     // Write build systems
-    try buf.writer().print("    .deps_build_system = .{s},\n", .{try getString(root.get("deps_build_system").?)});
-    try buf.writer().print("    .main_build_system = .{s},\n", .{try getString(root.get("main_build_system").?)});
+    try buf.writer(allocator).print("    .deps_build_system = .{s},\n", .{try getString(root.get("deps_build_system").?)});
+    try buf.writer(allocator).print("    .main_build_system = .{s},\n", .{try getString(root.get("main_build_system").?)});
 
     // Write C++ standard
-    try buf.writer().print("    .cpp_std = \"{s}\",\n", .{try getString(root.get("cpp_std").?)});
+    try buf.writer(allocator).print("    .cpp_std = \"{s}\",\n", .{try getString(root.get("cpp_std").?)});
 
     // Close the struct
-    try buf.writer().writeAll("};\n\n");
+    try buf.writer(allocator).writeAll("};\n\n");
 
     // Add the build function
-    try buf.writer().writeAll(
+    try buf.writer(allocator).writeAll(
         \\pub fn build(b: *std.Build) !void {
         \\    const exe = try example.build(b);
         \\
@@ -233,7 +233,10 @@ pub fn main() !void {
             // Serve the HTML page
             const response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n";
             _ = try conn.stream.write(response);
-            try @import("build_viewer.zig").viewBuildConfig(example, conn.stream.writer());
+            var page: std.ArrayListUnmanaged(u8) = .empty;
+            defer page.deinit(allocator);
+            try @import("build_viewer.zig").viewBuildConfig(example, page.writer(allocator));
+            try conn.stream.writeAll(page.items);
         }
     }
 } 

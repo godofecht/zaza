@@ -8,8 +8,10 @@ pub const BuildResult = struct {
 pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) BuildResult {
     const exe = b.addExecutable(.{
         .name = "resources_bundle_demo",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.addCSourceFiles(.{
         .files = &.{"examples/resources_bundle/src/main.cpp"},

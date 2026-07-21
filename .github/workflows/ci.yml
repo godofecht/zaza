@@ -10,6 +10,14 @@ jobs:
   # Fast feedback on every PR: the Zig suite, no C++ toolchain work.
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Sources and build files use spellings valid in both: root_module,
+        # ArrayListUnmanaged, and shims for the std.Io and std.json reworks.
+        # Testing both keeps that honest rather than assumed.
+        zig: ["0.14.1", "0.15.2"]
+    name: test (zig ${{ matrix.zig }})
     env:
       # Skip the C++ examples. Zig resolves every declared dependency while
       # the build graph is constructed, so leaving these on would fetch JUCE,

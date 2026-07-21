@@ -6,10 +6,13 @@ pub const BuildResult = struct {
 };
 
 pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) BuildResult {
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "calculator_bindings",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
     lib.addCSourceFiles(.{
         .files = &.{
@@ -23,9 +26,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const exe = b.addExecutable(.{
         .name = "bindings_demo",
-        .root_source_file = b.path("examples/bindings/zig/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/bindings/zig/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.root_module.addImport("calculator", b.createModule(.{
         .root_source_file = b.path("examples/bindings/zig/calculator.zig"),

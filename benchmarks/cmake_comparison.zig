@@ -165,19 +165,19 @@ fn benchmarkZazaBuild(allocator: std.mem.Allocator, file_count: u32) !BuildResul
     // Time Zaza build
     const start_time = time.nanoTimestamp();
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append("main.cpp");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, "main.cpp");
 
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "file_{}.cpp", .{i});
-        try args.append(file_name);
+        try args.append(allocator, file_name);
     }
 
-    try args.append("-lc++");
+    try args.append(allocator, "-lc++");
 
     var result = try std.process.Child.run(.{
         .allocator = allocator,

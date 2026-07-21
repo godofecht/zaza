@@ -13,8 +13,10 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const graph_objects = b.addObject(.{
         .name = "graph_objects",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     graph_objects.addCSourceFiles(.{
         .files = &.{"examples/interface_object_graph/src/object_part.cpp"},
@@ -23,10 +25,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     graph_objects.addIncludePath(b.path("examples/interface_object_graph/include"));
     graph_objects.linkLibCpp();
 
-    const graph_core = b.addStaticLibrary(.{
+    const graph_core = b.addLibrary(.{
         .name = "graph_core",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
     graph_core.addCSourceFiles(.{
         .files = &.{"examples/interface_object_graph/src/core.cpp"},
@@ -38,8 +43,10 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const exe = b.addExecutable(.{
         .name = "interface_object_graph_demo",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.addCSourceFiles(.{
         .files = &.{"examples/interface_object_graph/src/main.cpp"},

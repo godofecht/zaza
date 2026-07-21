@@ -65,10 +65,10 @@ pub const RustExample = struct {
         const lib_path = b.fmt("{s}/target/{s}/lib{s}.a", .{ self.crate_dir, profile, self.name });
         const out_path = b.fmt("zig-out/bin/{s}", .{exe_name});
 
-        var link_argv = std.ArrayList([]const u8).init(b.allocator);
-        link_argv.appendSlice(&.{ "cc", "-arch", machineAppleArch(machine_arch), obj_path, lib_path, "-o", out_path }) catch unreachable;
-        link_argv.appendSlice(&.{ "-lSystem", "-framework", "Security", "-framework", "CoreFoundation" }) catch unreachable;
-        const link_cmd = b.addSystemCommand(link_argv.toOwnedSlice() catch unreachable);
+        var link_argv: std.ArrayListUnmanaged([]const u8) = .empty;
+        link_argv.appendSlice(b.allocator, &.{ "cc", "-arch", machineAppleArch(machine_arch), obj_path, lib_path, "-o", out_path }) catch unreachable;
+        link_argv.appendSlice(b.allocator, &.{ "-lSystem", "-framework", "Security", "-framework", "CoreFoundation" }) catch unreachable;
+        const link_cmd = b.addSystemCommand(link_argv.toOwnedSlice(b.allocator) catch unreachable);
         link_cmd.setName(b.fmt("cc-link-{s}", .{exe_name}));
         link_cmd.stdio = .inherit;
 

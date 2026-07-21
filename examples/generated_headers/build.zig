@@ -14,10 +14,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         &.{ "sh", "examples/generated_headers/scripts/generate_header.sh", gen_header },
     );
 
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "generated_headers_lib",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
     lib.addCSourceFiles(.{
         .files = &.{"examples/generated_headers/src/generated_greeter.cpp"},
@@ -30,8 +33,10 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const exe = b.addExecutable(.{
         .name = "generated_headers_demo",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.addCSourceFiles(.{
         .files = &.{"examples/generated_headers/src/main.cpp"},

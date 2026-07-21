@@ -15,8 +15,8 @@ pub const DependencyManager = struct {
     allocator: mem.Allocator,
     deps_dir: []const u8,
     workspace_root: []const u8,
-    dependencies: std.ArrayList(Dependency),
-    cmake_paths: std.ArrayList([]const u8),
+    dependencies: std.ArrayListUnmanaged(Dependency),
+    cmake_paths: std.ArrayListUnmanaged([]const u8),
 
     pub fn init(allocator: mem.Allocator) DependencyManager {
         return initWithPaths(allocator, "deps", ".");
@@ -27,8 +27,8 @@ pub const DependencyManager = struct {
             .allocator = allocator,
             .deps_dir = deps_dir,
             .workspace_root = workspace_root,
-            .dependencies = std.ArrayList(Dependency).init(allocator),
-            .cmake_paths = std.ArrayList([]const u8).init(allocator),
+            .dependencies = .empty,
+            .cmake_paths = .empty,
         };
     }
 
@@ -39,7 +39,7 @@ pub const DependencyManager = struct {
         }
         
         // Otherwise join with workspace root first
-        var with_root = try std.ArrayList([]const u8).initCapacity(self.allocator, components.len + 1);
+        var with_root = try std.ArrayListUnmanaged([]const u8).initCapacity(self.allocator, components.len + 1);
         defer with_root.deinit();
         
         try with_root.append(self.workspace_root);
@@ -52,12 +52,12 @@ pub const DependencyManager = struct {
         for (self.cmake_paths.items) |path| {
             self.allocator.free(path);
         }
-        self.cmake_paths.deinit();
-        self.dependencies.deinit();
+        self.cmake_paths.deinit(self.allocator);
+        self.dependencies.deinit(self.allocator);
     }
 
     pub fn add(self: *DependencyManager, dep: Dependency) !void {
-        try self.dependencies.append(dep);
+        try self.dependencies.append(self.allocator, dep);
     }
 
     pub fn fetch(self: *DependencyManager) !void {
@@ -120,7 +120,7 @@ pub const DependencyManager = struct {
                 self.allocator,
                 &[_][]const u8{ dep_path, "cmake" }
             );
-            try self.cmake_paths.append(cmake_path);
+            try self.cmake_paths.append(self.allocator, cmake_path);
         }
 
         if (dep.subdirectory) |subdir| {
@@ -139,8 +139,8 @@ pub const DependencyManager = struct {
     }
 
     pub fn getIncludePaths(self: *DependencyManager) ![]const []const u8 {
-        var paths = std.ArrayList([]const u8).init(self.allocator);
-        errdefer paths.deinit();
+        var paths: std.ArrayListUnmanaged([]const u8) = .empty;
+        errdefer paths.deinit(self.allocator);
 
         for (self.dependencies.items) |dep| {
             if (dep.include_path) |include_path| {
@@ -149,11 +149,11 @@ pub const DependencyManager = struct {
                     dep.name, 
                     include_path 
                 });
-                try paths.append(full_path);
+                try paths.append(self.allocator, full_path);
             }
         }
 
-        return paths.toOwnedSlice();
+        return paths.toOwnedSlice(self.allocator);
     }
 
     pub fn getCMakePaths(self: *DependencyManager) []const []const u8 {

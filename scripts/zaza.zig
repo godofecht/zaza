@@ -1,5 +1,31 @@
 const std = @import("std");
 
+/// Zig 0.14 spells these `std.io.getStdOut()` / `std.io.getStdErr()`; Zig 0.15
+/// removed `std.io.getStd*` and made the unbuffered `File.writer` take a buffer.
+const StdWriter = if (@hasDecl(std.fs.File, "DeprecatedWriter"))
+    std.fs.File.DeprecatedWriter
+else
+    std.fs.File.Writer;
+
+fn stdoutWriter() StdWriter {
+    const f = if (@hasDecl(std.fs.File, "stdout")) std.fs.File.stdout() else std.io.getStdOut();
+    return if (@hasDecl(std.fs.File, "deprecatedWriter")) f.deprecatedWriter() else f.writer();
+}
+
+fn stderrWriter() StdWriter {
+    const f = if (@hasDecl(std.fs.File, "stderr")) std.fs.File.stderr() else std.io.getStdErr();
+    return if (@hasDecl(std.fs.File, "deprecatedWriter")) f.deprecatedWriter() else f.writer();
+}
+
+/// `std.json.stringifyAlloc` (Zig 0.14) became `std.json.Stringify.valueAlloc` (Zig 0.15).
+fn jsonStringifyIndent2(allocator: std.mem.Allocator, value: anytype) ![]u8 {
+    if (@hasDecl(std.json, "Stringify")) {
+        return std.json.Stringify.valueAlloc(allocator, value, .{ .whitespace = .indent_2 });
+    } else {
+        return std.json.stringifyAlloc(allocator, value, .{ .whitespace = .indent_2 });
+    }
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -57,7 +83,7 @@ pub fn main() !void {
 }
 
 fn usage() !void {
-    const stderr = std.io.getStdErr().writer();
+    const stderr = stderrWriter();
     try stderr.print(
         \\Usage:
         \\  zaza fetch <name>    Fetch a package from the registry into build.zig.zon (alias: add)
@@ -97,7 +123,7 @@ fn fetchIntoZon(
     try writeFile(zon_path, updated);
     try updateLock(allocator, "zaza.lock", name, url, hash);
 
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     try stdout.print("added {s}\n", .{name});
 }
 
@@ -159,11 +185,11 @@ pub fn upsertDependency(
     );
     defer allocator.free(entry);
 
-    var out = std.ArrayList(u8).init(allocator);
-    try out.appendSlice(zon[0..start]);
-    try out.appendSlice(entry);
-    try out.appendSlice(zon[start..]);
-    return out.toOwnedSlice();
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    try out.appendSlice(allocator, zon[0..start]);
+    try out.appendSlice(allocator, entry);
+    try out.appendSlice(allocator, zon[start..]);
+    return out.toOwnedSlice(allocator);
 }
 
 fn findMatchingBrace(data: []const u8, start: usize) ?usize {
@@ -197,7 +223,7 @@ pub fn writeFile(path: []const u8, data: []const u8) !void {
 
 fn listPackages(allocator: std.mem.Allocator, registry_path: []const u8) !void {
     const registry = readFile(allocator, registry_path) catch {
-        const stderr = std.io.getStdErr().writer();
+        const stderr = stderrWriter();
         try stderr.print("error: registry not found at {s}\n", .{registry_path});
         return error.RegistryNotFound;
     };
@@ -207,7 +233,7 @@ fn listPackages(allocator: std.mem.Allocator, registry_path: []const u8) !void {
     defer parsed.deinit();
 
     const packages = parsed.value.object.get("packages") orelse return error.InvalidRegistry;
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     try stdout.print("Available packages ({d}):\n", .{packages.object.count()});
     var it = packages.object.iterator();
     while (it.next()) |entry| {
@@ -218,7 +244,7 @@ fn listPackages(allocator: std.mem.Allocator, registry_path: []const u8) !void {
 
 fn searchPackages(allocator: std.mem.Allocator, registry_path: []const u8, query: []const u8) !void {
     const registry = readFile(allocator, registry_path) catch {
-        const stderr = std.io.getStdErr().writer();
+        const stderr = stderrWriter();
         try stderr.print("error: registry not found at {s}\n", .{registry_path});
         return error.RegistryNotFound;
     };
@@ -228,7 +254,7 @@ fn searchPackages(allocator: std.mem.Allocator, registry_path: []const u8, query
     defer parsed.deinit();
 
     const packages = parsed.value.object.get("packages") orelse return error.InvalidRegistry;
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     var found: usize = 0;
     var it = packages.object.iterator();
     while (it.next()) |entry| {
@@ -252,7 +278,7 @@ pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name
     defer allocator.free(needle);
 
     const start = std.mem.indexOf(u8, zon, needle) orelse {
-        const stderr = std.io.getStdErr().writer();
+        const stderr = stderrWriter();
         try stderr.print("error: dependency '{s}' not found in {s}\n", .{ name, zon_path });
         return error.DependencyNotFound;
     };
@@ -274,23 +300,23 @@ pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name
         remove_end += 1;
     }
 
-    var out = std.ArrayList(u8).init(allocator);
-    defer out.deinit();
-    try out.appendSlice(zon[0..line_start]);
-    try out.appendSlice(zon[remove_end..]);
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    defer out.deinit(allocator);
+    try out.appendSlice(allocator, zon[0..line_start]);
+    try out.appendSlice(allocator, zon[remove_end..]);
     try writeFile(zon_path, out.items);
     removeLockEntry(allocator, "zaza.lock", name) catch {};
 
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     try stdout.print("removed {s}\n", .{name});
 }
 
 fn initProject(allocator: std.mem.Allocator, name: []const u8) !void {
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
 
     // Check if build.zig.zon already exists
     if (std.fs.cwd().access("build.zig.zon", .{})) |_| {
-        const stderr = std.io.getStdErr().writer();
+        const stderr = stderrWriter();
         try stderr.print("error: build.zig.zon already exists. Remove it first.\n", .{});
         return error.AlreadyExists;
     } else |_| {}
@@ -324,8 +350,10 @@ fn initProject(allocator: std.mem.Allocator, name: []const u8) !void {
         \\
         \\    const exe = b.addExecutable(.{
         \\        .name = "app",
-        \\        .optimize = optimize,
-        \\        .target = target,
+        \\        .root_module = b.createModule(.{
+        \\            .optimize = optimize,
+        \\            .target = target,
+        \\        }),
         \\    });
         \\    exe.addCSourceFile(.{ .file = b.path("src/main.cpp"), .flags = &.{"-std=c++17"} });
         \\    b.installArtifact(exe);
@@ -398,10 +426,12 @@ pub fn updateLock(allocator: std.mem.Allocator, path: []const u8, name: []const 
     try entry.object.put("hash", .{ .string = hash });
     try packages.object.put(name, entry);
 
-    var out = std.ArrayList(u8).init(arena_alloc);
-    defer out.deinit();
-    try std.json.stringify(root, .{ .whitespace = .indent_2 }, out.writer());
-    try out.append('\n');
+    const json_text = try jsonStringifyIndent2(arena_alloc, root);
+    defer arena_alloc.free(json_text);
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    defer out.deinit(arena_alloc);
+    try out.appendSlice(arena_alloc, json_text);
+    try out.append(arena_alloc, '\n');
     try writeFile(path, out.items);
 }
 
@@ -420,10 +450,12 @@ pub fn removeLockEntry(allocator: std.mem.Allocator, path: []const u8, name: []c
     const packages = parsed.value.object.getPtr("packages") orelse return;
     _ = packages.object.orderedRemove(name);
 
-    var out = std.ArrayList(u8).init(allocator);
-    defer out.deinit();
-    try std.json.stringify(parsed.value, .{ .whitespace = .indent_2 }, out.writer());
-    try out.append('\n');
+    const json_text = try jsonStringifyIndent2(allocator, parsed.value);
+    defer allocator.free(json_text);
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    defer out.deinit(allocator);
+    try out.appendSlice(allocator, json_text);
+    try out.append(allocator, '\n');
     try writeFile(path, out.items);
 }
 
@@ -434,16 +466,16 @@ pub fn parseDependencyNames(allocator: std.mem.Allocator, zon: []const u8) ![][]
     const end = findMatchingBrace(zon, start) orelse return error.BadZonFormat;
     const dep_block = zon[start..end];
 
-    var names = std.ArrayList([]const u8).init(allocator);
+    var names: std.ArrayListUnmanaged([]const u8) = .empty;
     var it = std.mem.tokenizeAny(u8, dep_block, "\n");
     while (it.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r,");
         if (!std.mem.startsWith(u8, trimmed, ".")) continue;
         if (std.mem.indexOf(u8, trimmed, " = .{")) |eq_idx| {
-            try names.append(try allocator.dupe(u8, trimmed[1..eq_idx]));
+            try names.append(allocator, try allocator.dupe(u8, trimmed[1..eq_idx]));
         }
     }
-    return names.toOwnedSlice();
+    return names.toOwnedSlice(allocator);
 }
 
 pub fn listCurrentDependencies(allocator: std.mem.Allocator, zon_path: []const u8, lock_path: []const u8) !void {
@@ -469,7 +501,7 @@ pub fn listCurrentDependencies(allocator: std.mem.Allocator, zon_path: []const u
         }
     } else |_| {}
 
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     try stdout.print("Dependencies ({d}):\n", .{names.len});
     for (names) |name| {
         try stdout.print("  {s:20} {s}\n", .{ name, if (locked.contains(name)) "locked" else "unlocked" });

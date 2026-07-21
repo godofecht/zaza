@@ -31,17 +31,19 @@ pub const Cpp = struct {
     b: *std.Build,
     artifact: *std.Build.Step.Compile,
     dependencies: deps.DependencyManager,
-    source_list: std.ArrayList(Source),
+    source_list: std.ArrayListUnmanaged(Source),
     version: []const u8 = "17",
-    errors: std.ArrayList(Error),
+    errors: std.ArrayListUnmanaged(Error),
     is_cmake_build: bool = false,
 
     pub fn makeCmake(b: *std.Build) !void {
         var app = b.addExecutable(.{
             .name = "cpp-program",
-            .root_source_file = null,
-            .target = b.standardTargetOptions(.{}),
-            .optimize = b.standardOptimizeOption(.{}),
+            .root_module = b.createModule(.{
+                .root_source_file = null,
+                .target = b.standardTargetOptions(.{}),
+                .optimize = b.standardOptimizeOption(.{}),
+            }),
         });
         try app.generateCMake();
     }
@@ -69,30 +71,38 @@ pub const Cpp = struct {
             .artifact = switch (target_type) {
                 .executable => b.addExecutable(.{
                     .name = name,
-                    .target = target,
-                    .optimize = optimize,
+                    .root_module = b.createModule(.{
+                        .target = target,
+                        .optimize = optimize,
+                    }),
                 }),
-                .library => b.addStaticLibrary(.{
+                .library => b.addLibrary(.{
                     .name = name,
-                    .target = target,
-                    .optimize = optimize,
+                    .root_module = b.createModule(.{
+                        .target = target,
+                        .optimize = optimize,
+                    }),
+                    .linkage = .static,
                 }),
-                .shared => b.addSharedLibrary(.{
+                .shared => b.addLibrary(.{
                     .name = name,
-                    .target = target,
-                    .optimize = optimize,
+                    .root_module = b.createModule(.{
+                        .target = target,
+                        .optimize = optimize,
+                    }),
+                    .linkage = .dynamic,
                 }),
             },
             .dependencies = deps.DependencyManager.init(b.allocator),
-            .source_list = std.ArrayList(Source).init(b.allocator),
-            .errors = std.ArrayList(Error).init(b.allocator),
+            .source_list = .empty,
+            .errors = .empty,
         };
     }
 
     pub fn deinit(self: *Self) void { 
-        self.source_list.deinit(); 
+        self.source_list.deinit(self.b.allocator); 
         self.dependencies.deinit(); 
-        self.errors.deinit();
+        self.errors.deinit(self.b.allocator);
     }
 
     pub fn standard(self: *Self, ver: []const u8) *Self { 
@@ -154,9 +164,9 @@ pub const Cpp = struct {
 
     pub fn addSources(self: *Self, files: []const []const u8) *Self {
         for (files) |file| {
-            self.source_list.append(.{ .path = file }) catch |err| {
+            self.source_list.append(self.b.allocator, .{ .path = file }) catch |err| {
                 std.debug.print("Error adding source {s}: {any}\n", .{file, err});
-                self.errors.append(Error.SourceError) catch {};
+                self.errors.append(self.b.allocator, Error.SourceError) catch {};
             };
         }
         return self;
@@ -165,12 +175,12 @@ pub const Cpp = struct {
     pub fn addGithubDependency(self: *Self, repo: []const u8) *Self {
         const dep = self.dependencies.fetchLatest(repo) catch |err| {
             std.debug.print("Error fetching dependency {s}: {any}\n", .{repo, err});
-            self.errors.append(Error.DependencyError) catch {};
+            self.errors.append(self.b.allocator, Error.DependencyError) catch {};
             return self;
         };
         self.dependencies.add(dep) catch |err| {
             std.debug.print("Error adding dependency {s}: {any}\n", .{repo, err});
-            self.errors.append(Error.DependencyError) catch {};
+            self.errors.append(self.b.allocator, Error.DependencyError) catch {};
         };
         return self;
     }
@@ -292,13 +302,13 @@ pub const Cpp = struct {
     }
 
     fn formatSourceList(self: *Self) ![]const u8 {
-        var list = std.ArrayList(u8).init(self.b.allocator);
-        defer list.deinit();
+        var list: std.ArrayListUnmanaged(u8) = .empty;
+        defer list.deinit(self.b.allocator);
 
         for (self.source_list.items) |src| {
-            try list.writer().print("    {s}\n", .{src.path});
+            try list.writer(self.b.allocator).print("    {s}\n", .{src.path});
         }
-        return list.toOwnedSlice();
+        return list.toOwnedSlice(self.b.allocator);
     }
 
     pub fn setDepsDir(self: *Self, dir: []const u8) void {

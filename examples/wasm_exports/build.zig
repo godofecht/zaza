@@ -15,9 +15,11 @@ pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
 
     const exe = b.addExecutable(.{
         .name = "wasm_exports_demo",
-        .root_source_file = b.path("examples/wasm_exports/src/lib.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/wasm_exports/src/lib.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.entry = .disabled;
     exe.rdynamic = true;
@@ -59,9 +61,11 @@ pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
 
     const server = b.addExecutable(.{
         .name = "zaza_static_server",
-        .root_source_file = b.path("build_lib/static_server.zig"),
-        .target = b.graph.host,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("build_lib/static_server.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
     });
 
     const web_smoke = b.addRunArtifact(server);
