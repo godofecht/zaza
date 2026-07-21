@@ -1,16 +1,40 @@
-# Preset Profiles Example
+# Preset Profiles
 
-This example makes the active `ZAZA_PRESET` visible in program output.
+An executable that prints the active `ZAZA_PRESET`, so preset selection is visible in output.
 
-Verified modes in this environment:
+## What it demonstrates
 
-- default: works
+- `ZAZA_PRESET` mapped to a `BuildConfig` list by `build_lib/presets.zig`.
+- Presets: `debug`, `release`, `relwithdebinfo`, `minsizerel`, `asan`, `lto`.
 
-Known environment-specific limitations on this machine/toolchain:
+## Prerequisites
 
-- `ZAZA_PRESET=asan` fails to link because the AddressSanitizer runtime is not available
-- `ZAZA_PRESET=lto` fails because Zig reports that LTO requires using LLD here
+Zig 0.14.1 or 0.15.2. Nothing else.
 
-That means the example is still useful as a preset/profile proof, but `asan` and
-`lto` are currently constrained by the local toolchain rather than by the
-example itself.
+## Build and run
+
+```bash
+ZAZA_EXAMPLES=preset-profiles zig build preset-profiles                  # build only
+ZAZA_EXAMPLES=preset-profiles zig build preset-profiles-run              # default (debug)
+ZAZA_EXAMPLES=preset-profiles ZAZA_PRESET=release zig build preset-profiles-run
+```
+
+## Expected output
+
+```text
+preset: debug
+preset runtime ready
+```
+
+## Notes
+
+Two presets are environment-dependent:
+
+- `asan` fails to link when the AddressSanitizer runtime is unavailable.
+- `lto` fails when the toolchain is not using LLD.
+
+Both are toolchain constraints rather than example bugs.
+
+---
+
+Back to the [example index](../README.md) or the [Zaza wiki](../../docs/WIKI.md).

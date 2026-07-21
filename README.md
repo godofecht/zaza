@@ -14,12 +14,12 @@
 <h3 align="center">Zaza</h3>
 
   <p align="center">
-    A Zig-driven build system for modern C, C++, Zig, CMake-interop, and WebAssembly workflows.
+    A Zig-driven build system for modern C, C++, Zig, Rust, CMake-interop, and WebAssembly workflows.
     <br />
-    <a href="docs/SYNTAX_REFERENCE.md"><strong>Explore the docs &raquo;</strong></a>
+    <a href="docs/WIKI.md"><strong>Read the wiki &raquo;</strong></a>
     <br />
     <br />
-    <a href="#example-highlights">View Examples</a>
+    <a href="examples/README.md">View Examples</a>
     &middot;
     <a href="https://github.com/godofecht/zaza/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     &middot;
@@ -67,6 +67,8 @@ Zaza makes new native projects feel simpler than CMake without giving up serious
 
 **Status:** Zaza is usable and heavily example-driven, but it is not pretending to have a final polished API yet. The verified example matrix is runnable with `zig build example-matrix`.
 
+**Start here:** [`docs/WIKI.md`](docs/WIKI.md) is the single-page overview. It covers the problem Zaza solves, how it compares to CMake, a five-minute quickstart, the core concepts, every environment variable, the example matrix, the WebAssembly workflows, and troubleshooting.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
@@ -82,29 +84,32 @@ Zaza makes new native projects feel simpler than CMake without giving up serious
 
 ### Prerequisites
 
-* [Zig](https://ziglang.org/download/) 0.14.1 or 0.15.2
-* Git (for dependency fetch flows)
-* Optional: [direnv](https://direnv.net/) for repo-local cache setup
+* [Zig](https://ziglang.org/download/) 0.14.1 or 0.15.2. Both are tested in CI.
+* Optional: `cmake` and `git` for the CMake interop and JUCE examples, `cargo` for the Rust example, `node` for the WebAssembly examples.
+* Optional: [direnv](https://direnv.net/) for repo-local cache setup.
 
 ### Installation
 
-1. Clone the repo
-   ```sh
-   git clone https://github.com/godofecht/zaza.git
-   ```
-2. Enter the project directory
-   ```sh
-   cd zaza
-   ```
-3. (Optional) Allow direnv
-   ```sh
-   direnv allow
-   ```
-4. Verify the build
-   ```sh
-   zig build test
-   zig build example-matrix
-   ```
+```sh
+git clone https://github.com/godofecht/zaza.git
+cd zaza
+./setup.sh
+```
+
+[`setup.sh`](setup.sh) reports your Zig version, warns if it is outside the tested range, creates the machine-local `./zig` wrapper if it is missing, lists which optional examples your machine cannot run, and then runs the test suite. It is safe to run repeatedly.
+
+```text
+Toolchain
+  ok  zig 0.15.2 (/opt/homebrew/bin/zig)
+...
+Build Summary: 43/43 steps succeeded; 87/87 tests passed
+```
+
+To verify the rest of the surface:
+
+```sh
+zig build example-matrix
+```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -175,7 +180,7 @@ _For the full syntax surface, please refer to the [Syntax Reference](docs/SYNTAX
 | Host-loaded wasm exports | `zig build wasm-exports-run` |
 | Browser wasm demo | `zig build wasm-web-demo-smoke` |
 
-Full per-example explanations and diagrams live in [`docs/EXAMPLES.md`](docs/EXAMPLES.md).
+Every example has its own README with prerequisites and an exact command. The index is [`examples/README.md`](examples/README.md). Per-example diagrams and syntax notes live in [`docs/EXAMPLES.md`](docs/EXAMPLES.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -236,9 +241,11 @@ Contributions are what make the open source community such an amazing place to l
 The current contribution bar is:
 
 ```sh
-zig build test
+./setup.sh              # runs ZAZA_EXAMPLES=none zig build test --summary all
 zig build example-matrix
 ```
+
+Run `./setup.sh` on both 0.14.1 and 0.15.2 if your change touches build files or Zig sources. The suite should report `43/43 steps succeeded; 87/87 tests passed` on each.
 
 If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Don't forget to give the project a star! Thanks again!
 
@@ -291,6 +298,18 @@ Project Link: [https://github.com/godofecht/zaza](https://github.com/godofecht/z
 | [`registry`](registry) | Lightweight registry metadata |
 | [`wiki`](wiki) | Static docs site |
 | [`docs`](docs) | Documentation |
+| [`setup.sh`](setup.sh) | Toolchain check, wrapper creation, and test run |
+
+**Documentation map**
+
+| Document | Covers |
+| --- | --- |
+| [`docs/WIKI.md`](docs/WIKI.md) | Single-page overview: quickstart, concepts, env vars, troubleshooting |
+| [`examples/README.md`](examples/README.md) | Every example, its command, and its purpose |
+| [`docs/EXAMPLES.md`](docs/EXAMPLES.md) | Per-example diagrams and syntax focus |
+| [`docs/SYNTAX_REFERENCE.md`](docs/SYNTAX_REFERENCE.md) | Full field and command surface |
+| [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) | Feature-by-feature parity status |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | What is being built next |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
