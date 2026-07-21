@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.22)
 
 project(ZazaJuce VERSION 1.0.0)
 include(FetchContent)
@@ -9,7 +9,7 @@ if (DEFINED JUCE_SOURCE_DIR)
 elseif (EXISTS "${CMAKE_CURRENT_LIST_DIR}/deps/juce/CMakeLists.txt")
     set(FETCHCONTENT_SOURCE_DIR_JUCE "${CMAKE_CURRENT_LIST_DIR}/deps/juce")
 endif()
-set(JUCE_GIT_TAG "7.0.9")
+set(JUCE_GIT_TAG "8.0.14")
 FetchContent_Declare(juce
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
     GIT_TAG ${JUCE_GIT_TAG}

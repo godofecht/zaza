@@ -133,14 +133,14 @@ public:
         // Title label
         addAndMakeVisible(titleLabel);
         titleLabel.setText("Zaza Synth — built with Zaza", juce::dontSendNotification);
-        titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
+        titleLabel.setFont(juce::FontOptions(24.0f).withStyle("Bold"));
         titleLabel.setJustificationType(juce::Justification::centred);
         titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
 
         // Status label
         addAndMakeVisible(statusLabel);
         statusLabel.setText("Play the keyboard or connect a MIDI device", juce::dontSendNotification);
-        statusLabel.setFont(juce::Font(14.0f));
+        statusLabel.setFont(juce::FontOptions(14.0f));
         statusLabel.setJustificationType(juce::Justification::centred);
         statusLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
 

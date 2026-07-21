@@ -30,12 +30,13 @@
         },
 
         .juce = .{
-            .url = "https://github.com/juce-framework/JUCE/archive/refs/tags/7.0.9.tar.gz",
-            .hash = "N-V-__8AAOmb4gPVbhDsN4EPQGAek7bubgG7dMdK8_vNlB4X",
+            .url = "https://github.com/juce-framework/JUCE/archive/refs/tags/8.0.14.tar.gz",
+            .hash = "N-V-__8AAIQmJwXM2wsTRGTsnACc4C_8ROv5Udmolve1ZxZu",
         },
 
         .nlohmann_json = .{
-            .path = "deps/json",
+            .url = "https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz",
+            .hash = "N-V-__8AAPwi1QA62l3pm0hnYBnFKtjqBqXK50MZxfH-Wq8C",
         },
     },
     .paths = .{

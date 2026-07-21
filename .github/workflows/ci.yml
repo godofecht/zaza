@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Fast feedback on every PR: the Zig suite, no C++ toolchain work.
   test:
     runs-on: ubuntu-latest
     env:
-      # Disable the C++ examples. They compile against deps/ (nlohmann/json,
-      # zlib, curl, mbedtls, spdlog, fmt), which is gitignored and only
-      # populated by -Dsystem-cmds=true. Cloning all of them on every run is
-      # far more than the Zig test suite needs.
+      # Skip the C++ examples. Zig resolves every declared dependency while
+      # the build graph is constructed, so leaving these on would fetch JUCE,
+      # curl, mbedtls, zlib, spdlog and fmt just to run Zig tests.
       ZAZA_EXAMPLES: none
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +22,27 @@ jobs:
         with:
           version: 0.14.1
 
-      # `zig build test` only. The default target also configures the JUCE
-      # examples, which currently fail against the macOS 15 SDK: JUCE 7.0.9
-      # calls CGWindowListCreateImage, removed in macOS 15, so juceaide will
-      # not compile. Widen this once JUCE is bumped.
       - name: Test
         run: zig build test --summary all
+
+  # The whole graph, C++ examples and JUCE included. Slow (JUCE is compiled
+  # from source), so it is kept off the PR path.
+  full-build:
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    env:
+      ZAZA_SYSTEM_CMDS: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.1
+
+      # Zig cannot find libSystem on the macOS runners by itself; without this
+      # even the build runner fails to link, every libc symbol undefined.
+      - name: Point Zig at the macOS SDK
+        run: echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+
+      - name: Build everything
+        run: zig build --summary all
