@@ -22,6 +22,7 @@ const cxx20_modules_example = @import("examples/cxx20_modules/build.zig");
 const wasm_wasi_example = @import("examples/wasm_wasi/build.zig");
 const wasm_exports_example = @import("examples/wasm_exports/build.zig");
 const zaza_juce_example = @import("examples/zaza-juce/build.zig");
+const rust_interop_example = @import("examples/rust_interop/build.zig");
 const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -68,6 +69,14 @@ pub fn build(b: *std.Build) !void {
         const zaza_juce_step = b.step("zaza-juce", "Build the Zaza JUCE audio synth example");
         try zaza_juce_example.buildWithTarget(b, target);
         zaza_juce_step.dependOn(b.getInstallStep());
+    }
+
+    // Rust interop: cargo builds a staticlib, Zig links it. Gated like the
+    // other examples, since it needs cargo on PATH.
+    if (exampleEnabled(b, "rust-interop")) {
+        // addSteps registers the rust-interop and rust-interop-run top-level
+        // steps itself.
+        _ = rust_interop_example.addSteps(b, target, optimize);
     }
 
     const hello_step = b.step("hello-zaza", "Build hello_zaza (Zig + C++ via Zaza)");
