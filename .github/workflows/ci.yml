@@ -37,7 +37,11 @@ jobs:
   # from source), so it is kept off the PR path.
   full-build:
     if: github.event_name != 'pull_request'
-    runs-on: macos-latest
+    # Pinned to macos-15. macos-latest ships Xcode 26.5, whose SDK Zig cannot
+    # link against: every libc symbol comes out undefined and even the build
+    # runner fails to link. Setting SDKROOT does not help, since the SDK
+    # itself is the problem rather than its discoverability.
+    runs-on: macos-15
     env:
       ZAZA_SYSTEM_CMDS: 1
     steps:
@@ -47,10 +51,12 @@ jobs:
         with:
           version: 0.14.1
 
-      # Zig cannot find libSystem on the macOS runners by itself; without this
-      # even the build runner fails to link, every libc symbol undefined.
-      - name: Point Zig at the macOS SDK
-        run: echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+      # Reported so the next SDK break is obvious from the log rather than
+      # showing up as a wall of undefined symbols.
+      - name: Report toolchain
+        run: |
+          xcodebuild -version
+          echo "SDK: $(xcrun --show-sdk-path)"
 
       - name: Build everything
         run: zig build --summary all
