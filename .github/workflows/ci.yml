@@ -28,7 +28,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.14.1
+          version: ${{ matrix.zig }}
 
       - name: Test
         run: zig build test --summary all
@@ -49,7 +49,9 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.14.1
+          # Single version deliberately: this job compiles JUCE and the C++
+          # examples, so running it twice would double an already slow job.
+          version: 0.15.2
 
       # Reported so the next SDK break is obvious from the log rather than
       # showing up as a wall of undefined symbols.
