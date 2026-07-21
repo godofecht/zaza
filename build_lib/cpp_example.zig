@@ -1062,7 +1062,7 @@ pub const JUCEApplication = struct {
         cpp_std: ?[]const u8 = null,
         /// Subdirectory for generated CMakeLists (default: ".")
         cmake_root: []const u8 = ".",
-        /// JUCE git tag/branch (e.g. "7.0.9", "7.0.12", "master")
+        /// JUCE git tag/branch (e.g. "8.0.14", "8.0.12", "master")
         juce_git_tag: ?[]const u8 = null,
     };
 
@@ -1197,7 +1197,7 @@ pub const JUCEApplication = struct {
             defer writer.deinit();
 
             // Header
-            try cmake.write(writer, "cmake_minimum_required(VERSION 3.15)", .{});
+            try cmake.write(writer, "cmake_minimum_required(VERSION 3.22)", .{});
             try cmake.write(writer, "", .{});
             try cmake.section(writer, "project", &.{self.name, "VERSION", self.version});
             try cmake.write(writer, "include(FetchContent)", .{});

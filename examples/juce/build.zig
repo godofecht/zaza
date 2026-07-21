@@ -8,7 +8,7 @@ const app_config = cpp.JUCEApplication.JuceConfig{
     .company = "Example",
     .build_mode = .Debug,
     .cmake_root = "examples/juce",
-    .juce_git_tag = "7.0.9",
+    .juce_git_tag = "8.0.14",
     .sources = &.{"src/main.cpp"},
     .modules = &.{
         "juce_core",
