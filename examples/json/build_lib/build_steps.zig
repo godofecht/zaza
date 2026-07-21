@@ -1,9 +1,21 @@
 const std = @import("std");
+
+/// Zig 0.14 spells these `std.io.getStdOut()` / `std.io.getStdErr()`; Zig 0.15
+/// removed `std.io.getStd*` and made the unbuffered `File.writer` take a buffer.
+const StdWriter = if (@hasDecl(std.fs.File, "DeprecatedWriter"))
+    std.fs.File.DeprecatedWriter
+else
+    std.fs.File.Writer;
+
+fn stdoutWriter() StdWriter {
+    const f = if (@hasDecl(std.fs.File, "stdout")) std.fs.File.stdout() else std.io.getStdOut();
+    return if (@hasDecl(std.fs.File, "deprecatedWriter")) f.deprecatedWriter() else f.writer();
+}
 const Graph = @import("build_graph.zig").Graph;
 const Node = @import("build_graph.zig").Node;
 
 fn logMessage(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void {
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     try stdout.print("\n\x1b[1;36m=== {s} ===\x1b[0m\n", .{step.name});
 
     // Explain what common commands do
@@ -22,7 +34,7 @@ fn logMessage(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void 
 }
 
 fn logCommand(cmd: []const []const u8) !void {
-    const stdout = std.io.getStdOut().writer();
+    const stdout = stdoutWriter();
     
     // Add context based on the command
     if (cmd.len > 0) {
@@ -47,7 +59,7 @@ fn logCommand(cmd: []const []const u8) !void {
 pub const BuildManager = struct {
     b: *std.Build,
     allocator: std.mem.Allocator,
-    steps: std.ArrayList(*Node),
+    steps: std.ArrayListUnmanaged(*Node),
     graph: *Graph,
 
     pub fn init(b: *std.Build) BuildManager {
@@ -56,13 +68,13 @@ pub const BuildManager = struct {
         return .{
             .b = b,
             .allocator = b.allocator,
-            .steps = std.ArrayList(*Node).init(b.allocator),
+            .steps = .empty,
             .graph = graph,
         };
     }
 
     pub fn deinit(self: *BuildManager) void {
-        self.steps.deinit();
+        self.steps.deinit(self.allocator);
         self.graph.deinit();
         self.allocator.destroy(self.graph);
     }
@@ -78,7 +90,7 @@ pub const BuildManager = struct {
         });
 
         const node = try self.graph.addNode(name);
-        try self.steps.append(node);
+        try self.steps.append(self.allocator, node);
         node.cmd_step = step;
 
         return node;
@@ -108,7 +120,7 @@ pub const BuildManager = struct {
             .makeFn = struct {
                 fn make(step: *std.Build.Step, options: std.Build.Step.MakeOptions) !void {
                     _ = options;
-                    const stdout = std.io.getStdOut().writer();
+                    const stdout = stdoutWriter();
                     try stdout.print("\n\x1b[1;32m=== Build Complete ===\x1b[0m\n", .{});
                     try stdout.print("Executables installed to: \x1b[1mzig-out/bin\x1b[0m\n\n", .{});
                     _ = step;

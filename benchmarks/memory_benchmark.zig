@@ -75,8 +75,8 @@ fn benchmarkMemoryUsage(allocator: std.mem.Allocator, file_count: u32) !MemoryRe
     defer std.fs.cwd().deleteTree(temp_dir) catch {};
 
     // Generate test files
-    var total_memory_samples = std.ArrayList(f64).init(allocator);
-    defer total_memory_samples.deinit();
+    var total_memory_samples: std.ArrayListUnmanaged(f64) = .empty;
+    defer total_memory_samples.deinit(allocator);
 
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "{s}/file_{}.cpp", .{temp_dir, i});
@@ -109,19 +109,19 @@ fn benchmarkMemoryUsage(allocator: std.mem.Allocator, file_count: u32) !MemoryRe
     const monitoring_thread = try std.Thread.spawn(.{}, monitorMemoryUsage, .{ &peak_memory, &sample_count });
 
     // Build the project
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append("main.cpp");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, "main.cpp");
 
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "file_{}.cpp", .{i});
-        try args.append(file_name);
+        try args.append(allocator, file_name);
     }
 
-    try args.append("-lc++");
+    try args.append(allocator, "-lc++");
 
     var build_result = try std.process.Child.run(.{
         .allocator = allocator,
@@ -238,17 +238,17 @@ fn measureBuildMemory(allocator: std.mem.Allocator, temp_dir: []const u8,
 
     const monitoring_thread = try std.Thread.spawn(.{}, monitorMemoryUsage, .{ &peak_memory, &sample_count });
 
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
 
-    try args.append("zig");
-    try args.append("build-exe");
-    try args.append(file_name);
-    try args.append("-lc++");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
+    try args.append(allocator, file_name);
+    try args.append(allocator, "-lc++");
 
     if (extra_args) |args_slice| {
         for (args_slice) |arg| {
-            try args.append(arg);
+            try args.append(allocator, arg);
         }
     }
 
@@ -284,7 +284,7 @@ fn monitorMemoryUsage(peak_memory: *u64, sample_count: *u32) void {
         }
         sample_count.* += 1;
         
-        std.time.sleep(sample_interval_ms * 1_000_000); // Convert to nanoseconds
+        std.Thread.sleep(sample_interval_ms * 1_000_000); // Convert to nanoseconds
     }
 }
 
@@ -329,10 +329,10 @@ fn generateTestCppContent(allocator: std.mem.Allocator, file_index: u32) ![]cons
 }
 
 fn generateMainFile(allocator: std.mem.Allocator, file_count: u32) ![]const u8 {
-    var content = std.ArrayList(u8).init(allocator);
-    defer content.deinit();
+    var content: std.ArrayListUnmanaged(u8) = .empty;
+    defer content.deinit(allocator);
 
-    try content.appendSlice("#include <iostream>\n\n");
+    try content.appendSlice(allocator, "#include <iostream>\n\n");
 
     // Add function declarations
     for (0..file_count) |i| {
@@ -340,8 +340,8 @@ fn generateMainFile(allocator: std.mem.Allocator, file_count: u32) ![]const u8 {
             "extern \"C\" int function_{}();\n", .{i}));
     }
 
-    try content.appendSlice("\nint main() {\n");
-    try content.appendSlice("    int sum = 0;\n");
+    try content.appendSlice(allocator, "\nint main() {\n");
+    try content.appendSlice(allocator, "    int sum = 0;\n");
 
     // Add function calls
     for (0..file_count) |i| {
@@ -349,10 +349,10 @@ fn generateMainFile(allocator: std.mem.Allocator, file_count: u32) ![]const u8 {
             "    sum += function_{}();\n", .{i}));
     }
 
-    try content.appendSlice("    std::cout << \"Total: \" << sum << std::endl;\n");
-    try content.appendSlice("    return 0;\n}\n");
+    try content.appendSlice(allocator, "    std::cout << \"Total: \" << sum << std::endl;\n");
+    try content.appendSlice(allocator, "    return 0;\n}\n");
 
-    return content.toOwnedSlice();
+    return content.toOwnedSlice(allocator);
 }
 
 fn generateMemoryReport() !void {

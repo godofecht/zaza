@@ -5,8 +5,10 @@ pub fn build(b: *std.Build) !void {
     // Performance benchmark executable
     const benchmark_exe = b.addExecutable(.{
         .name = "performance_benchmark",
-        .root_source_file = b.path("benchmarks/performance_benchmark.zig"),
-        .target = b.host,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmarks/performance_benchmark.zig"),
+            .target = b.host,
+        }),
     });
     
     // Add JSON dependency for benchmarks
@@ -25,8 +27,10 @@ pub fn build(b: *std.Build) !void {
     // Create memory benchmark
     const memory_benchmark = b.addExecutable(.{
         .name = "memory_benchmark",
-        .root_source_file = b.path("benchmarks/memory_benchmark.zig"),
-        .target = b.host,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmarks/memory_benchmark.zig"),
+            .target = b.host,
+        }),
     });
     
     b.installArtifact(memory_benchmark);
@@ -40,8 +44,10 @@ pub fn build(b: *std.Build) !void {
     // Create scalability benchmark
     const scalability_benchmark = b.addExecutable(.{
         .name = "scalability_benchmark",
-        .root_source_file = b.path("benchmarks/scalability_benchmark.zig"),
-        .target = b.host,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmarks/scalability_benchmark.zig"),
+            .target = b.host,
+        }),
     });
     
     b.installArtifact(scalability_benchmark);
@@ -61,8 +67,10 @@ pub fn build(b: *std.Build) !void {
     // Add benchmark comparison with CMake
     const cmake_comparison = b.addExecutable(.{
         .name = "cmake_comparison",
-        .root_source_file = b.path("benchmarks/cmake_comparison.zig"),
-        .target = b.host,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmarks/cmake_comparison.zig"),
+            .target = b.host,
+        }),
     });
     
     b.installArtifact(cmake_comparison);

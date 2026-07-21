@@ -31,9 +31,11 @@ pub fn addArtifacts(b: *std.Build, target: std.Build.ResolvedTarget, optimize: s
     // Zig target (pure Zig)
     const zig_exe = b.addExecutable(.{
         .name = "hello_zaza_zig",
-        .root_source_file = b.path("examples/hello_zaza/src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/hello_zaza/src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     // C++ target (built via Zaza)

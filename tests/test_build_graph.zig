@@ -54,19 +54,19 @@ test "getDependencies returns upstream nodes" {
 
     // link depends on compile
     var link_deps = try g.getDependencies(link);
-    defer link_deps.deinit();
+    defer link_deps.deinit(testing.allocator);
     try testing.expectEqual(@as(usize, 1), link_deps.items.len);
     try testing.expect(link_deps.items[0] == compile);
 
     // install depends on link
     var install_deps = try g.getDependencies(install);
-    defer install_deps.deinit();
+    defer install_deps.deinit(testing.allocator);
     try testing.expectEqual(@as(usize, 1), install_deps.items.len);
     try testing.expect(install_deps.items[0] == link);
 
     // compile has no dependencies
     var compile_deps = try g.getDependencies(compile);
-    defer compile_deps.deinit();
+    defer compile_deps.deinit(testing.allocator);
     try testing.expectEqual(@as(usize, 0), compile_deps.items.len);
 }
 
@@ -82,7 +82,7 @@ test "getDependents returns downstream nodes" {
     try g.addEdge(a, c);
 
     var dependents = try g.getDependents(a);
-    defer dependents.deinit();
+    defer dependents.deinit(testing.allocator);
     try testing.expectEqual(@as(usize, 2), dependents.items.len);
 }
 
@@ -99,7 +99,7 @@ test "topologicalSort returns valid ordering for linear chain" {
     try g.addEdge(b, c);
 
     var sorted = try g.topologicalSort();
-    defer sorted.deinit();
+    defer sorted.deinit(testing.allocator);
 
     try testing.expectEqual(@as(usize, 3), sorted.items.len);
 
@@ -136,7 +136,7 @@ test "topologicalSort handles diamond dependency" {
     try g.addEdge(c, d);
 
     var sorted = try g.topologicalSort();
-    defer sorted.deinit();
+    defer sorted.deinit(testing.allocator);
 
     try testing.expectEqual(@as(usize, 4), sorted.items.len);
 
@@ -166,7 +166,7 @@ test "topologicalSort handles disconnected nodes" {
     _ = try g.addNode("isolated_c");
 
     var sorted = try g.topologicalSort();
-    defer sorted.deinit();
+    defer sorted.deinit(testing.allocator);
 
     try testing.expectEqual(@as(usize, 3), sorted.items.len);
 }
@@ -185,7 +185,7 @@ test "multiple dependencies on single node" {
     try g.addEdge(ssl, app);
 
     var app_deps = try g.getDependencies(app);
-    defer app_deps.deinit();
+    defer app_deps.deinit(testing.allocator);
     try testing.expectEqual(@as(usize, 3), app_deps.items.len);
 }
 

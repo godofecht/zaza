@@ -14,9 +14,11 @@ pub fn addSteps(b: *std.Build, optimize: std.builtin.OptimizeMode) BuildResult {
 
     const exe = b.addExecutable(.{
         .name = "wasm_wasi_demo",
-        .root_source_file = b.path("examples/wasm_wasi/src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/wasm_wasi/src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const install = b.addInstallArtifact(exe, .{});

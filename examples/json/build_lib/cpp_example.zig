@@ -147,9 +147,9 @@ pub const BuildConfig = struct {
 
 fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
     const url = normalizeGitUrl(b, dep.url);
-    var args = std.ArrayList([]const u8).init(b.allocator);
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
     if (builtin.os.tag == .windows) {
-        args.appendSlice(&.{
+        args.appendSlice(b.allocator, &.{
             "cmd.exe",
             "/c",
             b.fmt(
@@ -158,7 +158,7 @@ fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
             ),
         }) catch unreachable;
     } else {
-        args.appendSlice(&.{
+        args.appendSlice(b.allocator, &.{
             "sh",
             "-c",
             b.fmt(
@@ -167,7 +167,7 @@ fn makeCloneCommand(b: *std.Build, dep: Dependency) []const []const u8 {
             ),
         }) catch unreachable;
     }
-    return args.toOwnedSlice() catch unreachable;
+    return args.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn normalizeGitUrl(b: *std.Build, url: []const u8) []const u8 {
@@ -180,22 +180,22 @@ fn normalizeGitUrl(b: *std.Build, url: []const u8) []const u8 {
 }
 
 fn buildDefaultCMakeArgs(b: *std.Build, dep_name: []const u8, user_args: []const []const u8) []const []const u8 {
-    var args = std.ArrayList([]const u8).init(b.allocator);
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
     if (std.mem.eql(u8, dep_name, "juce")) {
-        args.appendSlice(&.{
+        args.appendSlice(b.allocator, &.{
             "-DJUCE_BUILD_EXAMPLES=OFF",
             "-DJUCE_BUILD_EXTRAS=OFF",
             "-DJUCE_MODULES_ONLY=ON",
             "-DJUCE_GENERATE_JUCE_HEADER=ON",
         }) catch unreachable;
     } else if (std.mem.eql(u8, dep_name, "json")) {
-        args.appendSlice(&.{
+        args.appendSlice(b.allocator, &.{
             "-DJSON_BuildTests=OFF",
             "-DJSON_Install=OFF",
         }) catch unreachable;
     }
-    args.appendSlice(user_args) catch unreachable;
-    return args.toOwnedSlice() catch unreachable;
+    args.appendSlice(b.allocator, user_args) catch unreachable;
+    return args.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn chooseCMakeGenerator(b: *std.Build) ?[]const u8 {
@@ -221,23 +221,23 @@ fn makeCMakeConfigureCommand(
     install_prefix: ?[]const u8,
     extra_args: []const []const u8,
 ) []const []const u8 {
-    var args = std.ArrayList([]const u8).init(b.allocator);
-    args.appendSlice(&.{"cmake", "-S", source_dir, "-B", build_dir}) catch unreachable;
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    args.appendSlice(b.allocator, &.{"cmake", "-S", source_dir, "-B", build_dir}) catch unreachable;
     if (generator orelse chooseCMakeGenerator(b)) |gen| {
-        args.appendSlice(&.{"-G", gen}) catch unreachable;
+        args.appendSlice(b.allocator, &.{"-G", gen}) catch unreachable;
     }
-    args.append(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{config_name})) catch unreachable;
+    args.append(b.allocator, b.fmt("-DCMAKE_BUILD_TYPE={s}", .{config_name})) catch unreachable;
     if (toolchain_file orelse chooseCMakeToolchain(b)) |toolchain| {
-        args.append(b.fmt("-DCMAKE_TOOLCHAIN_FILE={s}", .{toolchain})) catch unreachable;
+        args.append(b.allocator, b.fmt("-DCMAKE_TOOLCHAIN_FILE={s}", .{toolchain})) catch unreachable;
     }
     if (install_prefix) |prefix| {
-        args.append(b.fmt("-DCMAKE_INSTALL_PREFIX={s}", .{prefix})) catch unreachable;
+        args.append(b.allocator, b.fmt("-DCMAKE_INSTALL_PREFIX={s}", .{prefix})) catch unreachable;
     }
     if (!hasCMakeFlag(extra_args, "CMAKE_EXPORT_COMPILE_COMMANDS")) {
-        args.append("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON") catch unreachable;
+        args.append(b.allocator, "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON") catch unreachable;
     }
-    args.appendSlice(extra_args) catch unreachable;
-    return args.toOwnedSlice() catch unreachable;
+    args.appendSlice(b.allocator, extra_args) catch unreachable;
+    return args.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn makeCMakeBuildCommand(
@@ -246,10 +246,10 @@ fn makeCMakeBuildCommand(
     config_name: []const u8,
     extra_args: []const []const u8,
 ) []const []const u8 {
-    var args = std.ArrayList([]const u8).init(b.allocator);
-    args.appendSlice(&.{"cmake", "--build", build_dir, "--config", config_name}) catch unreachable;
-    args.appendSlice(extra_args) catch unreachable;
-    return args.toOwnedSlice() catch unreachable;
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    args.appendSlice(b.allocator, &.{"cmake", "--build", build_dir, "--config", config_name}) catch unreachable;
+    args.appendSlice(b.allocator, extra_args) catch unreachable;
+    return args.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn makeCMakeInstallCommand(
@@ -259,13 +259,13 @@ fn makeCMakeInstallCommand(
     install_prefix: ?[]const u8,
     extra_args: []const []const u8,
 ) []const []const u8 {
-    var args = std.ArrayList([]const u8).init(b.allocator);
-    args.appendSlice(&.{"cmake", "--install", build_dir, "--config", config_name}) catch unreachable;
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    args.appendSlice(b.allocator, &.{"cmake", "--install", build_dir, "--config", config_name}) catch unreachable;
     if (install_prefix) |prefix| {
-        args.appendSlice(&.{"--prefix", prefix}) catch unreachable;
+        args.appendSlice(b.allocator, &.{"--prefix", prefix}) catch unreachable;
     }
-    args.appendSlice(extra_args) catch unreachable;
-    return args.toOwnedSlice() catch unreachable;
+    args.appendSlice(b.allocator, extra_args) catch unreachable;
+    return args.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 /// Predefined build configurations
@@ -349,29 +349,29 @@ pub const CppExample = struct {
 
     /// Helper for CMake generation
     const cmake = struct {
-        fn write(writer: *std.ArrayList(u8), comptime fmt: []const u8, args: anytype) !void {
-            try writer.writer().print(fmt ++ "\n", args);
+        fn write(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), comptime fmt: []const u8, args: anytype) !void {
+            try writer.writer(gpa).print(fmt ++ "\n", args);
         }
 
-        fn section(writer: *std.ArrayList(u8), name: []const u8, args: []const []const u8) !void {
-            try writer.writer().print("{s}(", .{name});
+        fn section(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, args: []const []const u8) !void {
+            try writer.writer(gpa).print("{s}(", .{name});
             for (args, 0..) |arg, i| {
-                if (i > 0) try writer.appendSlice(" ");
-                try writer.appendSlice(arg);
+                if (i > 0) try writer.appendSlice(gpa, " ");
+                try writer.appendSlice(gpa, arg);
             }
-            try writer.appendSlice(")\n");
+            try writer.appendSlice(gpa, ")\n");
         }
 
-        fn list(writer: *std.ArrayList(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
-            try listScoped(writer, name, target, "PRIVATE", items);
+        fn list(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
+            try listScoped(gpa, writer, name, target, "PRIVATE", items);
         }
 
-        fn listScoped(writer: *std.ArrayList(u8), name: []const u8, target: []const u8, scope: []const u8, items: []const []const u8) !void {
-            try writer.writer().print("{s}({s} {s}\n", .{name, target, scope});
+        fn listScoped(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, scope: []const u8, items: []const []const u8) !void {
+            try writer.writer(gpa).print("{s}({s} {s}\n", .{name, target, scope});
             for (items) |item| {
-                try writer.writer().print("    {s}\n", .{item});
+                try writer.writer(gpa).print("    {s}\n", .{item});
             }
-            try writer.appendSlice(")\n\n");
+            try writer.appendSlice(gpa, ")\n\n");
         }
     };
 
@@ -380,70 +380,70 @@ pub const CppExample = struct {
     }
 
     pub fn generateCMake(self: CppExample, b: *std.Build) !void {
-        var writer = std.ArrayList(u8).init(b.allocator);
-        defer writer.deinit();
+        var writer: std.ArrayListUnmanaged(u8) = .empty;
+        defer writer.deinit(b.allocator);
 
         // Header
-        try cmake.write(&writer, "cmake_minimum_required(VERSION 3.15)", .{});
-        try cmake.write(&writer, "", .{});
-        try cmake.section(&writer, "project", &.{self.name});
-        try cmake.write(&writer, "", .{});
+        try cmake.write(b.allocator, &writer, "cmake_minimum_required(VERSION 3.15)", .{});
+        try cmake.write(b.allocator, &writer, "", .{});
+        try cmake.section(b.allocator, &writer, "project", &.{self.name});
+        try cmake.write(b.allocator, &writer, "", .{});
 
         // Add dependencies
         for (self.deps) |dep| {
-            try cmake.write(&writer, "add_subdirectory(deps/{s})", .{dep.name});
+            try cmake.write(b.allocator, &writer, "add_subdirectory(deps/{s})", .{dep.name});
         }
-        try cmake.write(&writer, "", .{});
+        try cmake.write(b.allocator, &writer, "", .{});
 
         // Create executable
-        try cmake.write(&writer, "add_executable({s}", .{self.name});
+        try cmake.write(b.allocator, &writer, "add_executable({s}", .{self.name});
         for (self.source_files) |src| {
-            try cmake.write(&writer, "    {s}", .{src});
+            try cmake.write(b.allocator, &writer, "    {s}", .{src});
         }
-        try cmake.write(&writer, ")", .{});
-        try cmake.write(&writer, "", .{});
+        try cmake.write(b.allocator, &writer, ")", .{});
+        try cmake.write(b.allocator, &writer, "", .{});
 
         // Include directories
         if (self.public_include_dirs.len > 0) {
-            try cmake.listScoped(&writer, "target_include_directories", self.name, "PUBLIC", self.public_include_dirs);
+            try cmake.listScoped(b.allocator, &writer, "target_include_directories", self.name, "PUBLIC", self.public_include_dirs);
         }
         if (self.include_dirs.len > 0 or self.private_include_dirs.len > 0) {
-            var all_private = std.ArrayList([]const u8).init(b.allocator);
-            defer all_private.deinit();
-            try all_private.appendSlice(self.include_dirs);
-            try all_private.appendSlice(self.private_include_dirs);
+            var all_private: std.ArrayListUnmanaged([]const u8) = .empty;
+            defer all_private.deinit(b.allocator);
+            try all_private.appendSlice(b.allocator, self.include_dirs);
+            try all_private.appendSlice(b.allocator, self.private_include_dirs);
             if (all_private.items.len > 0) {
-                try cmake.listScoped(&writer, "target_include_directories", self.name, "PRIVATE", all_private.items);
+                try cmake.listScoped(b.allocator, &writer, "target_include_directories", self.name, "PRIVATE", all_private.items);
             }
         }
 
         // Compiler flags
-        var flags = std.ArrayList([]const u8).init(b.allocator);
-        defer flags.deinit();
+        var flags: std.ArrayListUnmanaged([]const u8) = .empty;
+        defer flags.deinit(b.allocator);
 
         // Add C++ standard
         const std_flag = try std.fmt.allocPrint(b.allocator, "-std=c++{s}", .{self.cpp_std orelse "17"});
-        try flags.append(std_flag);
+        try flags.append(b.allocator, std_flag);
 
         // Add other flags
-        try flags.appendSlice(self.cpp_flags);
+        try flags.appendSlice(b.allocator, self.cpp_flags);
 
-        try cmake.list(&writer, "target_compile_options", self.name, flags.items);
+        try cmake.list(b.allocator, &writer, "target_compile_options", self.name, flags.items);
 
         // Compile definitions
         if (self.public_defines.len > 0) {
-            try cmake.listScoped(&writer, "target_compile_definitions", self.name, "PUBLIC", self.public_defines);
+            try cmake.listScoped(b.allocator, &writer, "target_compile_definitions", self.name, "PUBLIC", self.public_defines);
         }
         if (self.private_defines.len > 0) {
-            try cmake.listScoped(&writer, "target_compile_definitions", self.name, "PRIVATE", self.private_defines);
+            try cmake.listScoped(b.allocator, &writer, "target_compile_definitions", self.name, "PRIVATE", self.private_defines);
         }
 
         // Link libraries
         if (self.public_link_libs.len > 0) {
-            try cmake.listScoped(&writer, "target_link_libraries", self.name, "PUBLIC", self.public_link_libs);
+            try cmake.listScoped(b.allocator, &writer, "target_link_libraries", self.name, "PUBLIC", self.public_link_libs);
         }
         if (self.private_link_libs.len > 0) {
-            try cmake.listScoped(&writer, "target_link_libraries", self.name, "PRIVATE", self.private_link_libs);
+            try cmake.listScoped(b.allocator, &writer, "target_link_libraries", self.name, "PRIVATE", self.private_link_libs);
         }
 
         // Write CMakeLists.txt
@@ -472,8 +472,8 @@ pub const CppExample = struct {
         // Print build information (disabled in build runner to avoid crashes)
 
         var last_exe: ?*std.Build.Step.Compile = null;
-        var final_steps = std.ArrayList(*std.Build.Step).init(b.allocator);
-        defer final_steps.deinit();
+        var final_steps: std.ArrayListUnmanaged(*std.Build.Step) = .empty;
+        defer final_steps.deinit(b.allocator);
 
         // For each configuration
         for (self.configs) |config| {
@@ -614,7 +614,7 @@ pub const CppExample = struct {
                     last_step = cmake_install;
                 }
                 if (last_step) |step| {
-                    final_steps.append(step) catch unreachable;
+                    final_steps.append(b.allocator, step) catch unreachable;
                 }
                 try emitInstallAndExport(b, self, config_name);
                 continue;
@@ -630,44 +630,46 @@ pub const CppExample = struct {
 
                 const exe = b.addExecutable(.{
                     .name = self.getExeName(b, config),
-                    .target = target,
-                    .optimize = switch (config.mode) {
+                    .root_module = b.createModule(.{
+                        .target = target,
+                        .optimize = switch (config.mode) {
                         .Debug => .Debug,
                         .Release => .ReleaseFast,
                         .RelWithDebInfo => .ReleaseSafe,
                         .MinSizeRel => .ReleaseSmall,
                     },
-                    .root_source_file = null,
+                        .root_source_file = null,
+                    }),
                 });
 
                 // Add source files with C++ flags
-                var cpp_flags_list = std.ArrayList([]const u8).init(b.allocator);
-                defer cpp_flags_list.deinit();
+                var cpp_flags_list: std.ArrayListUnmanaged([]const u8) = .empty;
+                defer cpp_flags_list.deinit(b.allocator);
 
                 // Add user flags
-                try cpp_flags_list.appendSlice(filterByConfig(b, self.cpp_flags, config_name));
+                try cpp_flags_list.appendSlice(b.allocator, filterByConfig(b, self.cpp_flags, config_name));
                 
                 // Add required flags
-                try cpp_flags_list.append(try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
-                try cpp_flags_list.appendSlice(&.{
+                try cpp_flags_list.append(b.allocator, try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
+                try cpp_flags_list.appendSlice(b.allocator, &.{
                     "-fexceptions",
                     "-frtti",
                     "-D_HAS_EXCEPTIONS=1",
                 });
                 // Add compile definitions (public/private treated the same in Zig build)
                 for (public_defines) |def| {
-                    try cpp_flags_list.append(ensureDefineFlag(b, def));
+                    try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
                 }
                 for (private_defines) |def| {
-                    try cpp_flags_list.append(ensureDefineFlag(b, def));
+                    try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
                 }
                 for (config.defines) |def| {
-                    try cpp_flags_list.append(ensureDefineFlag(b, def));
+                    try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
                 }
 
                 exe.addCSourceFiles(.{
                     .files = self.source_files,
-                    .flags = try cpp_flags_list.toOwnedSlice(),
+                    .flags = try cpp_flags_list.toOwnedSlice(b.allocator),
                 });
 
                 // Add include directories
@@ -721,7 +723,7 @@ pub const CppExample = struct {
             }
 
             if (last_step) |step| {
-                final_steps.append(step) catch unreachable;
+                final_steps.append(b.allocator, step) catch unreachable;
             }
         }
 
@@ -767,25 +769,25 @@ pub const JUCEApplication = struct {
 
     // CMake file generation helpers
     const cmake = struct {
-        fn write(writer: *std.ArrayList(u8), comptime fmt: []const u8, args: anytype) !void {
-            try writer.writer().print(fmt ++ "\n", args);
+        fn write(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), comptime fmt: []const u8, args: anytype) !void {
+            try writer.writer(gpa).print(fmt ++ "\n", args);
         }
 
-        fn section(writer: *std.ArrayList(u8), name: []const u8, args: []const []const u8) !void {
-            try writer.writer().print("{s}(", .{name});
+        fn section(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, args: []const []const u8) !void {
+            try writer.writer(gpa).print("{s}(", .{name});
             for (args, 0..) |arg, i| {
-                if (i > 0) try writer.appendSlice(" ");
-                try writer.appendSlice(arg);
+                if (i > 0) try writer.appendSlice(gpa, " ");
+                try writer.appendSlice(gpa, arg);
             }
-            try writer.appendSlice(")\n");
+            try writer.appendSlice(gpa, ")\n");
         }
 
-        fn list(writer: *std.ArrayList(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
-            try writer.writer().print("{s}({s} PRIVATE\n", .{name, target});
+        fn list(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
+            try writer.writer(gpa).print("{s}({s} PRIVATE\n", .{name, target});
             for (items) |item| {
-                try writer.writer().print("    {s}\n", .{item});
+                try writer.writer(gpa).print("    {s}\n", .{item});
             }
-            try writer.appendSlice(")\n\n");
+            try writer.appendSlice(gpa, ")\n\n");
         }
     };
 
@@ -809,22 +811,22 @@ pub const JUCEApplication = struct {
         description: []const u8 = "",
         version: []const u8 = "1.0.0",
         company: []const u8 = "",
-        sources: std.ArrayList([]const u8),
-        modules: std.ArrayList([]const u8),
+        sources: std.ArrayListUnmanaged([]const u8),
+        modules: std.ArrayListUnmanaged([]const u8),
         build_mode: BuildMode = .Debug,
         cpp_std: ?[]const u8 = null,
 
         pub fn init(b: *std.Build) Builder {
             return .{
                 .b = b,
-                .sources = std.ArrayList([]const u8).init(b.allocator),
-                .modules = std.ArrayList([]const u8).init(b.allocator),
+                .sources = .empty,
+                .modules = .empty,
             };
         }
 
         pub fn deinit(self: *Builder) void {
-            self.sources.deinit();
-            self.modules.deinit();
+            self.sources.deinit(self.b.allocator);
+            self.modules.deinit(self.b.allocator);
         }
 
         pub fn configure(self: *Builder, config: JuceConfig) !*Builder {
@@ -837,21 +839,21 @@ pub const JUCEApplication = struct {
             
             // Add sources and modules
             for (config.sources) |src| {
-                try self.sources.append(src);
+                try self.sources.append(self.b.allocator, src);
             }
             for (config.modules) |module| {
-                try self.modules.append(module);
+                try self.modules.append(self.b.allocator, module);
             }
             return self;
         }
 
         pub fn addSource(self: *Builder, source: []const u8) !*Builder {
-            try self.sources.append(source);
+            try self.sources.append(self.b.allocator, source);
             return self;
         }
 
         pub fn addModule(self: *Builder, module: []const u8) !*Builder {
-            try self.modules.append(module);
+            try self.modules.append(self.b.allocator, module);
             return self;
         }
 
@@ -869,37 +871,37 @@ pub const JUCEApplication = struct {
 
         pub fn build(self: *Builder) !*CppExample {
             // Create CMakeLists.txt
-            const writer = try self.b.allocator.create(std.ArrayList(u8));
-            writer.* = std.ArrayList(u8).init(self.b.allocator);
-            defer writer.deinit();
+            const writer = try self.b.allocator.create(std.ArrayListUnmanaged(u8));
+            writer.* = .empty;
+            defer writer.deinit(self.b.allocator);
 
             // Header
-            try cmake.write(writer, "cmake_minimum_required(VERSION 3.15)", .{});
-            try cmake.write(writer, "", .{});
-            try cmake.section(writer, "project", &.{self.name, "VERSION", self.version});
-            try cmake.write(writer, "add_subdirectory(deps/juce)", .{});
-            try cmake.write(writer, "", .{});
+            try cmake.write(self.b.allocator, writer, "cmake_minimum_required(VERSION 3.15)", .{});
+            try cmake.write(self.b.allocator, writer, "", .{});
+            try cmake.section(self.b.allocator, writer, "project", &.{self.name, "VERSION", self.version});
+            try cmake.write(self.b.allocator, writer, "add_subdirectory(deps/juce)", .{});
+            try cmake.write(self.b.allocator, writer, "", .{});
 
             // App definition
-            try cmake.write(writer, "juce_add_gui_app({s}", .{self.name});
-            try cmake.write(writer, "    PRODUCT_NAME \"{s}\"", .{self.name});
-            try cmake.write(writer, "    COMPANY_NAME \"{s}\"", .{self.company});
-            try cmake.write(writer, "    VERSION \"{s}\"", .{self.version});
-            try cmake.write(writer, ")", .{});
-            try cmake.write(writer, "", .{});
+            try cmake.write(self.b.allocator, writer, "juce_add_gui_app({s}", .{self.name});
+            try cmake.write(self.b.allocator, writer, "    PRODUCT_NAME \"{s}\"", .{self.name});
+            try cmake.write(self.b.allocator, writer, "    COMPANY_NAME \"{s}\"", .{self.company});
+            try cmake.write(self.b.allocator, writer, "    VERSION \"{s}\"", .{self.version});
+            try cmake.write(self.b.allocator, writer, ")", .{});
+            try cmake.write(self.b.allocator, writer, "", .{});
 
             // Sources and modules
-            try cmake.list(writer, "target_sources", self.name, self.sources.items);
+            try cmake.list(self.b.allocator, writer, "target_sources", self.name, self.sources.items);
             
-            var juce_modules = std.ArrayList([]const u8).init(self.b.allocator);
-            defer juce_modules.deinit();
+            var juce_modules: std.ArrayListUnmanaged([]const u8) = .empty;
+            defer juce_modules.deinit(self.b.allocator);
             for (self.modules.items) |module| {
-                try juce_modules.append(try std.fmt.allocPrint(self.b.allocator, "juce::{s}", .{module}));
+                try juce_modules.append(self.b.allocator, try std.fmt.allocPrint(self.b.allocator, "juce::{s}", .{module}));
             }
-            try cmake.list(writer, "target_link_libraries", self.name, juce_modules.items);
+            try cmake.list(self.b.allocator, writer, "target_link_libraries", self.name, juce_modules.items);
 
             // C++ standard
-            try cmake.section(writer, "target_compile_features", &.{self.name, "PRIVATE", "cxx_std_17"});
+            try cmake.section(self.b.allocator, writer, "target_compile_features", &.{self.name, "PRIVATE", "cxx_std_17"});
 
             // Write CMakeLists.txt
             try self.b.build_root.handle.writeFile(.{
@@ -912,7 +914,7 @@ pub const JUCEApplication = struct {
             example.* = .{
                 .name = self.name,
                 .description = self.description,
-                .source_files = try self.sources.toOwnedSlice(),
+                .source_files = try self.sources.toOwnedSlice(self.b.allocator),
                 .include_dirs = &.{
                     "deps/juce/modules",
                     "build/JuceLibraryCode",
@@ -950,20 +952,20 @@ pub const JUCEApplication = struct {
 };
 
 fn filterByConfig(b: *std.Build, items: []const []const u8, config_name: []const u8) []const []const u8 {
-    var out = std.ArrayList([]const u8).init(b.allocator);
+    var out: std.ArrayListUnmanaged([]const u8) = .empty;
     for (items) |item| {
         if (std.mem.startsWith(u8, item, "$<CONFIG:")) {
             const end = std.mem.indexOfScalar(u8, item, '>') orelse continue;
             const name = item["$<CONFIG:".len..end];
             if (std.ascii.eqlIgnoreCase(name, config_name)) {
                 const rest = item[end + 1 ..];
-                if (rest.len > 0) out.append(rest) catch unreachable;
+                if (rest.len > 0) out.append(b.allocator, rest) catch unreachable;
             }
         } else {
-            out.append(item) catch unreachable;
+            out.append(b.allocator, item) catch unreachable;
         }
     }
-    return out.toOwnedSlice() catch unreachable;
+    return out.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 fn emitCompileCommands(
@@ -977,10 +979,10 @@ fn emitCompileCommands(
     public_defines: []const []const u8,
     private_defines: []const []const u8,
 ) !void {
-    var entries = std.ArrayList(u8).init(b.allocator);
-    defer entries.deinit();
+    var entries: std.ArrayListUnmanaged(u8) = .empty;
+    defer entries.deinit(b.allocator);
 
-    try entries.appendSlice("[\n");
+    try entries.appendSlice(b.allocator, "[\n");
     for (self.source_files, 0..) |src, idx| {
         const cmd = try buildCompileCommand(
             b,
@@ -1010,12 +1012,12 @@ fn emitCompileCommands(
         defer b.allocator.free(escaped_cmd);
         defer b.allocator.free(escaped_out);
 
-        try entries.writer().print(
+        try entries.writer(b.allocator).print(
             "  {{\"directory\":\"{s}\",\"file\":\"{s}\",\"command\":\"{s}\",\"output\":\"{s}\"}}{s}\n",
             .{ escaped_dir, escaped_file, escaped_cmd, escaped_out, if (idx + 1 == self.source_files.len) "" else "," },
         );
     }
-    try entries.appendSlice("]\n");
+    try entries.appendSlice(b.allocator, "]\n");
 
     const write_files = b.addWriteFiles();
     const cc_path = "compile_commands.json";
@@ -1035,46 +1037,46 @@ fn buildCompileCommand(
     public_defines: []const []const u8,
     private_defines: []const []const u8,
 ) ![]u8 {
-    var cmd = std.ArrayList(u8).init(b.allocator);
-    try cmd.appendSlice("zig c++ ");
+    var cmd: std.ArrayListUnmanaged(u8) = .empty;
+    try cmd.appendSlice(b.allocator, "zig c++ ");
 
     const flags = filterByConfig(b, self.cpp_flags, config_name);
     for (flags) |flag| {
-        try cmd.writer().print("{s} ", .{flag});
+        try cmd.writer(b.allocator).print("{s} ", .{flag});
     }
     const std_flag = try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version);
     defer b.allocator.free(std_flag);
-    try cmd.writer().print("{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
+    try cmd.writer(b.allocator).print("{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
 
     for (public_defines) |def| {
         const flag = ensureDefineFlag(b, def);
-        try cmd.writer().print("{s} ", .{flag});
+        try cmd.writer(b.allocator).print("{s} ", .{flag});
     }
     for (private_defines) |def| {
         const flag = ensureDefineFlag(b, def);
-        try cmd.writer().print("{s} ", .{flag});
+        try cmd.writer(b.allocator).print("{s} ", .{flag});
     }
     for (config.defines) |def| {
         const flag = ensureDefineFlag(b, def);
-        try cmd.writer().print("{s} ", .{flag});
+        try cmd.writer(b.allocator).print("{s} ", .{flag});
     }
 
     for (public_include_dirs) |dir| {
-        try cmd.writer().print("-I{s} ", .{dir});
+        try cmd.writer(b.allocator).print("-I{s} ", .{dir});
     }
     for (include_dirs) |dir| {
-        try cmd.writer().print("-I{s} ", .{dir});
+        try cmd.writer(b.allocator).print("-I{s} ", .{dir});
     }
     for (private_include_dirs) |dir| {
-        try cmd.writer().print("-I{s} ", .{dir});
+        try cmd.writer(b.allocator).print("-I{s} ", .{dir});
     }
     for (config.system_includes) |dir| {
-        try cmd.writer().print("-isystem {s} ", .{dir});
+        try cmd.writer(b.allocator).print("-isystem {s} ", .{dir});
     }
 
     const obj = b.pathJoin(&.{ "zig-out", "obj", self.name, b.fmt("{s}.o", .{std.fs.path.stem(src)}) });
-    try cmd.writer().print("-c {s} -o {s}", .{src, obj});
-    return cmd.toOwnedSlice();
+    try cmd.writer(b.allocator).print("-c {s} -o {s}", .{src, obj});
+    return cmd.toOwnedSlice(b.allocator);
 }
 
 fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8) !void {
@@ -1092,21 +1094,21 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
     }
 
     if (self.export_cmake) {
-        var content = std.ArrayList(u8).init(b.allocator);
-        defer content.deinit();
+        var content: std.ArrayListUnmanaged(u8) = .empty;
+        defer content.deinit(b.allocator);
 
-        try content.appendSlice("get_filename_component(_ZAZA_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
-        try content.writer().print("set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
-        try content.appendSlice("set(ZAZA_LIB_DIR \"${_ZAZA_PREFIX}/lib\")\n");
+        try content.appendSlice(b.allocator, "get_filename_component(_ZAZA_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
+        try content.writer(b.allocator).print("set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
+        try content.appendSlice(b.allocator, "set(ZAZA_LIB_DIR \"${_ZAZA_PREFIX}/lib\")\n");
         if (self.public_link_libs.len > 0 or self.private_link_libs.len > 0) {
-            try content.appendSlice("set(ZAZA_LIBRARIES ");
+            try content.appendSlice(b.allocator, "set(ZAZA_LIBRARIES ");
             for (self.public_link_libs) |lib| {
-                try content.writer().print("{s} ", .{lib});
+                try content.writer(b.allocator).print("{s} ", .{lib});
             }
             for (self.private_link_libs) |lib| {
-                try content.writer().print("{s} ", .{lib});
+                try content.writer(b.allocator).print("{s} ", .{lib});
             }
-            try content.appendSlice(")\n");
+            try content.appendSlice(b.allocator, ")\n");
         }
 
         const write_files = b.addWriteFiles();
@@ -1117,18 +1119,18 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
 }
 
 fn jsonEscape(b: *std.Build, input: []const u8) []u8 {
-    var out = std.ArrayList(u8).init(b.allocator);
+    var out: std.ArrayListUnmanaged(u8) = .empty;
     for (input) |c| {
         switch (c) {
-            '"' => out.appendSlice("\\\"") catch unreachable,
-            '\\' => out.appendSlice("\\\\") catch unreachable,
-            '\n' => out.appendSlice("\\n") catch unreachable,
-            '\r' => out.appendSlice("\\r") catch unreachable,
-            '\t' => out.appendSlice("\\t") catch unreachable,
-            else => out.append(c) catch unreachable,
+            '"' => out.appendSlice(b.allocator, "\\\"") catch unreachable,
+            '\\' => out.appendSlice(b.allocator, "\\\\") catch unreachable,
+            '\n' => out.appendSlice(b.allocator, "\\n") catch unreachable,
+            '\r' => out.appendSlice(b.allocator, "\\r") catch unreachable,
+            '\t' => out.appendSlice(b.allocator, "\\t") catch unreachable,
+            else => out.append(b.allocator, c) catch unreachable,
         }
     }
-    return out.toOwnedSlice() catch unreachable;
+    return out.toOwnedSlice(b.allocator) catch unreachable;
 }
 
 pub const CppConfig = struct {
@@ -1143,10 +1145,10 @@ pub const CppConfig = struct {
     };
 
     pub fn getStdFlag(allocator: std.mem.Allocator, version: []const u8) ![]const u8 {
-        var flag = std.ArrayList(u8).init(allocator);
-        try flag.appendSlice("-std=c++");
-        try flag.appendSlice(version);
-        return flag.toOwnedSlice();
+        var flag: std.ArrayListUnmanaged(u8) = .empty;
+        try flag.appendSlice(allocator, "-std=c++");
+        try flag.appendSlice(allocator, version);
+        return flag.toOwnedSlice(allocator);
     }
 
     pub fn getCMakeFlags(b: *std.Build, mode: BuildMode, cpp_std: ?[]const u8) ![]const u8 {
@@ -1158,41 +1160,41 @@ pub const CppConfig = struct {
             .MinSizeRel => "ReleaseSmall",
         };
         
-        var flags = std.ArrayList(u8).init(b.allocator);
-        defer flags.deinit();
+        var flags: std.ArrayListUnmanaged(u8) = .empty;
+        defer flags.deinit(b.allocator);
 
-        try flags.writer().print("-target {s} -O{s} ", .{target, opt_level});
+        try flags.writer(b.allocator).print("-target {s} -O{s} ", .{target, opt_level});
         
         // Add all flags except the standard version
         for (required_flags) |flag| {
-            try flags.writer().print("{s} ", .{flag});
+            try flags.writer(b.allocator).print("{s} ", .{flag});
         }
         
         // Add the C++ standard version (custom or default)
         const std_flag = try getStdFlag(b.allocator, cpp_std orelse std_version);
         defer b.allocator.free(std_flag);
-        try flags.writer().print("{s}", .{std_flag});
+        try flags.writer(b.allocator).print("{s}", .{std_flag});
         
-        return flags.toOwnedSlice();
+        return flags.toOwnedSlice(b.allocator);
     }
 };
 
 /// Helper for managing C++ compilation flags
 pub const CppFlags = struct {
-    flags: std.ArrayList([]const u8),
+    flags: std.ArrayListUnmanaged([]const u8),
     cpp_std: ?[]const u8,
     allocator: std.mem.Allocator,
     
     pub fn init(allocator: std.mem.Allocator) CppFlags {
         return .{
-            .flags = std.ArrayList([]const u8).init(allocator),
+            .flags = .empty,
             .cpp_std = null,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *CppFlags) void {
-        self.flags.deinit();
+        self.flags.deinit(self.allocator);
     }
 
     pub fn setCppStd(self: *CppFlags, version: []const u8) void {
@@ -1207,7 +1209,7 @@ pub const CppFlags = struct {
         for (self.flags.items) |existing| {
             if (std.mem.eql(u8, flag, existing)) return;
         }
-        try self.flags.append(flag);
+        try self.flags.append(self.allocator, flag);
     }
 
     pub fn addSlice(self: *CppFlags, new_flags: []const []const u8) !void {
@@ -1219,7 +1221,7 @@ pub const CppFlags = struct {
     pub fn ensureRequiredFlags(self: *CppFlags) !void {
         // Add the C++ standard first
         const std_flag = try CppConfig.getStdFlag(self.allocator, self.cpp_std orelse CppConfig.std_version);
-        try self.flags.append(std_flag);
+        try self.flags.append(self.allocator, std_flag);
         
         // Add other required flags
         for (CppConfig.required_flags[1..]) |flag| {
@@ -1228,7 +1230,7 @@ pub const CppFlags = struct {
     }
 
     pub fn toOwnedSlice(self: *CppFlags) ![]const []const u8 {
-        return try self.flags.toOwnedSlice();
+        return try self.flags.toOwnedSlice(self.allocator);
     }
 }; 
 

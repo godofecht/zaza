@@ -35,17 +35,17 @@ pub fn main() !void {
 
 const BenchmarkSuite = struct {
     allocator: std.mem.Allocator,
-    benchmarks: std.ArrayList(Benchmark),
+    benchmarks: std.ArrayListUnmanaged(Benchmark),
     
     pub fn init(allocator: std.mem.Allocator) BenchmarkSuite {
         return .{
             .allocator = allocator,
-            .benchmarks = std.ArrayList(Benchmark).init(allocator),
+            .benchmarks = .empty,
         };
     }
     
     pub fn deinit(self: *BenchmarkSuite) void {
-        self.benchmarks.deinit();
+        self.benchmarks.deinit(self.allocator);
     }
     
     pub fn addBenchmark(self: *BenchmarkSuite, name: []const u8, func: BenchmarkFunction) !void {
@@ -53,22 +53,22 @@ const BenchmarkSuite = struct {
             .name = try self.allocator.dupe(u8, name),
             .function = func,
         };
-        try self.benchmarks.append(benchmark);
+        try self.benchmarks.append(self.allocator, benchmark);
     }
     
     pub fn runAll(self: *BenchmarkSuite) ![]BenchmarkResult {
-        var results = std.ArrayList(BenchmarkResult).init(self.allocator);
+        var results: std.ArrayListUnmanaged(BenchmarkResult) = .empty;
         
         for (self.benchmarks.items) |benchmark| {
             std.debug.print("Running: {s}...\n", .{benchmark.name});
             
             const result = try self.runSingleBenchmark(benchmark);
-            try results.append(result);
+            try results.append(self.allocator, result);
             
             std.debug.print("  ✅ Completed in {d:.2}ms\n", .{result.duration_ms});
         }
         
-        return results.toOwnedSlice();
+        return results.toOwnedSlice(self.allocator);
     }
     
     fn runSingleBenchmark(self: *BenchmarkSuite, benchmark: Benchmark) !BenchmarkResult {
@@ -462,19 +462,19 @@ fn benchmarkParallelCompilation(allocator: std.mem.Allocator) !void {
     });
     
     // Build all files in parallel (simulated by building all at once)
-    var args = std.ArrayList([]const u8).init(allocator);
-    defer args.deinit();
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
     
-    try args.append("zig");
-    try args.append("build-exe");
+    try args.append(allocator, "zig");
+    try args.append(allocator, "build-exe");
     
     for (0..file_count) |i| {
         const file_name = try std.fmt.allocPrint(allocator, "file_{}.cpp", .{i});
-        try args.append(file_name);
+        try args.append(allocator, file_name);
     }
     
-    try args.append("main.cpp");
-    try args.append("-lc++");
+    try args.append(allocator, "main.cpp");
+    try args.append(allocator, "-lc++");
     
     var result = try std.process.Child.run(.{
         .allocator = allocator,

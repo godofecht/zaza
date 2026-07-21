@@ -56,3 +56,7 @@ www/
 
 # Cargo build output (Rust interop example)
 **/rust_lib/target/
+
+# Local toolchain shims: these hardcode an absolute path to one machine.
+/zig
+/zig-build

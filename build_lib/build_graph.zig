@@ -36,15 +36,15 @@ pub const Edge = struct {
 };
 
 pub const Graph = struct {
-    nodes: std.ArrayList(*Node),
-    edges: std.ArrayList(Edge),
+    nodes: std.ArrayListUnmanaged(*Node),
+    edges: std.ArrayListUnmanaged(Edge),
     allocator: std.mem.Allocator,
     next_id: u32,
     
     pub fn init(allocator: std.mem.Allocator) Graph {
         return .{
-            .nodes = std.ArrayList(*Node).init(allocator),
-            .edges = std.ArrayList(Edge).init(allocator),
+            .nodes = .empty,
+            .edges = .empty,
             .allocator = allocator,
             .next_id = 0,
         };
@@ -54,43 +54,43 @@ pub const Graph = struct {
         for (self.nodes.items) |node| {
             node.deinit();
         }
-        self.nodes.deinit();
-        self.edges.deinit();
+        self.nodes.deinit(self.allocator);
+        self.edges.deinit(self.allocator);
     }
     
     pub fn addNode(self: *Graph, name: []const u8) !*Node {
         const node = try Node.init(self.allocator, self.next_id, name);
         self.next_id += 1;
-        try self.nodes.append(node);
+        try self.nodes.append(self.allocator, node);
         return node;
     }
     
     pub fn addEdge(self: *Graph, from: *Node, to: *Node) !void {
-        try self.edges.append(.{ .from = from, .to = to });
+        try self.edges.append(self.allocator, .{ .from = from, .to = to });
     }
     
-    pub fn getDependencies(self: *Graph, node: *Node) !std.ArrayList(*Node) {
-        var deps = std.ArrayList(*Node).init(self.allocator);
+    pub fn getDependencies(self: *Graph, node: *Node) !std.ArrayListUnmanaged(*Node) {
+        var deps: std.ArrayListUnmanaged(*Node) = .empty;
         for (self.edges.items) |edge| {
             if (edge.to == node) {
-                try deps.append(edge.from);
+                try deps.append(self.allocator, edge.from);
             }
         }
         return deps;
     }
     
-    pub fn getDependents(self: *Graph, node: *Node) !std.ArrayList(*Node) {
-        var deps = std.ArrayList(*Node).init(self.allocator);
+    pub fn getDependents(self: *Graph, node: *Node) !std.ArrayListUnmanaged(*Node) {
+        var deps: std.ArrayListUnmanaged(*Node) = .empty;
         for (self.edges.items) |edge| {
             if (edge.from == node) {
-                try deps.append(edge.to);
+                try deps.append(self.allocator, edge.to);
             }
         }
         return deps;
     }
     
-    pub fn topologicalSort(self: *Graph) !std.ArrayList(*Node) {
-        var sorted = std.ArrayList(*Node).init(self.allocator);
+    pub fn topologicalSort(self: *Graph) !std.ArrayListUnmanaged(*Node) {
+        var sorted: std.ArrayListUnmanaged(*Node) = .empty;
         var visited = std.AutoHashMap(*Node, void).init(self.allocator);
         defer visited.deinit();
         
@@ -103,11 +103,11 @@ pub const Graph = struct {
         return sorted;
     }
     
-    fn visit(self: *Graph, node: *Node, visited: *std.AutoHashMap(*Node, void), sorted: *std.ArrayList(*Node)) !void {
+    fn visit(self: *Graph, node: *Node, visited: *std.AutoHashMap(*Node, void), sorted: *std.ArrayListUnmanaged(*Node)) !void {
         try visited.put(node, {});
         
-        const deps = try self.getDependencies(node);
-        defer deps.deinit();
+        var deps = try self.getDependencies(node);
+        defer deps.deinit(self.allocator);
         
         for (deps.items) |dep| {
             if (!visited.contains(dep)) {
@@ -115,6 +115,6 @@ pub const Graph = struct {
             }
         }
         
-        try sorted.append(node);
+        try sorted.append(self.allocator, node);
     }
 }; 

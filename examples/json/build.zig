@@ -22,6 +22,15 @@ pub var example = cpp.CppExample{
     .cpp_std = "17",
 };
 
+/// `std.json.stringifyAlloc` (Zig 0.14) became `std.json.Stringify.valueAlloc` (Zig 0.15).
+fn jsonStringifyAlloc(allocator: std.mem.Allocator, value: anytype) ![]u8 {
+    if (@hasDecl(std.json, "Stringify")) {
+        return std.json.Stringify.valueAlloc(allocator, value, .{});
+    } else {
+        return std.json.stringifyAlloc(allocator, value, .{});
+    }
+}
+
 pub fn buildWithTarget(b: *std.Build, target: std.Build.ResolvedTarget) !void {
     const exe = try example.buildWithTarget(b, target);
 
@@ -33,7 +42,7 @@ pub fn buildWithTarget(b: *std.Build, target: std.Build.ResolvedTarget) !void {
     const view_step = b.step("view", "View and edit build configuration");
     const server_cmd = b.addSystemCommand(&.{
         "zig", "run", "-lc", "build_lib/server.zig", "--",
-        try std.json.stringifyAlloc(b.allocator, example, .{}),
+        try jsonStringifyAlloc(b.allocator, example),
     });
     view_step.dependOn(&server_cmd.step);
 }

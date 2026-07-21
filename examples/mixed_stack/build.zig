@@ -6,10 +6,13 @@ pub const BuildResult = struct {
 };
 
 pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) BuildResult {
-    const c_lib = b.addStaticLibrary(.{
+    const c_lib = b.addLibrary(.{
         .name = "mixed_core",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
     c_lib.addCSourceFiles(.{
         .files = &.{"examples/mixed_stack/src/mixed_core.c"},
@@ -17,10 +20,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     });
     c_lib.addIncludePath(b.path("examples/mixed_stack/include"));
 
-    const cpp_lib = b.addStaticLibrary(.{
+    const cpp_lib = b.addLibrary(.{
         .name = "mixed_bridge",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
     cpp_lib.addCSourceFiles(.{
         .files = &.{"examples/mixed_stack/src/mixed_bridge.cpp"},
@@ -32,9 +38,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const exe = b.addExecutable(.{
         .name = "mixed_stack_demo",
-        .root_source_file = b.path("examples/mixed_stack/src/main.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/mixed_stack/src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.linkLibrary(c_lib);
     exe.linkLibrary(cpp_lib);

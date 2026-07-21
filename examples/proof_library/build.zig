@@ -16,8 +16,10 @@ pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.buil
 
     const exe = b.addExecutable(.{
         .name = "proof_library_app",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     exe.addCSourceFiles(.{
         .files = &.{"examples/proof_library/src/main.cpp"},
