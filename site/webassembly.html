@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebAssembly · zaza</title>
+<meta name="description" content="Two WebAssembly targets, WASI and freestanding exports, plus the browser workflow served by the in-graph static server.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">zaza</a>
+  <div class="tagline">Build system for C, C++, Zig, Rust, and WebAssembly</div>
+  <span class="version">v0.2.0</span>
+  <div class="section-label">Guide</div>
+  <a href="index.html">Overview</a>
+  <a href="cmake-comparison.html">Compared to CMake</a>
+  <a href="installation.html">Installation</a>
+  <a href="quickstart.html">Quickstart</a>
+  <div class="section-label">Reference</div>
+  <a href="concepts.html">Core Concepts</a>
+  <a href="environment.html">Environment Variables</a>
+  <a href="webassembly.html" class="active">WebAssembly</a>
+  <div class="section-label">Examples</div>
+  <a href="example-matrix.html">The Example Matrix</a>
+  <a href="examples-index.html">All Examples</a>
+  <div class="section-label">Help</div>
+  <a href="troubleshooting.html">Troubleshooting</a>
+  <a href="next.html">Where to Go Next</a>
+  <div class="spacer"></div>
+  <div class="nav-footer">
+    <a href="https://github.com/godofecht/zaza">GitHub</a>
+    <a href="https://github.com/godofecht/danzig">Danzig</a>
+    <a href="https://github.com/godofecht/azazel">Azazel</a>
+  </div>
+</nav>
+<main>
+
+<h1 id="webassembly">WebAssembly</h1>
+
+<p>Two targets and one browser workflow.</p>
+
+<h3 id="wasi">WASI</h3>
+
+<p>A <code>wasm32-wasi-musl</code> executable, validated as a real WebAssembly binary:</p>
+
+<pre data-lang="bash"><code class="language-bash">ZAZA_EXAMPLES=wasm-wasi zig build wasm-wasi
+ZAZA_EXAMPLES=wasm-wasi zig build wasm-wasi-report</code></pre>
+
+<pre data-lang="text"><code class="language-text">wasm wasi valid</code></pre>
+
+<p>The artifact is <code>zig-out/bin/wasm_wasi_demo.wasm</code>, runnable under any WASI
+runtime. The report step uses Node's <code>WebAssembly.validate</code>.</p>
+
+<h3 id="freestanding-exports">Freestanding exports</h3>
+
+<p>A module with no entry point that exports functions for a host to call:</p>
+
+<pre data-lang="zig"><code class="language-zig">const target = b.resolveTargetQuery(.{
+    .cpu_arch = .wasm32,
+    .os_tag = .freestanding,
+});
+// ...
+exe.entry = .disabled;
+exe.rdynamic = true;</code></pre>
+
+<pre data-lang="bash"><code class="language-bash">ZAZA_EXAMPLES=wasm-exports zig build wasm-exports-run</code></pre>
+
+<pre data-lang="text"><code class="language-text">wasm add: 42
+wasm mul_add: 42</code></pre>
+
+<p>The run step instantiates the module in Node and calls two exports.</p>
+
+<h3 id="browser">Browser</h3>
+
+<p>The same <code>.wasm</code> staged into a servable directory alongside an HTML page and a
+JS loader:</p>
+
+<pre data-lang="bash"><code class="language-bash">ZAZA_EXAMPLES=wasm-exports zig build wasm-web-demo        # stage
+ZAZA_EXAMPLES=wasm-exports zig build wasm-web-demo-smoke  # verify over HTTP
+ZAZA_EXAMPLES=wasm-exports zig build wasm-web-demo-serve  # serve</code></pre>
+
+<p>Everything lands under <code>zig-out/www/wasm-exports/</code>.</p>
+
+<p><code>wasm-web-demo-smoke</code> starts the server on port 8123, requests <code>/index.html</code>,
+<code>/app.js</code>, and <code>/wasm_exports_demo.wasm</code>, then exits:</p>
+
+<pre data-lang="text"><code class="language-text">Serving zig-out/www/wasm-exports at http://127.0.0.1:8123</code></pre>
+
+<p><code>wasm-web-demo-serve</code> binds <code>http://127.0.0.1:8000</code> and runs until interrupted.
+The server is <code>build_lib/static_server.zig</code>, built as part of the graph, so
+there is no external dependency for local serving.</p>
+
+<div class="page-footer">
+  <a href="environment.html">&larr; Environment Variables</a>
+  <a href="example-matrix.html">Next: The Example Matrix &rarr;</a>
+</div>
+
+</main>
+</body>
+</html>
