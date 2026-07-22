@@ -352,6 +352,17 @@ fn buildDefaultCMakeArgs(b: *std.Build, dep_name: []const u8, user_args: []const
             "-DBUILD_SHARED_LIBS=OFF",
             "-DBUILD_TESTING=OFF",
             "-DCURL_DISABLE_TESTS=ON",
+            // Optional dependencies curl autodetects from the host. Left on,
+            // curl compiles against whatever happens to be installed while the
+            // link line does not carry it, so the build succeeds or fails
+            // depending on the machine. Disabled to keep it hermetic.
+            "-DCURL_USE_LIBPSL=OFF",
+            "-DCURL_USE_LIBSSH2=OFF",
+            "-DCURL_USE_LIBSSH=OFF",
+            "-DCURL_BROTLI=OFF",
+            "-DCURL_ZSTD=OFF",
+            "-DUSE_NGHTTP2=OFF",
+            "-DUSE_LIBIDN2=OFF",
         }) catch unreachable;
     } else if (std.mem.eql(u8, dep_name, "zlib")) {
         args.appendSlice(b.allocator, &.{
