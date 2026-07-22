@@ -14,15 +14,15 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }),
         .linkage = .static,
     });
-    lib.addCSourceFiles(.{
+    lib.root_module.addCSourceFiles(.{
         .files = &.{
             "examples/bindings/src/calculator.cpp",
             "examples/bindings/src/calculator_wrapper.cpp",
         },
         .flags = &.{"-std=c++20"},
     });
-    lib.addIncludePath(b.path("examples/bindings/src"));
-    lib.linkLibCpp();
+    lib.root_module.addIncludePath(b.path("examples/bindings/src"));
+    lib.root_module.link_libcpp = true;
 
     const exe = b.addExecutable(.{
         .name = "bindings_demo",
@@ -35,8 +35,8 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exe.root_module.addImport("calculator", b.createModule(.{
         .root_source_file = b.path("examples/bindings/zig/calculator.zig"),
     }));
-    exe.linkLibrary(lib);
-    exe.linkLibCpp();
+    exe.root_module.linkLibrary(lib);
+    exe.root_module.link_libcpp = true;
 
     const build_step = b.step("bindings", "Build the Zig-to-C++ bindings example");
     build_step.dependOn(&b.addInstallArtifact(lib, .{}).step);

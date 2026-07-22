@@ -9,7 +9,7 @@ The plain case: a static C++ library with install/export metadata, plus an execu
 
 ## Prerequisites
 
-Zig 0.14.1 or 0.15.2. Nothing else.
+Zig 0.14.1, 0.15.2 or 0.16.0. Nothing else.
 
 ## Build and run
 

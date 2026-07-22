@@ -45,7 +45,7 @@ pub fn build(b: *std.Build) !void {
     try ensureRegistryDeps(b);
 
     // Apply preset configs to examples (optional)
-    if (envString(b, "ZAZA_PRESET")) |preset| {
+    if (zaza_cmd.envString(b, "ZAZA_PRESET")) |preset| {
         defer b.allocator.free(preset);
         applyPresetToExample(&cmake_combo_example.example, preset);
         applyPresetToExample(&cmake_net_example.example, preset);
@@ -546,21 +546,17 @@ fn ensureRegistryDeps(b: *std.Build) !void {
 fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
     if (zonHasDependency(b, name)) return;
 
-    var child = std.process.Child.init(&.{
+    // b.run exists in every supported Zig and fails the build on a non-zero
+    // exit, so it replaces a hand-rolled Child. 0.16 removed Child.init and
+    // moved spawning under std.Io.
+    _ = b.run(&.{
         "zig",
         "run",
         "scripts/zaza.zig",
         "--",
         "fetch",
         name,
-    }, b.allocator);
-    child.stdout_behavior = .Inherit;
-    child.stderr_behavior = .Inherit;
-    const term = try child.spawnAndWait();
-    switch (term) {
-        .Exited => |code| if (code != 0) return error.CommandFailed,
-        else => return error.CommandFailed,
-    }
+    });
 
     std.debug.print("\\n[zaza] added dependency '{s}' to build.zig.zon; re-run zig build\\n", .{name});
     @panic("dependency added; re-run zig build");
@@ -574,6 +570,11 @@ fn zonHasDependency(b: *std.Build, name: []const u8) bool {
 }
 
 fn readFile(b: *std.Build, path: []const u8) ![]u8 {
+    // Zig 0.16 moved the filesystem under std.Io, so opening needs the build
+    // graph's Io handle. Only the taken branch is analysed.
+    if (comptime !@hasDecl(std.fs, "cwd")) {
+        return std.Io.Dir.cwd().readFileAlloc(b.graph.io, path, b.allocator, .unlimited);
+    }
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
     const size = (try file.stat()).size;
@@ -583,25 +584,36 @@ fn readFile(b: *std.Build, path: []const u8) ![]u8 {
 }
 
 fn cacheWritable(b: *std.Build) bool {
-    const cache_dir = std.process.getEnvVarOwned(b.allocator, "ZIG_GLOBAL_CACHE_DIR") catch null;
+    const cache_dir = zaza_cmd.envString(b, "ZIG_GLOBAL_CACHE_DIR");
     defer if (cache_dir) |p| b.allocator.free(p);
 
     const path = if (cache_dir) |p| resolvePath(b, p) else defaultGlobalCachePath(b) orelse return false;
     // Avoid create/delete probes here because concurrent builds can race on the sentinel file.
     // If we can ensure the directory exists and open it, Zig can use it.
-    if (std.fs.cwd().makePath(path)) |_| {} else |_| {}
     if (!std.fs.path.isAbsolute(path)) return false;
-    if (std.fs.openDirAbsolute(path, .{})) |dir_const| {
-        var dir = dir_const;
-        defer dir.close();
+    // Zig 0.16 moved the filesystem under std.Io. Both branches only probe
+    // whether the cache directory can be created and opened.
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        if (std.fs.cwd().makePath(path)) |_| {} else |_| {}
+        if (std.fs.openDirAbsolute(path, .{})) |dir_const| {
+            var dir = dir_const;
+            defer dir.close();
+            return true;
+        } else |_| {
+            return false;
+        }
+    } else {
+        // createDirPathOpen is the whole probe in one call: it creates any
+        // missing parents and hands back the open directory.
+        const io = b.graph.io;
+        var dir = std.Io.Dir.cwd().createDirPathOpen(io, path, .{}) catch return false;
+        dir.close(io);
         return true;
-    } else |_| {
-        return false;
     }
 }
 
 fn defaultGlobalCachePath(b: *std.Build) ?[]const u8 {
-    const home = std.process.getEnvVarOwned(b.allocator, "HOME") catch null;
+    const home = zaza_cmd.envString(b, "HOME");
     defer if (home) |p| b.allocator.free(p);
     if (home == null) return null;
     return b.pathJoin(&.{ home.?, ".cache", "zig" });
@@ -670,7 +682,7 @@ fn buildCompileArgs(
 }
 
 fn envBool(b: *std.Build, name: []const u8) ?bool {
-    const value = std.process.getEnvVarOwned(b.allocator, name) catch null;
+    const value = zaza_cmd.envString(b, name);
     defer if (value) |v| b.allocator.free(v);
     if (value == null) return null;
     const v = value.?;
@@ -691,12 +703,8 @@ fn envBool(b: *std.Build, name: []const u8) ?bool {
     return null;
 }
 
-fn envString(b: *std.Build, name: []const u8) ?[]const u8 {
-    return std.process.getEnvVarOwned(b.allocator, name) catch null;
-}
-
 fn exampleEnabled(b: *std.Build, name: []const u8) bool {
-    if (envString(b, "ZAZA_EXAMPLES")) |raw| {
+    if (zaza_cmd.envString(b, "ZAZA_EXAMPLES")) |raw| {
         defer b.allocator.free(raw);
         var it = std.mem.splitScalar(u8, raw, ',');
         while (it.next()) |entry| {
@@ -714,14 +722,14 @@ fn applyPresetToExample(example: *cpp.CppExample, preset: []const u8) void {
 }
 
 fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
-    if (envString(b, "ZAZA_TARGET")) |target_str| {
+    if (zaza_cmd.envString(b, "ZAZA_TARGET")) |target_str| {
         defer b.allocator.free(target_str);
         const query = std.Build.parseTargetQuery(.{ .arch_os_abi = target_str }) catch
             @panic("ZAZA_TARGET is invalid. Use a Zig target triple like x86_64-windows-gnu");
         return b.resolveTargetQuery(query);
     }
     if (builtin.os.tag == .windows) {
-        if (envString(b, "ZAZA_WINDOWS_TOOLCHAIN")) |toolchain| {
+        if (zaza_cmd.envString(b, "ZAZA_WINDOWS_TOOLCHAIN")) |toolchain| {
             defer b.allocator.free(toolchain);
             if (std.ascii.eqlIgnoreCase(toolchain, "gnu")) {
                 const query = std.Build.parseTargetQuery(.{ .arch_os_abi = "native-windows-gnu" }) catch

@@ -13,11 +13,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"examples/test_workflows/src/main.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    exe.linkLibCpp();
+    exe.root_module.link_libcpp = true;
 
     const build_step = b.step("test-workflows", "Build the workflow example");
     build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);

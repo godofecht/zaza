@@ -14,11 +14,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }),
         .linkage = .static,
     });
-    c_lib.addCSourceFiles(.{
+    c_lib.root_module.addCSourceFiles(.{
         .files = &.{"examples/mixed_stack/src/mixed_core.c"},
         .flags = &.{"-std=c11"},
     });
-    c_lib.addIncludePath(b.path("examples/mixed_stack/include"));
+    c_lib.root_module.addIncludePath(b.path("examples/mixed_stack/include"));
 
     const cpp_lib = b.addLibrary(.{
         .name = "mixed_bridge",
@@ -28,13 +28,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }),
         .linkage = .static,
     });
-    cpp_lib.addCSourceFiles(.{
+    cpp_lib.root_module.addCSourceFiles(.{
         .files = &.{"examples/mixed_stack/src/mixed_bridge.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    cpp_lib.addIncludePath(b.path("examples/mixed_stack/include"));
-    cpp_lib.linkLibCpp();
-    cpp_lib.linkLibrary(c_lib);
+    cpp_lib.root_module.addIncludePath(b.path("examples/mixed_stack/include"));
+    cpp_lib.root_module.link_libcpp = true;
+    cpp_lib.root_module.linkLibrary(c_lib);
 
     const exe = b.addExecutable(.{
         .name = "mixed_stack_demo",
@@ -44,9 +44,9 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    exe.linkLibrary(c_lib);
-    exe.linkLibrary(cpp_lib);
-    exe.linkLibCpp();
+    exe.root_module.linkLibrary(c_lib);
+    exe.root_module.linkLibrary(cpp_lib);
+    exe.root_module.link_libcpp = true;
 
     const build_step = b.step("mixed-stack", "Build the mixed C + C++ + Zig example");
     build_step.dependOn(&b.addInstallArtifact(c_lib, .{}).step);

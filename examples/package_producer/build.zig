@@ -27,13 +27,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    demo.addCSourceFiles(.{
+    demo.root_module.addCSourceFiles(.{
         .files = &.{"examples/package_producer/src/demo.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    demo.addIncludePath(b.path("examples/package_producer/include"));
-    demo.linkLibCpp();
-    demo.linkLibrary(lib);
+    demo.root_module.addIncludePath(b.path("examples/package_producer/include"));
+    demo.root_module.link_libcpp = true;
+    demo.root_module.linkLibrary(lib);
 
     const build_step = b.step("package-producer", "Build and install the package producer example");
     build_step.dependOn(&b.addInstallArtifact(lib, .{}).step);

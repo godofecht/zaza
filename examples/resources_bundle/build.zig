@@ -13,11 +13,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"examples/resources_bundle/src/main.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    exe.linkLibCpp();
+    exe.root_module.link_libcpp = true;
 
     const install_exe = b.addInstallArtifact(exe, .{});
     const asset_rel = "share/resources_bundle/message.txt";

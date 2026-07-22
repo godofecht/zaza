@@ -14,11 +14,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }),
         .linkage = .dynamic,
     });
-    plugin.addCSourceFiles(.{
+    plugin.root_module.addCSourceFiles(.{
         .files = &.{"examples/shared_plugin/src/plugin.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    plugin.linkLibCpp();
+    plugin.root_module.link_libcpp = true;
 
     const host = b.addExecutable(.{
         .name = "shared_plugin_host",
@@ -27,14 +27,14 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    host.addCSourceFiles(.{
+    host.root_module.addCSourceFiles(.{
         .files = &.{"examples/shared_plugin/src/host.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    host.linkLibCpp();
+    host.root_module.link_libcpp = true;
 
     switch (target.result.os.tag) {
-        .linux, .freebsd, .netbsd, .openbsd, .dragonfly => host.linkSystemLibrary("dl"),
+        .linux, .freebsd, .netbsd, .openbsd, .dragonfly => host.root_module.linkSystemLibrary("dl", .{}),
         else => {},
     }
 

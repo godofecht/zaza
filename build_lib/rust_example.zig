@@ -119,31 +119,36 @@ pub const RustExample = struct {
     }
 };
 
+/// Zig 0.16 removed std.process.Child.run and lower-cased the StdIo tags.
+/// b.runAllowFail exists in every supported version, so probe through it and
+/// treat any failure as "unknown". Only the taken branch is analysed.
+fn runCaptureStdout(b: *std.Build, argv: []const []const u8) ?[]u8 {
+    var code: u8 = 0;
+    if (comptime @hasDecl(std.process.Child, "run")) {
+        return b.runAllowFail(argv, &code, .Ignore) catch null;
+    } else {
+        return b.runAllowFail(argv, &code, .ignore) catch null;
+    }
+}
+
 /// Detect the real machine architecture.
 /// Handles Rosetta: when an x86_64 process calls `uname -m` on Apple Silicon,
 /// it falsely reports x86_64. We detect this via `sysctl hw.optional.arm64`.
 fn detectMachineArch(b: *std.Build) []const u8 {
     // First check if we're running under Rosetta on Apple Silicon.
-    const sysctl_result = std.process.Child.run(.{
-        .allocator = b.allocator,
-        .argv = &.{ "sysctl", "-n", "hw.optional.arm64" },
-    }) catch return detectViaUname(b);
-    defer b.allocator.free(sysctl_result.stdout);
-    defer b.allocator.free(sysctl_result.stderr);
-    const val = std.mem.trim(u8, sysctl_result.stdout, " \t\r\n");
+    const sysctl_stdout = runCaptureStdout(b, &.{ "sysctl", "-n", "hw.optional.arm64" }) orelse
+        return detectViaUname(b);
+    defer b.allocator.free(sysctl_stdout);
+    const val = std.mem.trim(u8, sysctl_stdout, " \t\r\n");
     if (std.mem.eql(u8, val, "1")) return "aarch64";
     return detectViaUname(b);
 }
 
 fn detectViaUname(b: *std.Build) []const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = b.allocator,
-        .argv = &.{ "uname", "-m" },
-    }) catch return "x86_64";
-    defer b.allocator.free(result.stderr);
-    const trimmed = std.mem.trim(u8, result.stdout, " \t\r\n");
+    const stdout = runCaptureStdout(b, &.{ "uname", "-m" }) orelse return "x86_64";
+    const trimmed = std.mem.trim(u8, stdout, " \t\r\n");
     if (std.mem.eql(u8, trimmed, "arm64")) {
-        b.allocator.free(result.stdout);
+        b.allocator.free(stdout);
         return "aarch64";
     }
     return trimmed;

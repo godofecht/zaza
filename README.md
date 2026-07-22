@@ -84,7 +84,7 @@ Zaza makes new native projects feel simpler than CMake without giving up serious
 
 ### Prerequisites
 
-* [Zig](https://ziglang.org/download/) 0.14.1 or 0.15.2. Both are tested in CI.
+* [Zig](https://ziglang.org/download/) 0.14.1, 0.15.2 or 0.16.0. All three are tested in CI.
 * Optional: `cmake` and `git` for the CMake interop and JUCE examples, `cargo` for the Rust example, `node` for the WebAssembly examples.
 * Optional: [direnv](https://direnv.net/) for repo-local cache setup.
 
@@ -245,7 +245,7 @@ The current contribution bar is:
 zig build example-matrix
 ```
 
-Run `./setup.sh` on both 0.14.1 and 0.15.2 if your change touches build files or Zig sources. The suite should report `43/43 steps succeeded; 87/87 tests passed` on each.
+Run `./setup.sh` on 0.14.1, 0.15.2 and 0.16.0 if your change touches build files or Zig sources. The suite should report `43/43 steps succeeded; 87/87 tests passed` on each.
 
 If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement". Don't forget to give the project a star! Thanks again!
 

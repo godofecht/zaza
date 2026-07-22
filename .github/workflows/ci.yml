@@ -13,10 +13,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Sources and build files use spellings valid in both: root_module,
-        # ArrayListUnmanaged, and shims for the std.Io and std.json reworks.
-        # Testing both keeps that honest rather than assumed.
-        zig: ["0.14.1", "0.15.2"]
+        # Sources and build files use spellings valid in all three, falling
+        # back to `if (comptime @hasDecl(...))` where no shared spelling
+        # exists: the std.Io filesystem move, ArrayList.writer, Compile's
+        # add*/link* forwarders, std.json's unmanaged ObjectMap. Testing
+        # every version keeps that honest rather than assumed.
+        zig: ["0.14.1", "0.15.2", "0.16.0"]
     name: test (zig ${{ matrix.zig }})
     env:
       # Skip the C++ examples. Zig resolves every declared dependency while

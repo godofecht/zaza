@@ -18,12 +18,12 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    graph_objects.addCSourceFiles(.{
+    graph_objects.root_module.addCSourceFiles(.{
         .files = &.{"examples/interface_object_graph/src/object_part.cpp"},
         .flags = common_flags,
     });
-    graph_objects.addIncludePath(b.path("examples/interface_object_graph/include"));
-    graph_objects.linkLibCpp();
+    graph_objects.root_module.addIncludePath(b.path("examples/interface_object_graph/include"));
+    graph_objects.root_module.link_libcpp = true;
 
     const graph_core = b.addLibrary(.{
         .name = "graph_core",
@@ -33,13 +33,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }),
         .linkage = .static,
     });
-    graph_core.addCSourceFiles(.{
+    graph_core.root_module.addCSourceFiles(.{
         .files = &.{"examples/interface_object_graph/src/core.cpp"},
         .flags = common_flags,
     });
-    graph_core.addIncludePath(b.path("examples/interface_object_graph/include"));
-    graph_core.addObject(graph_objects);
-    graph_core.linkLibCpp();
+    graph_core.root_module.addIncludePath(b.path("examples/interface_object_graph/include"));
+    graph_core.root_module.addObject(graph_objects);
+    graph_core.root_module.link_libcpp = true;
 
     const exe = b.addExecutable(.{
         .name = "interface_object_graph_demo",
@@ -48,13 +48,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"examples/interface_object_graph/src/main.cpp"},
         .flags = common_flags,
     });
-    exe.addIncludePath(b.path("examples/interface_object_graph/include"));
-    exe.linkLibCpp();
-    exe.linkLibrary(graph_core);
+    exe.root_module.addIncludePath(b.path("examples/interface_object_graph/include"));
+    exe.root_module.link_libcpp = true;
+    exe.root_module.linkLibrary(graph_core);
 
     const build_step = b.step("interface-object-graph", "Build the interface/object/static graph example");
     build_step.dependOn(&b.addInstallArtifact(graph_core, .{}).step);

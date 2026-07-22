@@ -8,7 +8,7 @@ An early CMake experiment that is not part of the build graph and does not compi
 
 ## Prerequisites
 
-Zig 0.14.1 or 0.15.2. Nothing else.
+Zig 0.14.1, 0.15.2 or 0.16.0. Nothing else.
 
 ## Build and run
 
