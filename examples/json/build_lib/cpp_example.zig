@@ -20,7 +20,23 @@ fn listPrint(
 
 /// Zig 0.16 moved the filesystem under std.Io, so writes need the build
 /// graph's Io handle. Only the taken branch is analysed.
+fn readBuildRootFile(b: *std.Build, sub_path: []const u8) ?[]u8 {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        return b.build_root.handle.readFileAlloc(b.allocator, sub_path, 16 * 1024 * 1024) catch null;
+    } else {
+        return b.build_root.handle.readFileAlloc(b.graph.io, sub_path, b.allocator, .unlimited) catch null;
+    }
+}
+
 fn writeBuildRootFile(b: *std.Build, sub_path: []const u8, data: []const u8) !void {
+    // Only write when the content actually changed. These files are generated
+    // on every configure, so an unconditional write both rewrites an identical
+    // file on each no-op rebuild and leaves the generated output permanently
+    // dirty in git status.
+    if (readBuildRootFile(b, sub_path)) |existing| {
+        defer b.allocator.free(existing);
+        if (std.mem.eql(u8, existing, data)) return;
+    }
     if (comptime @hasDecl(std.fs, "cwd")) {
         try b.build_root.handle.writeFile(.{ .sub_path = sub_path, .data = data });
     } else {
