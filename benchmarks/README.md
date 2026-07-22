@@ -1,226 +1,127 @@
-# Zaza Performance Benchmarks
+# Benchmarks
 
-## 🚀 Benchmark Suite Overview
+One benchmark lives here. It builds a real C++ project with real build systems
+and times the real processes. Every number it prints came off a clock on the
+machine that printed it.
 
-This directory contains comprehensive performance benchmarks for Zaza compared against CMake and other build systems.
+## Running it
 
-## 📊 Available Benchmarks
+From the repository root:
 
-### 1. Performance Benchmark (`performance_benchmark.zig`)
-- **Simple C++ Compilation**: Basic build performance
-- **JSON Library Integration**: External dependency handling
-- **Multiple Source Files**: Project scaling performance
-- **Dependency Resolution**: Git-based dependency speed
-- **Incremental Build**: Smart rebuild performance
-- **Parallel Compilation**: Multi-core utilization
-
-### 2. Memory Benchmark (`memory_benchmark.zig`)
-- **Project Size Scaling**: Memory usage vs file count
-- **Dependency Memory**: Memory overhead with dependencies
-- **Incremental Memory**: Memory efficiency of incremental builds
-
-### 3. Scalability Benchmark (`scalability_benchmark.zig`)
-- **File Count Scalability**: Performance with increasing files
-- **Dependency Count Scalability**: Performance with more dependencies
-- **Parallel Compilation**: Multi-threading efficiency
-- **Incremental Scalability**: Incremental build performance at scale
-
-### 4. CMake Comparison (`cmake_comparison.zig`)
-- **Build Performance**: Direct speed comparison
-- **Memory Usage**: Memory efficiency comparison
-- **Incremental Builds**: Incremental performance comparison
-- **Dependency Resolution**: Dependency handling comparison
-- **Scalability**: Large project performance comparison
-
-## 🎯 Benchmark Results Summary
-
-Based on our comprehensive testing, Zaza demonstrates:
-
-### Performance Advantages
-- **2-5x faster build times** across all project sizes
-- **60-80% less memory usage** than CMake
-- **3-10x faster incremental builds** for small changes
-- **4-10x faster dependency resolution** with Git-based management
-- **Better scalability** with large projects
-
-### Memory Efficiency
-- **Small projects (10 files)**: < 20MB vs CMake's 50MB
-- **Medium projects (100 files)**: < 50MB vs CMake's 120MB  
-- **Large projects (1000 files)**: < 100MB vs CMake's 250MB
-- **Enterprise projects (5000+ files)**: < 200MB vs CMake's 500MB+
-
-### Scalability Performance
-- **Linear scaling** with file count (O(n) complexity)
-- **Sub-linear dependency resolution** (O(log n) complexity)
-- **Near-linear parallel speedup** with CPU cores
-- **>10x incremental speedup** for <10% project changes
-
-## 🔧 Running Benchmarks
-
-### Prerequisites
-- Zig 0.14.0 or later
-- C++ compiler (clang++, g++, or MSVC)
-- Git (for dependency benchmarks)
-
-### Quick Start
 ```bash
-# Run all benchmarks
-zig build benchmarks
-
-# Run specific benchmark types
-zig build benchmark      # Performance benchmarks
-zig build memory         # Memory benchmarks  
-zig build scalability    # Scalability benchmarks
-zig build compare        # CMake comparison
+zig build --build-file benchmarks/build.zig bench
 ```
 
-### Individual Benchmark Execution
+Options go after `--`:
+
 ```bash
-# Build benchmark executables
-zig build
-
-# Run performance benchmarks
-./zig-out/bin/performance_benchmark
-
-# Run memory benchmarks
-./zig-out/bin/memory_benchmark
-
-# Run scalability benchmarks
-./zig-out/bin/scalability_benchmark
-
-# Run CMake comparison
-./zig-out/bin/cmake_comparison
+zig build --build-file benchmarks/build.zig bench -- --reps 9 --units 32
 ```
 
-## 📈 Benchmark Methodology
+| flag | default | meaning |
+| --- | --- | --- |
+| `--reps N` | 5 | measured repetitions per lane |
+| `--warmups N` | 1 | repetitions run first, reported separately, excluded from the statistics |
+| `--units N` | 16 | translation units in the generated workload |
+| `--workspace PATH` | `benchmarks/.workspace` | where the generated projects go |
 
-### Test Environment
-- **Hardware**: Apple M1 Pro, 16GB RAM, 8 cores
-- **OS**: macOS 14.0 (Sonoma)
-- **Compiler**: clang++ 15.0
-- **Zig Version**: 0.14.0
+The workspace is wiped and regenerated on every run and is gitignored.
 
-### Test Scenarios
-1. **Small Projects**: 1-10 source files
-2. **Medium Projects**: 50-100 source files  
-3. **Large Projects**: 500-1000 source files
-4. **Enterprise Projects**: 5000+ source files
+Zig 0.14.1 and 0.15.2 both run it. On 0.16.0 the `bench` step fails with a clear
+message: the harness drives child processes through `std.process.Child.run`,
+which 0.16 removed in favour of an API taking an explicit `Io`. Nothing in
+`zig build test` reaches this build file, so the repository's 0.16 support is
+unaffected.
 
-### Metrics Measured
-- **Build Time**: Total compilation time
-- **Memory Usage**: Peak memory consumption
-- **Cache Hit Rate**: Incremental build efficiency
-- **Parallel Efficiency**: Multi-core utilization
-- **Dependency Resolution**: External dependency handling speed
+## What it measures
 
-## 🏆 Competitive Analysis
+The harness generates a synthetic C++17 project: N translation units, a shared
+header, and a `main.cpp`, linked into one executable. The same bytes are written
+into every lane, so all lanes compile the same code.
 
-### vs CMake
-| Metric | Zaza | CMake | Advantage |
-|--------|-----|-------|-----------|
-| **Build Speed** | 2-5x faster | Baseline | 🚀 |
-| **Memory Usage** | 60-80% less | Baseline | ✅ |
-| **Incremental Builds** | 3-10x faster | Baseline | ⚡ |
-| **Dependency Resolution** | 4-10x faster | Baseline | 📦 |
-| **Scalability** | Linear | Sub-linear | 📈 |
+Lanes:
 
-### vs Bazel
-| Metric | Zaza | Bazel | Advantage |
-|--------|-----|-------|-----------|
-| **Setup Complexity** | Zero-config | Complex | 🎯 |
-| **Learning Curve** | Low | High | 📚 |
-| **Small Project Performance** | Excellent | Overhead | ⚡ |
-| **Enterprise Features** | Growing | Mature | 🏢 |
+| lane | what it is |
+| --- | --- |
+| `zaza` | `zig build` on a `build.zig` that declares the target through `build_lib/cpp_example.zig`. Uses Zig's bundled clang and libc++. |
+| `cmake-sys` | `cmake` + Ninja with the system C++ compiler. |
+| `cmake-zigcc` | `cmake` + Ninja with `zig c++` set as `CMAKE_CXX_COMPILER`. |
 
-### vs Meson  
-| Metric | Zaza | Meson | Advantage |
-|--------|-----|-------|-----------|
-| **Language Performance** | Compiled | Python | 🚀 |
-| **Dependency Management** | Built-in | External | 📦 |
-| **Cross-Platform** | Native | Good | 🌍 |
+`cmake-zigcc` exists so that one comparison holds the compiler fixed. Comparing
+`zaza` against `cmake-sys` compares two build systems *and* two compilers *and*
+two standard libraries, and the clean-build column cannot separate them.
 
-## 🎯 Performance Targets
+Each repetition, per lane:
 
-### Phase 1 Goals (Months 1-3)
-- [x] 2x faster than CMake for small projects
-- [x] <50MB memory usage for medium projects
-- [x] 5x faster incremental builds
-- [ ] 90% cache hit rate
+1. rewrite the sources to the baseline content
+2. delete the build outputs (`.zig-cache` and `zig-out`, or `build/`)
+3. **configure**: `cmake -S . -B build -G Ninja`, or `zig build --help`, which
+   compiles and runs the build script and enumerates the graph
+4. **clean build**: `cmake --build build`, or `zig build`
+5. **no-op rebuild**: the same command again with nothing changed
+6. change one translation unit
+7. **incremental rebuild**: the same command again
 
-### Phase 2 Goals (Months 4-6)  
-- [ ] 3x faster than CMake for large projects
-- [ ] <100MB memory usage for large projects
-- [ ] 80% parallel efficiency
-- [ ] Automatic dependency caching
+Lanes are interleaved inside a repetition so they see the same machine state.
 
-### Phase 3 Goals (Months 7-9)
-- [ ] 5x faster than CMake for enterprise projects
-- [ ] <200MB memory usage for enterprise projects
-- [ ] Distributed build coordination
-- [ ] Real-time performance monitoring
+The incremental step edits an integer in one source file. It has to be a real
+content change. Zig's cache keys on file contents and Ninja's keys on mtime, so
+a bare `touch` would rebuild under one and not the other, and the number would
+mean nothing.
 
-## 📊 Continuous Integration
+## How results are reported
 
-### Automated Benchmarking
-All benchmarks run automatically on:
-- **Every commit**: Performance regression detection
-- **Pull requests**: Performance impact analysis  
-- **Nightly builds**: Long-term performance tracking
-- **Release candidates**: Final performance validation
+- min, median and max over the measured repetitions, plus the sample count.
+  No single figure is presented on its own.
+- The warm-up repetition is excluded from the statistics and printed separately,
+  labelled as cold-cache.
+- Spread is printed as `max/min - 1`. Above 25% the row is flagged `NOISY`.
+- Ratios are printed only between lanes that both ran in the same invocation on
+  the same machine. A ratio touching a noisy row is marked `?`.
+- Machine, OS, CPU, core count and the versions of zig, cmake, ninja and the
+  system compiler are printed above the table so a result is attributable.
 
-### Performance Alerts
-- **Build Time Regression**: >10% slowdown triggers alert
-- **Memory Regression**: >15% increase triggers alert
-- **Cache Efficiency**: <80% hit rate triggers investigation
-- **Parallel Efficiency**: <70% utilization triggers optimization
+## What it does not measure
 
-## 🔍 Troubleshooting
+- **Dependency fetching.** Zaza clones dependencies with git; CMake projects use
+  FetchContent or a system package manager. Those do different work over a
+  network. Timing them would measure a network, not a build system.
+- **Memory.** No memory figure is collected, so none is reported.
+- **Scaling.** One workload size per run. Pass `--units` and rerun for another
+  point. Nothing is extrapolated between points.
+- **`examples/cmake_shim`, `examples/cmake_combo`, `examples/cmake_net`.** These
+  fetch from the network and drive CMake as a subordinate step of a Zig build.
+  There is no CMake-only equivalent doing the same work, so there is no fair
+  race to run.
+- **Anything about zaza's C++-only path against a CMake project using a
+  different generator, different flags, or LTO.** Only what is listed above ran.
 
-### Common Issues
+## Why the previous files were deleted
 
-#### Build System Hangs
-```bash
-# Kill hanging processes
-ps aux | grep zig
-kill <process_id>
+Four files used to sit in this directory: `performance_benchmark.zig`,
+`memory_benchmark.zig`, `scalability_benchmark.zig` and `cmake_comparison.zig`.
+They are in the git history. Do not resurrect them.
 
-# Clear build cache
-rm -rf .zig-cache
+They did not benchmark anything. They computed results from hardcoded constants
+and printed them as measurements. A representative example:
+
+```zig
+fn benchmarkZazaIncremental(allocator, project_size, change_percentage) !IncrementalResult {
+    // Simulate Zaza incremental build performance
+    const base_time = 100.0;
+    const incremental_time = base_time * change_percentage * 0.1;
+    const speedup_factor = base_time / incremental_time;
 ```
 
-#### Memory Issues
-```bash
-# Monitor memory usage
-./zig-out/bin/memory_benchmark
+Nothing is built. Nothing is timed. `project_size` is unused. There were 17
+comments beginning "Simulate" across the four files, including a "Simulated
+CMake baseline" against which zaza was declared several times faster. The old
+`benchmarks/README.md` reported those invented figures as findings: "2-5x faster
+build times", "60-80% less memory usage", specific megabyte numbers for project
+sizes that were never built.
 
-# Reduce parallel compilation
-zig build -Drelease-fast -j1
-```
+The files failed to compile on 0.14.1, 0.15.2 and 0.16.0, which is the only
+reason those numbers were never published from a run.
 
-#### Performance Regression
-```bash
-# Run comparison with baseline
-./zig-out/bin/cmake_comparison
-
-# Check for cache issues
-rm -rf .zig-cache && zig build benchmark
-```
-
-## 📝 Contributing
-
-### Adding New Benchmarks
-1. Create new benchmark file in `benchmarks/`
-2. Follow existing naming convention: `*_benchmark.zig`
-3. Add build configuration to `build.zig`
-4. Update this documentation
-
-### Performance Optimization
-1. Profile with existing benchmarks
-2. Identify bottlenecks
-3. Implement optimizations
-4. Validate improvements with benchmarks
-5. Update performance targets
-
----
-
-**Note**: These benchmarks represent current performance as of Zig 0.14.0. Results may vary based on hardware, OS, and compiler versions. For the most accurate comparisons, run benchmarks on your target platform.
+The current harness prints a comparison ratio only when both sides were measured
+in the same run, and prints nothing at all for quantities it did not measure.

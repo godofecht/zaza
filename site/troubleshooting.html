@@ -113,18 +113,22 @@ default. Point it elsewhere:</p>
 
 <pre data-lang="bash"><code class="language-bash">ZAZA_MODULES_CXX=/path/to/clang++ zig build cxx20-modules-run</code></pre>
 
-<h3 id="the-files-under-benchmarks-do-not-compile">The files under <code>benchmarks/</code> do not compile</h3>
+<h3 id="benchmarks">Benchmarks</h3>
 
-<p>They do not compile on either 0.14.1 or 0.15.2:</p>
+<p><code>benchmarks/</code> holds one benchmark. It generates a synthetic C++ project, builds
+it with <code>zig build</code> and with CMake plus Ninja, and times the real processes:</p>
 
-<pre data-lang="text"><code class="language-text">benchmarks/performance_benchmark.zig:151:9: error: local variable is never mutated
-benchmarks/memory_benchmark.zig:126:9: error: local variable is never mutated
-benchmarks/scalability_benchmark.zig:205:9: error: local variable is never mutated
-benchmarks/cmake_comparison.zig:52:23: error: unused function parameter</code></pre>
+<pre data-lang="bash"><code class="language-bash">zig build --build-file benchmarks/build.zig bench</code></pre>
 
-<p>This is known. Nothing in <code>zig build test</code> or <code>zig build example-matrix</code> reaches
-them, so it does not affect the suite. For benchmark-shaped work that does build
-and run, use <code>examples/benchmark_workflow</code>.</p>
+<p>It runs on 0.14.1 and 0.15.2. On 0.16.0 the step fails with a message, because
+the harness uses <code>std.process.Child.run</code>, which 0.16 removed. Nothing in
+<code>zig build test</code> or <code>zig build example-matrix</code> reaches this build file.</p>
+
+<p>Four earlier files here (<code>performance_benchmark.zig</code>, <code>memory_benchmark.zig</code>,
+<code>scalability_benchmark.zig</code>, <code>cmake_comparison.zig</code>) computed their results from
+hardcoded constants instead of measuring anything, and did not compile. They
+were deleted. See <code>benchmarks/README.md</code> for the details, and do not restore
+them from history.</p>
 
 <h3 id="a-tracked-file-changed-after-a-build">A tracked file changed after a build</h3>
 
@@ -137,12 +141,14 @@ that <code>build.zig</code> imports. Only the generated CMake output inside it i
 
 <h3 id="which-zig-versions-actually-work">Which Zig versions actually work</h3>
 
-<p>0.14.1 and 0.15.2. Both are verified against the full test suite:</p>
+<p>0.14.1, 0.15.2 and 0.16.0. All three are verified against the full test suite:</p>
 
 <pre data-lang="text"><code class="language-text">Build Summary: 43/43 steps succeeded; 87/87 tests passed</code></pre>
 
-<p>The sources use spellings valid in both, plus explicit shims for the <code>std.Io</code>
-and <code>std.json</code> reworks. Other versions may work and are not tested. <code>setup.sh</code>
+<p>The sources use spellings valid in all three. Where no shared spelling exists,
+a <code>if (comptime @hasDecl(...))</code> picks one: the <code>std.Io</code> filesystem move,
+<code>ArrayList.writer</code>, <code>Compile</code>'s <code>add*</code>/<code>link*</code> forwarders, and <code>std.json</code>'s
+unmanaged <code>ObjectMap</code>. Other versions may work and are not tested. <code>setup.sh</code>
 warns when it sees one.</p>
 
 <div class="page-footer">

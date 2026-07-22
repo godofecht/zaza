@@ -1,83 +1,55 @@
+//! Standalone build file for the benchmark harness.
+//!
+//! Run from the repository root:
+//!
+//!     zig build --build-file benchmarks/build.zig bench
+//!
+//! It is kept out of the root build.zig on purpose. The harness spawns `zig`,
+//! `cmake` and `ninja`, so it must never run as part of `zig build test`.
+
 const std = @import("std");
 const builtin = @import("builtin");
 
-pub fn build(b: *std.Build) !void {
-    // Performance benchmark executable
-    const benchmark_exe = b.addExecutable(.{
-        .name = "performance_benchmark",
+pub fn build(b: *std.Build) void {
+    const step = b.step("bench", "Measure real build times for zaza and, where available, CMake");
+
+    // The harness drives child processes through std.process.Child.run, which
+    // 0.16 removed in favour of an explicit Io instance. Rather than carry a
+    // second spelling of the whole harness, say so and stop. Nothing in the
+    // main suite depends on this build file, so 0.16 support of the repo is
+    // unaffected.
+    if (comptime builtin.zig_version.order(.{ .major = 0, .minor = 16, .patch = 0 }) != .lt) {
+        step.dependOn(&b.addFail(
+            "benchmarks/build_bench.zig needs Zig 0.14.1 or 0.15.2. " ++
+                "0.16 removed std.process.Child.run.",
+        ).step);
+        return;
+    }
+
+    const optimize = b.standardOptimizeOption(.{});
+
+    const exe = b.addExecutable(.{
+        .name = "build_bench",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("benchmarks/performance_benchmark.zig"),
-            .target = b.host,
+            .root_source_file = b.path("build_bench.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
         }),
     });
-    
-    // Add JSON dependency for benchmarks
-    benchmark_exe.addIncludePath(.{ .cwd_relative = "deps/json/single_include" });
-    
-    // Install benchmark executable
-    b.installArtifact(benchmark_exe);
-    
-    // Create benchmark run step
-    const run_benchmark = b.addRunArtifact(benchmark_exe);
-    run_benchmark.step.dependOn(&b.getInstallStep());
-    
-    const benchmark_step = b.step("benchmark", "Run performance benchmarks");
-    benchmark_step.dependOn(&run_benchmark.step);
-    
-    // Create memory benchmark
-    const memory_benchmark = b.addExecutable(.{
-        .name = "memory_benchmark",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("benchmarks/memory_benchmark.zig"),
-            .target = b.host,
-        }),
-    });
-    
-    b.installArtifact(memory_benchmark);
-    
-    const run_memory = b.addRunArtifact(memory_benchmark);
-    run_memory.step.dependOn(&b.getInstallStep());
-    
-    const memory_step = b.step("memory", "Run memory usage benchmarks");
-    memory_step.dependOn(&run_memory.step);
-    
-    // Create scalability benchmark
-    const scalability_benchmark = b.addExecutable(.{
-        .name = "scalability_benchmark",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("benchmarks/scalability_benchmark.zig"),
-            .target = b.host,
-        }),
-    });
-    
-    b.installArtifact(scalability_benchmark);
-    
-    const run_scalability = b.addRunArtifact(scalability_benchmark);
-    run_scalability.step.dependOn(&b.getInstallStep());
-    
-    const scalability_step = b.step("scalability", "Run scalability benchmarks");
-    scalability_step.dependOn(&run_scalability.step);
-    
-    // Create comprehensive benchmark suite
-    const all_benchmarks = b.step("benchmarks", "Run all benchmarks");
-    all_benchmarks.dependOn(&benchmark_step);
-    all_benchmarks.dependOn(&memory_step);
-    all_benchmarks.dependOn(&scalability_step);
-    
-    // Add benchmark comparison with CMake
-    const cmake_comparison = b.addExecutable(.{
-        .name = "cmake_comparison",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("benchmarks/cmake_comparison.zig"),
-            .target = b.host,
-        }),
-    });
-    
-    b.installArtifact(cmake_comparison);
-    
-    const run_comparison = b.addRunArtifact(cmake_comparison);
-    run_comparison.step.dependOn(&b.getInstallStep());
-    
-    const comparison_step = b.step("compare", "Compare Zaza performance with CMake");
-    comparison_step.dependOn(&run_comparison.step);
+    b.installArtifact(exe);
+
+    const run = b.addRunArtifact(exe);
+    run.stdio = .inherit;
+    // 0.14.1 and 0.15.2 disagree about the working directory a run step
+    // inherits, which breaks the relative path to the artifact. Pin it to the
+    // directory `zig build` was invoked from.
+    run.setCwd(.{ .cwd_relative = "." });
+    // Measure the zig that is driving this build, and take build_lib from the
+    // checkout this build file lives in. build_root is benchmarks/, so its
+    // parent is the checkout. The harness resolves this against the same cwd.
+    run.addArgs(&.{ "--zig", b.graph.zig_exe });
+    run.addArgs(&.{ "--repo-root", b.pathFromRoot("..") });
+    if (b.args) |extra| run.addArgs(extra);
+
+    step.dependOn(&run.step);
 }

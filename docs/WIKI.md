@@ -894,20 +894,24 @@ default. Point it elsewhere:
 ZAZA_MODULES_CXX=/path/to/clang++ zig build cxx20-modules-run
 ```
 
-### The files under `benchmarks/` do not compile
+### Benchmarks
 
-They do not compile on 0.14.1, 0.15.2 or 0.16.0:
+`benchmarks/` holds one benchmark. It generates a synthetic C++ project, builds
+it with `zig build` and with CMake plus Ninja, and times the real processes:
 
-```text
-benchmarks/performance_benchmark.zig:151:9: error: local variable is never mutated
-benchmarks/memory_benchmark.zig:126:9: error: local variable is never mutated
-benchmarks/scalability_benchmark.zig:205:9: error: local variable is never mutated
-benchmarks/cmake_comparison.zig:52:23: error: unused function parameter
+```bash
+zig build --build-file benchmarks/build.zig bench
 ```
 
-This is known. Nothing in `zig build test` or `zig build example-matrix` reaches
-them, so it does not affect the suite. For benchmark-shaped work that does build
-and run, use `examples/benchmark_workflow`.
+It runs on 0.14.1 and 0.15.2. On 0.16.0 the step fails with a message, because
+the harness uses `std.process.Child.run`, which 0.16 removed. Nothing in
+`zig build test` or `zig build example-matrix` reaches this build file.
+
+Four earlier files here (`performance_benchmark.zig`, `memory_benchmark.zig`,
+`scalability_benchmark.zig`, `cmake_comparison.zig`) computed their results from
+hardcoded constants instead of measuring anything, and did not compile. They
+were deleted. See `benchmarks/README.md` for the details, and do not restore
+them from history.
 
 ### A tracked file changed after a build
 
