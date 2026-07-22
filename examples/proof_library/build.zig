@@ -21,13 +21,13 @@ pub fn build(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.buil
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"examples/proof_library/src/main.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    exe.addIncludePath(b.path("examples/proof_library/include"));
-    exe.linkLibCpp();
-    exe.linkLibrary(lib);
+    exe.root_module.addIncludePath(b.path("examples/proof_library/include"));
+    exe.root_module.link_libcpp = true;
+    exe.root_module.linkLibrary(lib);
 
     const build_step = b.step("proof-library", "Build the proof library example");
     build_step.dependOn(&b.addInstallArtifact(lib, .{}).step);

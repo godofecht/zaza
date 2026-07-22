@@ -22,13 +22,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }),
         .linkage = .static,
     });
-    lib.addCSourceFiles(.{
+    lib.root_module.addCSourceFiles(.{
         .files = &.{"examples/generated_headers/src/generated_greeter.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    lib.addIncludePath(b.path("examples/generated_headers/include"));
-    lib.addIncludePath(.{ .cwd_relative = "zig-out/gen" });
-    lib.linkLibCpp();
+    lib.root_module.addIncludePath(b.path("examples/generated_headers/include"));
+    lib.root_module.addIncludePath(.{ .cwd_relative = "zig-out/gen" });
+    lib.root_module.link_libcpp = true;
     lib.step.dependencies.append(generate_header) catch unreachable;
 
     const exe = b.addExecutable(.{
@@ -38,14 +38,14 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"examples/generated_headers/src/main.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    exe.addIncludePath(b.path("examples/generated_headers/include"));
-    exe.addIncludePath(.{ .cwd_relative = "zig-out/gen" });
-    exe.linkLibCpp();
-    exe.linkLibrary(lib);
+    exe.root_module.addIncludePath(b.path("examples/generated_headers/include"));
+    exe.root_module.addIncludePath(.{ .cwd_relative = "zig-out/gen" });
+    exe.root_module.link_libcpp = true;
+    exe.root_module.linkLibrary(lib);
     exe.step.dependencies.append(generate_header) catch unreachable;
 
     const build_step = b.step("generated-headers", "Build the generated header example");

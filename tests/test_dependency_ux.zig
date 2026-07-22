@@ -3,6 +3,43 @@ const testing = std.testing;
 const cpp = @import("cpp_example");
 const zaza = @import("zaza_cli");
 
+/// Zig 0.16 moved the filesystem under std.Io, so every directory operation
+/// takes an Io handle and changing the process cwd left Dir altogether. The
+/// helpers below keep the tests readable. Only the taken branch is analysed.
+const Dir = if (@hasDecl(std.fs, "cwd")) std.fs.Dir else std.Io.Dir;
+
+fn tmpWriteFile(tmp: *std.testing.TmpDir, sub_path: []const u8, data: []const u8) !void {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        try tmp.dir.writeFile(.{ .sub_path = sub_path, .data = data });
+    } else {
+        try tmp.dir.writeFile(testing.io, .{ .sub_path = sub_path, .data = data });
+    }
+}
+
+fn openCurrentDir() !Dir {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        return std.fs.cwd().openDir(".", .{});
+    } else {
+        return std.Io.Dir.cwd().openDir(testing.io, ".", .{});
+    }
+}
+
+fn setCurrentDir(dir: Dir) !void {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        try dir.setAsCwd();
+    } else {
+        try std.process.setCurrentDir(testing.io, dir);
+    }
+}
+
+fn closeDir(dir: *Dir) void {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        dir.close();
+    } else {
+        dir.close(testing.io);
+    }
+}
+
 test "parse dependency names from zon" {
     const zon =
         \\.{
@@ -30,12 +67,11 @@ test "update and remove lock entries" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
 
-    try tmp.dir.writeFile(.{ .sub_path = "zaza.lock", .data = "{\n  \"packages\": {}\n}\n" });
-    const cwd = std.fs.cwd();
-    var old_cwd = try cwd.openDir(".", .{});
-    defer old_cwd.close();
-    try tmp.dir.setAsCwd();
-    defer old_cwd.setAsCwd() catch {};
+    try tmpWriteFile(&tmp, "zaza.lock", "{\n  \"packages\": {}\n}\n");
+    var old_cwd = try openCurrentDir();
+    defer closeDir(&old_cwd);
+    try setCurrentDir(tmp.dir);
+    defer setCurrentDir(old_cwd) catch {};
 
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

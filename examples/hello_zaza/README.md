@@ -10,7 +10,7 @@ The smallest complete example: a Zig executable and a C++ executable in one buil
 
 ## Prerequisites
 
-Zig 0.14.1 or 0.15.2. Nothing else.
+Zig 0.14.1, 0.15.2 or 0.16.0. Nothing else.
 
 ## Build and run
 

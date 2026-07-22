@@ -13,11 +13,11 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"examples/benchmark_workflow/src/main.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    exe.linkLibCpp();
+    exe.root_module.link_libcpp = true;
 
     const install = b.addInstallArtifact(exe, .{});
     const build_step = b.step("benchmark-workflow", "Build the benchmark workflow example");

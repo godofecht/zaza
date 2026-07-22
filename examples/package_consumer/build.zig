@@ -24,20 +24,20 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
         }),
     });
-    exe.addCSourceFiles(.{
+    exe.root_module.addCSourceFiles(.{
         .files = &.{"src/main.cpp"},
         .flags = &.{"-std=c++17"},
     });
-    exe.linkLibCpp();
+    exe.root_module.link_libcpp = true;
 
     for (manifest.include_dirs) |dir| {
-        exe.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ package_prefix, dir }) });
+        exe.root_module.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ package_prefix, dir }) });
     }
     for (manifest.libs) |lib| {
-        exe.addObjectFile(.{ .cwd_relative = b.pathJoin(&.{ package_prefix, lib }) });
+        exe.root_module.addObjectFile(.{ .cwd_relative = b.pathJoin(&.{ package_prefix, lib }) });
     }
     for (manifest.link_libraries) |lib| {
-        exe.linkSystemLibrary(lib);
+        exe.root_module.linkSystemLibrary(lib, .{});
     }
 
     const build_step = b.step("package-consumer", "Build the downstream package consumer");

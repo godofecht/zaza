@@ -7,7 +7,7 @@ pub const BuildResult = struct {
 };
 
 pub fn addSteps(b: *std.Build) BuildResult {
-    const compiler = std.process.getEnvVarOwned(b.allocator, "ZAZA_MODULES_CXX") catch
+    const compiler = zaza_cmd.envString(b, "ZAZA_MODULES_CXX") orelse
         "/opt/homebrew/opt/llvm/bin/clang++";
 
     const ensure_dirs = zaza_cmd.addCommandStep(

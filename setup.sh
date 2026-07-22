@@ -14,7 +14,7 @@ set -eu
 ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 cd "$ROOT_DIR"
 
-SUPPORTED_ZIG="0.14.1 0.15.2"
+SUPPORTED_ZIG="0.14.1 0.15.2 0.16.0"
 
 if [ -t 1 ]; then
     C_RESET=$(printf '\033[0m')
@@ -46,7 +46,7 @@ head1 "Toolchain"
 if ! command -v zig >/dev/null 2>&1; then
     fail "zig is not on PATH"
     printf '\n'
-    printf 'Install Zig 0.14.1 or 0.15.2 from https://ziglang.org/download/\n'
+    printf 'Install Zig 0.14.1, 0.15.2 or 0.16.0 from https://ziglang.org/download/\n'
     printf 'and make sure the binary is on PATH, then run ./setup.sh again.\n'
     exit 1
 fi

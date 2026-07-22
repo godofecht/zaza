@@ -114,8 +114,8 @@ are partial or missing.
 
 **Required**
 
-- [Zig](https://ziglang.org/download/) 0.14.1 or 0.15.2. Both are tested in CI
-  and both are verified against the full test suite.
+- [Zig](https://ziglang.org/download/) 0.14.1, 0.15.2 or 0.16.0. All three are
+  tested in CI and verified against the full test suite.
 
 **Optional**
 
@@ -896,7 +896,7 @@ ZAZA_MODULES_CXX=/path/to/clang++ zig build cxx20-modules-run
 
 ### The files under `benchmarks/` do not compile
 
-They do not compile on either 0.14.1 or 0.15.2:
+They do not compile on 0.14.1, 0.15.2 or 0.16.0:
 
 ```text
 benchmarks/performance_benchmark.zig:151:9: error: local variable is never mutated
@@ -920,14 +920,16 @@ that `build.zig` imports. Only the generated CMake output inside it is ignored.
 
 ### Which Zig versions actually work
 
-0.14.1 and 0.15.2. Both are verified against the full test suite:
+0.14.1, 0.15.2 and 0.16.0. All three are verified against the full test suite:
 
 ```text
 Build Summary: 43/43 steps succeeded; 87/87 tests passed
 ```
 
-The sources use spellings valid in both, plus explicit shims for the `std.Io`
-and `std.json` reworks. Other versions may work and are not tested. `setup.sh`
+The sources use spellings valid in all three. Where no shared spelling exists,
+a `if (comptime @hasDecl(...))` picks one: the `std.Io` filesystem move,
+`ArrayList.writer`, `Compile`'s `add*`/`link*` forwarders, and `std.json`'s
+unmanaged `ObjectMap`. Other versions may work and are not tested. `setup.sh`
 warns when it sees one.
 
 ---

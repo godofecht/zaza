@@ -2,6 +2,32 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zaza_cmd = @import("../../../build_lib/zaza_cmd.zig");
 
+/// Zig 0.14 spells buffered formatting `list.writer(gpa).print(...)`; 0.16
+/// removed `writer` and 0.15 added `list.print(gpa, ...)`. No single spelling
+/// covers all three, so pick at comptime. Only the taken branch is analysed.
+fn listPrint(
+    out: *std.ArrayListUnmanaged(u8),
+    gpa: std.mem.Allocator,
+    comptime fmt: []const u8,
+    args: anytype,
+) !void {
+    if (comptime @hasDecl(@TypeOf(out.*), "writer")) {
+        try out.writer(gpa).print(fmt, args);
+    } else {
+        try out.print(gpa, fmt, args);
+    }
+}
+
+/// Zig 0.16 moved the filesystem under std.Io, so writes need the build
+/// graph's Io handle. Only the taken branch is analysed.
+fn writeBuildRootFile(b: *std.Build, sub_path: []const u8, data: []const u8) !void {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        try b.build_root.handle.writeFile(.{ .sub_path = sub_path, .data = data });
+    } else {
+        try b.build_root.handle.writeFile(b.graph.io, .{ .sub_path = sub_path, .data = data });
+    }
+}
+
 pub const Dependency = struct {
     name: []const u8,
     url: []const u8,
@@ -199,13 +225,13 @@ fn buildDefaultCMakeArgs(b: *std.Build, dep_name: []const u8, user_args: []const
 }
 
 fn chooseCMakeGenerator(b: *std.Build) ?[]const u8 {
-    const env_gen = std.process.getEnvVarOwned(b.allocator, "CMAKE_GENERATOR") catch null;
+    const env_gen = zaza_cmd.envString(b, "CMAKE_GENERATOR");
     if (env_gen) |gen| return gen;
     return null;
 }
 
 fn chooseCMakeToolchain(b: *std.Build) ?[]const u8 {
-    const env_toolchain = std.process.getEnvVarOwned(b.allocator, "CMAKE_TOOLCHAIN_FILE") catch null;
+    const env_toolchain = zaza_cmd.envString(b, "CMAKE_TOOLCHAIN_FILE");
     if (env_toolchain) |path| return path;
     return null;
 }
@@ -350,11 +376,11 @@ pub const CppExample = struct {
     /// Helper for CMake generation
     const cmake = struct {
         fn write(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), comptime fmt: []const u8, args: anytype) !void {
-            try writer.writer(gpa).print(fmt ++ "\n", args);
+            try listPrint(writer, gpa, fmt ++ "\n", args);
         }
 
         fn section(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, args: []const []const u8) !void {
-            try writer.writer(gpa).print("{s}(", .{name});
+            try listPrint(writer, gpa, "{s}(", .{name});
             for (args, 0..) |arg, i| {
                 if (i > 0) try writer.appendSlice(gpa, " ");
                 try writer.appendSlice(gpa, arg);
@@ -367,9 +393,9 @@ pub const CppExample = struct {
         }
 
         fn listScoped(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, scope: []const u8, items: []const []const u8) !void {
-            try writer.writer(gpa).print("{s}({s} {s}\n", .{name, target, scope});
+            try listPrint(writer, gpa, "{s}({s} {s}\n", .{name, target, scope});
             for (items) |item| {
-                try writer.writer(gpa).print("    {s}\n", .{item});
+                try listPrint(writer, gpa, "    {s}\n", .{item});
             }
             try writer.appendSlice(gpa, ")\n\n");
         }
@@ -447,10 +473,7 @@ pub const CppExample = struct {
         }
 
         // Write CMakeLists.txt
-        try b.build_root.handle.writeFile(.{
-            .sub_path = "CMakeLists.txt",
-            .data = writer.items,
-        });
+        try writeBuildRootFile(b, "CMakeLists.txt", writer.items);
     }
 
     pub fn build(self: CppExample, b: *std.Build) !*std.Build.Step.Compile {
@@ -667,49 +690,49 @@ pub const CppExample = struct {
                     try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
                 }
 
-                exe.addCSourceFiles(.{
+                exe.root_module.addCSourceFiles(.{
                     .files = self.source_files,
                     .flags = try cpp_flags_list.toOwnedSlice(b.allocator),
                 });
 
                 // Add include directories
                 for (public_include_dirs) |dir| {
-                    exe.addIncludePath(.{ .cwd_relative = dir });
+                    exe.root_module.addIncludePath(.{ .cwd_relative = dir });
                 }
                 for (include_dirs) |dir| {
-                    exe.addIncludePath(.{ .cwd_relative = dir });
+                    exe.root_module.addIncludePath(.{ .cwd_relative = dir });
                 }
                 for (private_include_dirs) |dir| {
-                    exe.addIncludePath(.{ .cwd_relative = dir });
+                    exe.root_module.addIncludePath(.{ .cwd_relative = dir });
                 }
                 // Add system include directories from build config
                 for (config.system_includes) |dir| {
-                    exe.addSystemIncludePath(.{ .cwd_relative = dir });
+                    exe.root_module.addSystemIncludePath(.{ .cwd_relative = dir });
                 }
                 // Add include directories from Zig package deps
                 for (self.deps) |dep| {
                     if (dep.pkg_name) |pkg_name| {
                         const pkg = b.dependency(pkg_name, .{});
                         const include_subdir = dep.pkg_include orelse ".";
-                        exe.addIncludePath(pkg.path(include_subdir));
+                        exe.root_module.addIncludePath(pkg.path(include_subdir));
                     }
                 }
 
                 // Link C++ runtime
-                exe.linkLibCpp();
+                exe.root_module.link_libcpp = true;
 
                 // Link extra libraries from build config
                 for (config.link_paths) |lib_path| {
-                    exe.addLibraryPath(.{ .cwd_relative = lib_path });
+                    exe.root_module.addLibraryPath(.{ .cwd_relative = lib_path });
                 }
                 for (config.link_libs) |lib| {
-                    exe.linkSystemLibrary(lib);
+                    exe.root_module.linkSystemLibrary(lib, .{});
                 }
                 for (public_link_libs) |lib| {
-                    exe.linkSystemLibrary(lib);
+                    exe.root_module.linkSystemLibrary(lib, .{});
                 }
                 for (private_link_libs) |lib| {
-                    exe.linkSystemLibrary(lib);
+                    exe.root_module.linkSystemLibrary(lib, .{});
                 }
 
                 try emitCompileCommands(b, self, config, config_name, public_include_dirs, private_include_dirs, include_dirs, public_defines, private_defines);
@@ -770,11 +793,11 @@ pub const JUCEApplication = struct {
     // CMake file generation helpers
     const cmake = struct {
         fn write(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), comptime fmt: []const u8, args: anytype) !void {
-            try writer.writer(gpa).print(fmt ++ "\n", args);
+            try listPrint(writer, gpa, fmt ++ "\n", args);
         }
 
         fn section(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, args: []const []const u8) !void {
-            try writer.writer(gpa).print("{s}(", .{name});
+            try listPrint(writer, gpa, "{s}(", .{name});
             for (args, 0..) |arg, i| {
                 if (i > 0) try writer.appendSlice(gpa, " ");
                 try writer.appendSlice(gpa, arg);
@@ -783,9 +806,9 @@ pub const JUCEApplication = struct {
         }
 
         fn list(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
-            try writer.writer(gpa).print("{s}({s} PRIVATE\n", .{name, target});
+            try listPrint(writer, gpa, "{s}({s} PRIVATE\n", .{name, target});
             for (items) |item| {
-                try writer.writer(gpa).print("    {s}\n", .{item});
+                try listPrint(writer, gpa, "    {s}\n", .{item});
             }
             try writer.appendSlice(gpa, ")\n\n");
         }
@@ -904,10 +927,7 @@ pub const JUCEApplication = struct {
             try cmake.section(self.b.allocator, writer, "target_compile_features", &.{self.name, "PRIVATE", "cxx_std_17"});
 
             // Write CMakeLists.txt
-            try self.b.build_root.handle.writeFile(.{
-                .sub_path = "CMakeLists.txt",
-                .data = writer.items,
-            });
+            try writeBuildRootFile(self.b, "CMakeLists.txt", writer.items);
 
             // Create CppExample
             const example = try self.b.allocator.create(CppExample);
@@ -1012,7 +1032,7 @@ fn emitCompileCommands(
         defer b.allocator.free(escaped_cmd);
         defer b.allocator.free(escaped_out);
 
-        try entries.writer(b.allocator).print(
+        try listPrint(&entries, b.allocator,
             "  {{\"directory\":\"{s}\",\"file\":\"{s}\",\"command\":\"{s}\",\"output\":\"{s}\"}}{s}\n",
             .{ escaped_dir, escaped_file, escaped_cmd, escaped_out, if (idx + 1 == self.source_files.len) "" else "," },
         );
@@ -1042,40 +1062,40 @@ fn buildCompileCommand(
 
     const flags = filterByConfig(b, self.cpp_flags, config_name);
     for (flags) |flag| {
-        try cmd.writer(b.allocator).print("{s} ", .{flag});
+        try listPrint(&cmd, b.allocator, "{s} ", .{flag});
     }
     const std_flag = try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version);
     defer b.allocator.free(std_flag);
-    try cmd.writer(b.allocator).print("{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
+    try listPrint(&cmd, b.allocator, "{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
 
     for (public_defines) |def| {
         const flag = ensureDefineFlag(b, def);
-        try cmd.writer(b.allocator).print("{s} ", .{flag});
+        try listPrint(&cmd, b.allocator, "{s} ", .{flag});
     }
     for (private_defines) |def| {
         const flag = ensureDefineFlag(b, def);
-        try cmd.writer(b.allocator).print("{s} ", .{flag});
+        try listPrint(&cmd, b.allocator, "{s} ", .{flag});
     }
     for (config.defines) |def| {
         const flag = ensureDefineFlag(b, def);
-        try cmd.writer(b.allocator).print("{s} ", .{flag});
+        try listPrint(&cmd, b.allocator, "{s} ", .{flag});
     }
 
     for (public_include_dirs) |dir| {
-        try cmd.writer(b.allocator).print("-I{s} ", .{dir});
+        try listPrint(&cmd, b.allocator, "-I{s} ", .{dir});
     }
     for (include_dirs) |dir| {
-        try cmd.writer(b.allocator).print("-I{s} ", .{dir});
+        try listPrint(&cmd, b.allocator, "-I{s} ", .{dir});
     }
     for (private_include_dirs) |dir| {
-        try cmd.writer(b.allocator).print("-I{s} ", .{dir});
+        try listPrint(&cmd, b.allocator, "-I{s} ", .{dir});
     }
     for (config.system_includes) |dir| {
-        try cmd.writer(b.allocator).print("-isystem {s} ", .{dir});
+        try listPrint(&cmd, b.allocator, "-isystem {s} ", .{dir});
     }
 
     const obj = b.pathJoin(&.{ "zig-out", "obj", self.name, b.fmt("{s}.o", .{std.fs.path.stem(src)}) });
-    try cmd.writer(b.allocator).print("-c {s} -o {s}", .{src, obj});
+    try listPrint(&cmd, b.allocator, "-c {s} -o {s}", .{src, obj});
     return cmd.toOwnedSlice(b.allocator);
 }
 
@@ -1098,15 +1118,15 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
         defer content.deinit(b.allocator);
 
         try content.appendSlice(b.allocator, "get_filename_component(_ZAZA_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
-        try content.writer(b.allocator).print("set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
+        try listPrint(&content, b.allocator, "set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
         try content.appendSlice(b.allocator, "set(ZAZA_LIB_DIR \"${_ZAZA_PREFIX}/lib\")\n");
         if (self.public_link_libs.len > 0 or self.private_link_libs.len > 0) {
             try content.appendSlice(b.allocator, "set(ZAZA_LIBRARIES ");
             for (self.public_link_libs) |lib| {
-                try content.writer(b.allocator).print("{s} ", .{lib});
+                try listPrint(&content, b.allocator, "{s} ", .{lib});
             }
             for (self.private_link_libs) |lib| {
-                try content.writer(b.allocator).print("{s} ", .{lib});
+                try listPrint(&content, b.allocator, "{s} ", .{lib});
             }
             try content.appendSlice(b.allocator, ")\n");
         }
@@ -1163,17 +1183,17 @@ pub const CppConfig = struct {
         var flags: std.ArrayListUnmanaged(u8) = .empty;
         defer flags.deinit(b.allocator);
 
-        try flags.writer(b.allocator).print("-target {s} -O{s} ", .{target, opt_level});
+        try listPrint(&flags, b.allocator, "-target {s} -O{s} ", .{target, opt_level});
         
         // Add all flags except the standard version
         for (required_flags) |flag| {
-            try flags.writer(b.allocator).print("{s} ", .{flag});
+            try listPrint(&flags, b.allocator, "{s} ", .{flag});
         }
         
         // Add the C++ standard version (custom or default)
         const std_flag = try getStdFlag(b.allocator, cpp_std orelse std_version);
         defer b.allocator.free(std_flag);
-        try flags.writer(b.allocator).print("{s}", .{std_flag});
+        try listPrint(&flags, b.allocator, "{s}", .{std_flag});
         
         return flags.toOwnedSlice(b.allocator);
     }
