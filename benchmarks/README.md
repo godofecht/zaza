@@ -4,6 +4,35 @@ One benchmark lives here. It builds a real C++ project with real build systems
 and times the real processes. Every number it prints came off a clock on the
 machine that printed it.
 
+## Reading the no-op rebuild number
+
+The no-op figure is the one most likely to be misread, so it is worth
+decomposing. Measured on an Apple M4 Max with Zig 0.15.2:
+
+| what | median |
+|---|---|
+| ninja no-op | 4.3 ms |
+| `zig build` script execution alone, trivial project | 38.8 ms |
+| `zig build` no-op, trivial project with one executable | 69.0 ms |
+| `zig build` no-op, the 16 translation unit project used here | 84.0 ms |
+
+Two things follow.
+
+`zig build` compiles and runs a build script on every invocation. That is
+38.8 ms before any target is declared, and 69 ms before any of this project
+exists. Ninja parses a static manifest instead, which is why it answers in
+4 ms. Most of the gap this benchmark reports on the no-op row is that
+architectural difference.
+
+Zaza's own build logic accounts for about 0.2 ms of it. The 15 ms between the
+trivial project and this one is cache checking for 15 more translation units,
+which is work that has to happen.
+
+So the no-op row is close to a measurement of `zig build` startup. Treat it as
+a floor for anything built through the Zig build system rather than as a
+property of this project. The clean build and incremental rows are the ones
+that say something about the build graph.
+
 ## Running it
 
 From the repository root:
