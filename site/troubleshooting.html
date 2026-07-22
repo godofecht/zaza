@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting · zaza</title>
+<meta name="description" content="Cache errors, exit code 127 from nested builds, stale CMake caches, slow configures, preset link failures, and which Zig versions work.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">zaza</a>
+  <div class="tagline">Build system for C, C++, Zig, Rust, and WebAssembly</div>
+  <span class="version">v0.2.0</span>
+  <div class="section-label">Guide</div>
+  <a href="index.html">Overview</a>
+  <a href="cmake-comparison.html">Compared to CMake</a>
+  <a href="installation.html">Installation</a>
+  <a href="quickstart.html">Quickstart</a>
+  <div class="section-label">Reference</div>
+  <a href="concepts.html">Core Concepts</a>
+  <a href="environment.html">Environment Variables</a>
+  <a href="webassembly.html">WebAssembly</a>
+  <div class="section-label">Examples</div>
+  <a href="example-matrix.html">The Example Matrix</a>
+  <a href="examples-index.html">All Examples</a>
+  <div class="section-label">Help</div>
+  <a href="troubleshooting.html" class="active">Troubleshooting</a>
+  <a href="next.html">Where to Go Next</a>
+  <div class="spacer"></div>
+  <div class="nav-footer">
+    <a href="https://github.com/godofecht/zaza">GitHub</a>
+    <a href="https://github.com/godofecht/danzig">Danzig</a>
+    <a href="https://github.com/godofecht/azazel">Azazel</a>
+  </div>
+</nav>
+<main>
+
+<h1 id="troubleshooting">Troubleshooting</h1>
+
+<h3 id="the-build-panics-about-the-zig-cache">The build panics about the Zig cache</h3>
+
+<pre data-lang="text"><code class="language-text">Zig cache is not writable. Set ZIG_GLOBAL_CACHE_DIR and ZIG_LOCAL_CACHE_DIR,
+or enable direnv (see .envrc) for a portable setup.</code></pre>
+
+<p>The build checks for a writable cache directory before doing anything else. Set
+both variables explicitly, or use the committed <code>.envrc</code>:</p>
+
+<pre data-lang="bash"><code class="language-bash">export ZIG_GLOBAL_CACHE_DIR="$PWD/.zig-cache-global"
+export ZIG_LOCAL_CACHE_DIR="$PWD/.zig-cache"</code></pre>
+
+<p>The <code>./zig</code> wrapper sets both for you.</p>
+
+<h3 id="a-nested-build-fails-with-exit-code-127">A nested build fails with exit code 127</h3>
+
+<pre data-lang="text"><code class="language-text">error: the following command exited with error code 127:
+env ZAZA_EXAMPLES=package-producer ./zig build install</code></pre>
+
+<p><code>./zig</code> is missing. It is gitignored, so a fresh clone does not have one. Run
+<code>./setup.sh</code>, which creates it.</p>
+
+<p>Affected targets: <code>package-consumer</code>, <code>cross-compile-cli</code>, <code>rust-interop</code>, and
+<code>example-matrix</code>.</p>
+
+<h3 id="cmake-complains-that-the-cache-directory-does-not-match">CMake complains that the cache directory does not match</h3>
+
+<pre data-lang="text"><code class="language-text">CMake Error: The current CMakeCache.txt directory .../deps/json/build/Debug/CMakeCache.txt
+is different than the directory .../deps/json/build/Debug where CMakeCache.txt was created.</code></pre>
+
+<p>CMake caches absolute paths. If the checkout moved, or the build tree was copied
+from another machine, every cached path is wrong. Delete the build tree for the
+dependency and rebuild:</p>
+
+<pre data-lang="bash"><code class="language-bash">rm -rf deps/&lt;name&gt;/build</code></pre>
+
+<p>The JUCE examples keep their build tree inside the example directory:</p>
+
+<pre data-lang="bash"><code class="language-bash">rm -rf examples/juce/build
+rm -rf examples/zaza-juce/build</code></pre>
+
+<p>Source checkouts under <code>deps/</code> are unaffected, so this does not force a re-clone.</p>
+
+<h3 id="a-build-seems-to-hang-while-configuring">A build seems to hang while configuring</h3>
+
+<p>It is probably resolving dependencies. Zig resolves everything declared in the
+graph before running any step, so enabling all examples means fetching JUCE,
+curl, mbedtls, zlib, spdlog, and fmt. Scope the build:</p>
+
+<pre data-lang="bash"><code class="language-bash">ZAZA_EXAMPLES=&lt;name&gt; zig build &lt;target&gt;</code></pre>
+
+<h3 id="run-cpp-fails-on-a-file-that-compiles-fine-elsewhere"><code>run-cpp</code> fails on a file that compiles fine elsewhere</h3>
+
+<p><code>run-cpp</code> invokes <code>zig c++</code> by name, so Zig must be on PATH, and it passes no
+include directories of its own. A file that includes a project header will fail:</p>
+
+<pre data-lang="text"><code class="language-text">examples/hello_zaza/src/main.cpp:2:10: fatal error: 'hello_zaza.h' file not found</code></pre>
+
+<p>Pass the flags yourself, after the source path:</p>
+
+<pre data-lang="bash"><code class="language-bash">zig build run-cpp -- src/simple_example.cpp -O2</code></pre>
+
+<h3 id="zaza_presetasan-or-zaza_presetlto-fails-to-link"><code>ZAZA_PRESET=asan</code> or <code>ZAZA_PRESET=lto</code> fails to link</h3>
+
+<p>Both are toolchain-dependent rather than broken. <code>asan</code> needs the AddressSanitizer
+runtime to be available to the linker. <code>lto</code> needs the toolchain to be using LLD.
+Neither is guaranteed on a given machine.</p>
+
+<h3 id="the-c20-modules-example-cannot-find-a-compiler">The C++20 modules example cannot find a compiler</h3>
+
+<p>The example does not use <code>zig c++</code>, because <code>zig c++</code> rejects <code>-x c++-module</code> and
+ignores <code>-fmodule-output</code>. It uses <code>/opt/homebrew/opt/llvm/bin/clang++</code> by
+default. Point it elsewhere:</p>
+
+<pre data-lang="bash"><code class="language-bash">ZAZA_MODULES_CXX=/path/to/clang++ zig build cxx20-modules-run</code></pre>
+
+<h3 id="the-files-under-benchmarks-do-not-compile">The files under <code>benchmarks/</code> do not compile</h3>
+
+<p>They do not compile on either 0.14.1 or 0.15.2:</p>
+
+<pre data-lang="text"><code class="language-text">benchmarks/performance_benchmark.zig:151:9: error: local variable is never mutated
+benchmarks/memory_benchmark.zig:126:9: error: local variable is never mutated
+benchmarks/scalability_benchmark.zig:205:9: error: local variable is never mutated
+benchmarks/cmake_comparison.zig:52:23: error: unused function parameter</code></pre>
+
+<p>This is known. Nothing in <code>zig build test</code> or <code>zig build example-matrix</code> reaches
+them, so it does not affect the suite. For benchmark-shaped work that does build
+and run, use <code>examples/benchmark_workflow</code>.</p>
+
+<h3 id="a-tracked-file-changed-after-a-build">A tracked file changed after a build</h3>
+
+<p>Two files at the repo root are generated output and gitignored: <code>CMakeLists.txt</code>
+and <code>build/CMakeLists.txt</code>. They are rewritten by whichever CMake-exporting
+example built last. Leave them out of commits.</p>
+
+<p>Note that the top-level <code>build/</code> directory itself holds real tracked Zig sources
+that <code>build.zig</code> imports. Only the generated CMake output inside it is ignored.</p>
+
+<h3 id="which-zig-versions-actually-work">Which Zig versions actually work</h3>
+
+<p>0.14.1 and 0.15.2. Both are verified against the full test suite:</p>
+
+<pre data-lang="text"><code class="language-text">Build Summary: 43/43 steps succeeded; 87/87 tests passed</code></pre>
+
+<p>The sources use spellings valid in both, plus explicit shims for the <code>std.Io</code>
+and <code>std.json</code> reworks. Other versions may work and are not tested. <code>setup.sh</code>
+warns when it sees one.</p>
+
+<div class="page-footer">
+  <a href="examples-index.html">&larr; All Examples</a>
+  <a href="next.html">Next: Where to Go Next &rarr;</a>
+</div>
+
+</main>
+</body>
+</html>

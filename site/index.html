@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zaza · Build system for C, C++, Zig, Rust, and WebAssembly</title>
+<meta name="description" content="A build system for C, C++, Zig, Rust, and WebAssembly that uses Zig&#x27;s build graph as its control plane. Build files are Zig programs.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">zaza</a>
+  <div class="tagline">Build system for C, C++, Zig, Rust, and WebAssembly</div>
+  <span class="version">v0.2.0</span>
+  <div class="section-label">Guide</div>
+  <a href="index.html" class="active">Overview</a>
+  <a href="cmake-comparison.html">Compared to CMake</a>
+  <a href="installation.html">Installation</a>
+  <a href="quickstart.html">Quickstart</a>
+  <div class="section-label">Reference</div>
+  <a href="concepts.html">Core Concepts</a>
+  <a href="environment.html">Environment Variables</a>
+  <a href="webassembly.html">WebAssembly</a>
+  <div class="section-label">Examples</div>
+  <a href="example-matrix.html">The Example Matrix</a>
+  <a href="examples-index.html">All Examples</a>
+  <div class="section-label">Help</div>
+  <a href="troubleshooting.html">Troubleshooting</a>
+  <a href="next.html">Where to Go Next</a>
+  <div class="spacer"></div>
+  <div class="nav-footer">
+    <a href="https://github.com/godofecht/zaza">GitHub</a>
+    <a href="https://github.com/godofecht/danzig">Danzig</a>
+    <a href="https://github.com/godofecht/azazel">Azazel</a>
+  </div>
+</nav>
+<main>
+
+<div class="hero">
+  <h1 id="zaza">Zaza</h1>
+  <p class="hero-sub">A build system for C, C++, Zig, Rust, and WebAssembly that uses Zig's build
+graph as its control plane. There is no separate build DSL. Build files are Zig
+programs.</p>
+</div>
+
+<p>Source: <a href="https://github.com/godofecht/zaza">github.com/godofecht/zaza</a></p>
+
+<h2 id="what-zaza-is">What Zaza is</h2>
+
+<p>Starting a new native project usually means writing CMake. That buys you a
+second language, a second mental model, and a configure step that has to be
+debugged separately from the code. Cross-compilation and mixed-language work sit
+on top of that as further layers.</p>
+
+<p>Zig already ships a build system with a dependency graph, content-addressed
+caching, a C and C++ compiler, and cross-compilation to every target it
+supports. What it does not ship is the higher-level vocabulary that C++ projects
+expect: usage requirements, install and export rules, package manifests,
+generated-source pipelines, preset profiles, and a path for depending on
+libraries that only build with CMake.</p>
+
+<p>Zaza is that layer. A <code>build.zig</code> declares targets in Zig, and Zaza turns them
+into <code>std.Build</code> steps.</p>
+
+<pre data-lang="zig"><code class="language-zig">const std = @import("std");
+const cpp = @import("build_lib/cpp_example.zig");
+
+pub fn build(b: *std.Build) !void {
+    const exe = try cpp.CppExample.executable(.{
+        .name = "my_app",
+        .source_files = &amp;.{"src/main.cpp"},
+        .public_include_dirs = &amp;.{"include"},
+        .public_defines = &amp;.{"MY_APP=1"},
+        .cpp_std = "17",
+    }).build(b);
+
+    const run_cmd = b.addRunArtifact(exe);
+    const run_step = b.step("run", "Run my_app");
+    run_step.dependOn(&amp;run_cmd.step);
+}</code></pre>
+
+<p><strong>What this gets you</strong></p>
+
+<ul>
+<li>C, C++, Zig, and Rust targets in one graph, linked to each other.</li>
+<li>Cross-compilation with a target triple and no toolchain file.</li>
+<li>CMake-only dependencies cloned, configured, built, and installed by the graph.</li>
+<li>Install and export output that a separate downstream project can consume.</li>
+<li>WebAssembly targets, both WASI and freestanding, in the same build file.</li>
+</ul>
+
+<p><strong>What it does not get you</strong></p>
+
+<p>Zaza is example-driven and its public API is not settled. The higher-level
+target model is still <code>CppExample</code> rather than a first-class library type. See
+<a href="https://github.com/godofecht/zaza/blob/main/docs/ROADMAP.md"><code>ROADMAP.md</code></a> for what is being built next.</p>
+
+<div class="page-footer">
+  <span><a href="https://github.com/godofecht/zaza">zaza on GitHub</a></span>
+  <a href="cmake-comparison.html">Next: Compared to CMake &rarr;</a>
+</div>
+
+</main>
+</body>
+</html>
