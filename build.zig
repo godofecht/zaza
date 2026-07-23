@@ -272,18 +272,44 @@ pub fn build(b: *std.Build) !void {
         }
     }
     
-    // zaza-drive fast path: emit a manifest for a C++ target. The native
-    // driver in tools/zaza-drive reads it and rebuilds without the Zig build
-    // runner on the hot path, which is much faster on no-op and incremental
-    // rebuilds. See tools/zaza-drive/README.md. Wiring it here also keeps
-    // writeDriveManifest compiled on every supported Zig version.
+    // zaza-drive fast path: the native driver in tools/zaza-drive rebuilds a
+    // target without the Zig build runner on the hot path, which is much faster
+    // on no-op and incremental rebuilds. See tools/zaza-drive/README.md.
+    //
+    // The driver has to run outside `zig build` to skip its startup cost, so
+    // the workflow is two commands. `zig build drive` installs the driver
+    // binary and emits a manifest; then you invoke the driver directly:
+    //
+    //   zig build drive
+    //   ./zig-out/bin/zaza-drive zig-out/build.manifest
+    //
+    // The manifest describes the hello_zaza C++ target with the exact flags
+    // buildWithTarget uses, so the fast path compiles identically.
     {
         const manifest = try hello_zaza_example.cpp_example.writeDriveManifest(b);
         const wf = b.addWriteFiles();
         const mpath = wf.add("build.manifest", manifest);
-        const inst = b.addInstallFileWithDir(mpath, .prefix, "build.manifest");
-        const drive_step = b.step("drive-manifest", "Emit a zaza-drive manifest into zig-out/");
-        drive_step.dependOn(&inst.step);
+        const install_manifest = b.addInstallFileWithDir(mpath, .prefix, "build.manifest");
+
+        // The driver is cross-version, so it compiles under whatever Zig runs
+        // this build. Installed to zig-out/bin so it can be invoked directly.
+        const driver = b.addExecutable(.{
+            .name = "zaza-drive",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("tools/zaza-drive/main.zig"),
+                .target = target,
+                .optimize = .ReleaseFast,
+            }),
+        });
+        const install_driver = b.addInstallArtifact(driver, .{});
+
+        // Kept as its own step for the manifest alone, and `drive` for both.
+        const manifest_step = b.step("drive-manifest", "Emit a zaza-drive manifest into zig-out/");
+        manifest_step.dependOn(&install_manifest.step);
+
+        const drive_step = b.step("drive", "Install the zaza-drive binary and emit its manifest");
+        drive_step.dependOn(&install_manifest.step);
+        drive_step.dependOn(&install_driver.step);
     }
 
     // Add clean tests that actually work
