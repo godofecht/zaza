@@ -62,11 +62,14 @@ src src/unit_0.cpp
 
 ## Status and limits
 
-This is a working prototype that validates the direction. What it is not yet:
+This is a working prototype that validates the direction.
 
-- **It does not generate its own manifest.** The manifest is written by hand or
-  by the caller. The next step is emitting it from a `CppExample` target so the
-  driver is a fast path for a real zaza build rather than a standalone tool.
+- **Manifests are generated from a real target.** `CppExample.writeDriveManifest`
+  emits one using the same `cppCompileFlags` the normal build uses, so the fast
+  path and `zig build` compile with identical flags. `zig build drive-manifest`
+  writes it to `zig-out/build.manifest`. End to end verified: emit the manifest
+  for a target, drive it, run the binary, and a one-file edit recompiles only
+  that file.
 - **It builds on Zig 0.14.1 and 0.15.2.** Zig 0.16 removed
   `std.process.argsAlloc` and changed how `main` receives arguments; the driver
   needs a small args shim before it compiles there. The driver it produces is a

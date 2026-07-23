@@ -272,6 +272,20 @@ pub fn build(b: *std.Build) !void {
         }
     }
     
+    // zaza-drive fast path: emit a manifest for a C++ target. The native
+    // driver in tools/zaza-drive reads it and rebuilds without the Zig build
+    // runner on the hot path, which is much faster on no-op and incremental
+    // rebuilds. See tools/zaza-drive/README.md. Wiring it here also keeps
+    // writeDriveManifest compiled on every supported Zig version.
+    {
+        const manifest = try hello_zaza_example.cpp_example.writeDriveManifest(b);
+        const wf = b.addWriteFiles();
+        const mpath = wf.add("build.manifest", manifest);
+        const inst = b.addInstallFileWithDir(mpath, .prefix, "build.manifest");
+        const drive_step = b.step("drive-manifest", "Emit a zaza-drive manifest into zig-out/");
+        drive_step.dependOn(&inst.step);
+    }
+
     // Add clean tests that actually work
     const test_step = b.step("test", "Run all tests");
     

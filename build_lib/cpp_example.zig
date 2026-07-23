@@ -761,6 +761,64 @@ pub const CppExample = struct {
         return self.buildWithTarget(b, target);
     }
 
+    /// The exact C++ flag set applied to every source in a config. Shared so
+    /// the Zig build path and the zaza-drive manifest cannot drift: both must
+    /// compile with identical flags or they build different programs.
+    fn cppCompileFlags(
+        self: CppExample,
+        b: *std.Build,
+        config: BuildConfig,
+        config_name: []const u8,
+        public_defines: []const []const u8,
+        private_defines: []const []const u8,
+    ) ![]const []const u8 {
+        var list: std.ArrayListUnmanaged([]const u8) = .empty;
+        try list.appendSlice(b.allocator, filterByConfig(b, self.cpp_flags, config_name));
+        try list.appendSlice(b.allocator, config.cpp_flags);
+        try list.append(b.allocator, try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
+        try list.appendSlice(b.allocator, &.{ "-fexceptions", "-frtti", "-D_HAS_EXCEPTIONS=1" });
+        for (public_defines) |def| try list.append(b.allocator, ensureDefineFlag(b, def));
+        for (private_defines) |def| try list.append(b.allocator, ensureDefineFlag(b, def));
+        for (config.defines) |def| try list.append(b.allocator, ensureDefineFlag(b, def));
+        return list.toOwnedSlice(b.allocator);
+    }
+
+    /// Emit a zaza-drive manifest for the first configured mode. The driver in
+    /// tools/zaza-drive reads this to build the same target without the Zig
+    /// build runner on the hot path. The compile flags come from the same
+    /// cppCompileFlags used by buildWithTarget, so the fast path and the normal
+    /// path compile identically.
+    pub fn writeDriveManifest(self: CppExample, b: *std.Build) ![]const u8 {
+        const config = if (self.configs.len > 0) self.configs[0] else BuildConfig{ .mode = .Debug };
+        const config_name = config.mode.toCMakeString();
+
+        const public_defines = filterByConfig(b, self.public_defines, config_name);
+        const private_defines = filterByConfig(b, self.private_defines, config_name);
+        const flags = try self.cppCompileFlags(b, config, config_name, public_defines, private_defines);
+
+        // Built with appends and b.fmt rather than an ArrayList writer, which
+        // 0.16 removed for unmanaged lists.
+        var out: std.ArrayListUnmanaged(u8) = .empty;
+
+        // The compiler is the same zig binary running this build, in c++ mode.
+        try out.appendSlice(b.allocator, b.fmt("compiler {s} c++\n", .{b.graph.zig_exe}));
+
+        // cflags = the shared compile flags, plus -I for each include dir.
+        try out.appendSlice(b.allocator, "cflags");
+        for (flags) |f| try out.appendSlice(b.allocator, b.fmt(" {s}", .{f}));
+        for (self.public_include_dirs) |dir| try out.appendSlice(b.allocator, b.fmt(" -I{s}", .{dir}));
+        for (self.include_dirs) |dir| try out.appendSlice(b.allocator, b.fmt(" -I{s}", .{dir}));
+        try out.appendSlice(b.allocator, "\n");
+
+        try out.appendSlice(b.allocator, "outdir .zaza-drive\n");
+        try out.appendSlice(b.allocator, b.fmt("bin {s}\n", .{self.name}));
+
+        for (try self.allSourceFiles(b.allocator)) |src| {
+            try out.appendSlice(b.allocator, b.fmt("src {s}\n", .{src}));
+        }
+        return out.toOwnedSlice(b.allocator);
+    }
+
     pub fn buildWithTarget(self: CppExample, b: *std.Build, target: std.Build.ResolvedTarget) !*std.Build.Step.Compile {
         if (target.result.os.tag == .windows and target.result.abi == .msvc and self.main_build_system == .Zig) {
             @panic(
@@ -977,37 +1035,14 @@ pub const CppExample = struct {
 
                 const compile = try addTargetArtifact(b, self, config, target);
 
-                // Add source files with C++ flags
-                var cpp_flags_list: std.ArrayListUnmanaged([]const u8) = .empty;
-                defer cpp_flags_list.deinit(b.allocator);
-
-                // Add user flags
-                try cpp_flags_list.appendSlice(b.allocator, filterByConfig(b, self.cpp_flags, config_name));
-                try cpp_flags_list.appendSlice(b.allocator, config.cpp_flags);
-                
-                // Add required flags
-                try cpp_flags_list.append(b.allocator, try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
-                try cpp_flags_list.appendSlice(b.allocator, &.{
-                    "-fexceptions",
-                    "-frtti",
-                    "-D_HAS_EXCEPTIONS=1",
-                });
-                // Add compile definitions (public/private treated the same in Zig build)
-                for (public_defines) |def| {
-                    try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
-                }
-                for (private_defines) |def| {
-                    try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
-                }
-                for (config.defines) |def| {
-                    try cpp_flags_list.append(b.allocator, ensureDefineFlag(b, def));
-                }
+                // Add source files with the shared C++ flag set.
+                const cpp_flags = try self.cppCompileFlags(b, config, config_name, public_defines, private_defines);
 
                 const all_sources = try self.allSourceFiles(b.allocator);
                 if (self.kind != .interface_library) {
                     compile.root_module.addCSourceFiles(.{
                         .files = all_sources,
-                        .flags = try cpp_flags_list.toOwnedSlice(b.allocator),
+                        .flags = cpp_flags,
                     });
                 }
 
