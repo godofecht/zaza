@@ -22,7 +22,6 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 | --- | --- | --- |
 | [benchmark_workflow](benchmark_workflow) | `ZAZA_EXAMPLES=benchmark-workflow zig build benchmark-workflow-run` | A benchmark exposed as size-specific run targets |
 | [bindings](bindings) | `ZAZA_EXAMPLES=bindings zig build bindings-run` | Zig calling C++ across a C ABI wrapper |
-| [build_lib](build_lib) | (none) | Helper module re-export, not an example |
 | [cmake](cmake) | (none) | Unwired early experiment, kept for reference |
 | [cmake_combo](cmake_combo) | `ZAZA_EXAMPLES=cmake-combo zig build cmake-combo-run` | fmt + spdlog built by CMake, linked by Zig |
 | [cmake_net](cmake_net) | `ZAZA_EXAMPLES=cmake-net zig build cmake-net-run` | curl + zlib + mbedtls with an ordering constraint |
