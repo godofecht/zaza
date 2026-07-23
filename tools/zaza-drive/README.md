@@ -70,14 +70,13 @@ This is a working prototype that validates the direction.
   writes it to `zig-out/build.manifest`. End to end verified: emit the manifest
   for a target, drive it, run the binary, and a one-file edit recompiles only
   that file.
-- **It builds on Zig 0.14.1 and 0.15.2.** Zig 0.16 removed
-  `std.process.argsAlloc` and changed how `main` receives arguments; the driver
-  needs a small args shim before it compiles there. The driver it produces is a
-  plain native binary, so the Zig version that builds it does not constrain what
-  it drives.
+- **It builds on Zig 0.14.1, 0.15.2, and 0.16.0.** 0.16 moved the filesystem and
+  process spawning under `std.Io` and changed how `main` receives arguments, so
+  the driver comptime-dispatches those calls. Verified to build and drive
+  correctly on all three, with the same no-op time.
 - **It links the whole object set every time an object changes.** For very large
   link steps a persistent linker or incremental link would help. Not needed at
-  this scale.
+  this scale, and the driver already beats Ninja on the incremental rebuild here.
 
 Build it with `zig build-exe main.zig -O ReleaseFast -femit-bin=zaza-drive` and
 run `zaza-drive <manifest>`.

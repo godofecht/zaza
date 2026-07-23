@@ -37,7 +37,7 @@ const Manifest = struct {
 };
 
 fn splitArgs(a: std.mem.Allocator, rest: []const u8) ![][]const u8 {
-    var list = std.ArrayListUnmanaged([]const u8){};
+    var list = std.ArrayListUnmanaged([]const u8).empty;
     var it = std.mem.tokenizeScalar(u8, rest, ' ');
     while (it.next()) |tok| try list.append(a, try a.dupe(u8, tok));
     return list.toOwnedSlice(a);
@@ -48,7 +48,7 @@ fn parseManifest(a: std.mem.Allocator, text: []const u8) !Manifest {
     var cflags: [][]const u8 = &.{};
     var outdir: []const u8 = ".zaza-drive";
     var bin: []const u8 = "app";
-    var srcs = std.ArrayListUnmanaged([]const u8){};
+    var srcs = std.ArrayListUnmanaged([]const u8).empty;
 
     var lines = std.mem.tokenizeScalar(u8, text, '\n');
     while (lines.next()) |raw| {
@@ -79,22 +79,79 @@ fn parseManifest(a: std.mem.Allocator, text: []const u8) !Manifest {
     };
 }
 
-fn mtimeOf(path: []const u8) ?i128 {
-    const st = std.fs.cwd().statFile(path) catch return null;
-    return st.mtime;
+// Zig 0.16 moved the filesystem and process spawning under std.Io, threading an
+// Io handle through every call. 0.14 and 0.15 have the older free functions.
+// has_io is true only on 0.16; the compat helpers below take an io value that
+// is a real Io there and an ignored void on the older versions.
+const has_io = !@hasDecl(std.fs, "cwd");
+
+fn statMtime(io: anytype, path: []const u8) ?i128 {
+    if (comptime has_io) {
+        const st = std.Io.Dir.cwd().statFile(io, path, .{}) catch return null;
+        // 0.16 reports mtime as an Io.Timestamp; compare in nanoseconds.
+        return @as(i128, st.mtime.nanoseconds);
+    } else {
+        const st = std.fs.cwd().statFile(path) catch return null;
+        return st.mtime;
+    }
+}
+
+fn readFileZ(io: anytype, a: std.mem.Allocator, path: []const u8) ?[]u8 {
+    if (comptime has_io) {
+        return std.Io.Dir.cwd().readFileAlloc(io, path, a, .unlimited) catch return null;
+    } else {
+        return std.fs.cwd().readFileAlloc(a, path, 16 * 1024 * 1024) catch return null;
+    }
+}
+
+fn makeDirZ(io: anytype, path: []const u8) void {
+    if (comptime has_io) {
+        _ = std.Io.Dir.cwd().createDirPathOpen(io, path, .{}) catch {};
+    } else {
+        std.fs.cwd().makePath(path) catch {};
+    }
+}
+
+/// Spawn a child and return it. On 0.16 spawning is a std.process free function
+/// taking an Io; on the older versions it is Child.init plus spawn.
+fn spawnProc(io: anytype, env: anytype, a: std.mem.Allocator, argv: []const []const u8) !std.process.Child {
+    if (comptime has_io) {
+        return std.process.spawn(io, .{ .argv = argv, .environ_map = env });
+    } else {
+        var ch = std.process.Child.init(argv, a);
+        try ch.spawn();
+        return ch;
+    }
+}
+
+/// Wait for a child and return its exit code (non-zero for any abnormal exit).
+fn waitProc(io: anytype, ch: *std.process.Child) !u8 {
+    const term = if (comptime has_io) try ch.wait(io) else try ch.wait();
+    // 0.16 renamed the Term tags to lowercase.
+    if (comptime has_io) {
+        return switch (term) {
+            .exited => |code| code,
+            else => 1,
+        };
+    } else {
+        return switch (term) {
+            .Exited => |code| code,
+            else => 1,
+        };
+    }
 }
 
 // A .d file is Make syntax: "target: dep1 dep2 \<newline> dep3 ...". Return the
 // newest mtime across every listed prerequisite, or null if none are readable.
-fn newestDep(a: std.mem.Allocator, depfile: []const u8) ?i128 {
-    const text = std.fs.cwd().readFileAlloc(a, depfile, 8 * 1024 * 1024) catch return null;
+fn newestDep(io: anytype, a: std.mem.Allocator, depfile: []const u8) ?i128 {
+    const text = readFileZ(io, a, depfile) orelse return null;
     defer a.free(text);
     const colon = std.mem.indexOfScalar(u8, text, ':') orelse return null;
     var newest: ?i128 = null;
     var it = std.mem.tokenizeAny(u8, text[colon + 1 ..], " \t\r\n\\");
     while (it.next()) |dep| {
         if (dep.len == 0) continue;
-        if (mtimeOf(dep)) |m| {
+        if (statMtime(io, dep)) |m| {
             if (newest == null or m > newest.?) newest = m;
         }
     }
@@ -117,20 +174,58 @@ fn objName(a: std.mem.Allocator, outdir: []const u8, src: []const u8) ![]const u
     return std.fmt.allocPrint(a, "{s}/{s}.o", .{ outdir, rel });
 }
 
-pub fn main() !void {
+// Zig 0.16 removed std.process.argsAlloc and hands args to main through an
+// Init parameter, a signature 0.14 and 0.15 do not accept. main cannot have one
+// shape across all three, so it is comptime-dispatched to a version-specific
+// entry. Only the selected function is analysed, so the other's use of a
+// removed API never compiles.
+pub const main = if (@import("builtin").zig_version.minor >= 16) main016 else mainPre016;
+
+fn mainPre016() !void {
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
 
     const args = try std.process.argsAlloc(a);
-    if (args.len < 2) {
-        std.debug.print("usage: zaza-drive <manifest>\n", .{});
-        std.process.exit(2);
-    }
-    const text = try std.fs.cwd().readFileAlloc(a, args[1], 8 * 1024 * 1024);
+    if (args.len < 2) return usageExit();
+    // Older Child.init inherits the parent environment, so nothing to pass.
+    return run(a, {}, args[1]);
+}
+
+fn main016(init: std.process.Init.Minimal) !void {
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+
+    var it = init.args.iterate();
+    _ = it.next(); // argv[0]
+    const manifest = it.next() orelse return usageExit();
+    // 0.16 spawns with an empty environment unless one is passed, so hand the
+    // parent environment down for the child compilers to inherit.
+    return run(a, init.environ, manifest);
+}
+
+fn usageExit() noreturn {
+    std.debug.print("usage: zaza-drive <manifest>\n", .{});
+    std.process.exit(2);
+}
+
+fn run(a: std.mem.Allocator, environ: anytype, manifest_path: []const u8) !void {
+    // On 0.16 every filesystem and process call needs an Io handle, and spawns
+    // need an explicit environment map. On the older versions both are ignored
+    // voids and Child.init inherits the environment.
+    var threaded = if (comptime has_io) std.Io.Threaded.init(a, .{}) else {};
+    const io = if (comptime has_io) threaded.io() else {};
+    defer if (comptime has_io) threaded.deinit();
+
+    var env_map = if (comptime has_io) try environ.createMap(a) else {};
+    defer if (comptime has_io) env_map.deinit();
+    const env = if (comptime has_io) &env_map else {};
+
+    const text = readFileZ(io, a, manifest_path) orelse return error.MissingManifest;
     const m = try parseManifest(a, text);
 
-    std.fs.cwd().makePath(m.outdir) catch {};
+    makeDirZ(io, m.outdir);
 
     // Decide dirtiness for each unit.
     var units = try a.alloc(Unit, m.srcs.len);
@@ -138,15 +233,15 @@ pub fn main() !void {
     for (m.srcs, 0..) |src, i| {
         const obj = try objName(a, m.outdir, src);
         const dep = try std.fmt.allocPrint(a, "{s}.d", .{obj});
-        const obj_m = mtimeOf(obj);
+        const obj_m = statMtime(io, obj);
         var dirty = false;
         if (obj_m == null) {
             dirty = true;
         } else {
-            const src_m = mtimeOf(src) orelse return error.MissingSource;
+            const src_m = statMtime(io, src) orelse return error.MissingSource;
             if (src_m > obj_m.?) {
                 dirty = true;
-            } else if (newestDep(a, dep)) |dm| {
+            } else if (newestDep(io, a, dep)) |dm| {
                 if (dm > obj_m.?) dirty = true;
             }
         }
@@ -155,26 +250,20 @@ pub fn main() !void {
     }
 
     // Compile dirty units in parallel. Each records its own depfile.
-    var procs = std.ArrayListUnmanaged(std.process.Child){};
+    var procs = std.ArrayListUnmanaged(std.process.Child).empty;
     for (units) |u| {
         if (!u.dirty) continue;
-        var argv = std.ArrayListUnmanaged([]const u8){};
+        var argv = std.ArrayListUnmanaged([]const u8).empty;
         try argv.appendSlice(a, m.compiler);
         try argv.appendSlice(a, m.cflags);
         try argv.appendSlice(a, &.{ "-MMD", "-MF", u.dep, "-c", u.src, "-o", u.obj });
-        var ch = std.process.Child.init(try argv.toOwnedSlice(a), a);
-        try ch.spawn();
+        const ch = try spawnProc(io, env, a, try argv.toOwnedSlice(a));
         try procs.append(a, ch);
     }
     var compile_failed = false;
     for (procs.items) |*ch| {
-        const term = try ch.wait();
-        switch (term) {
-            .Exited => |code| if (code != 0) {
-                compile_failed = true;
-            },
-            else => compile_failed = true,
-        }
+        const code = try waitProc(io, ch);
+        if (code != 0) compile_failed = true;
     }
     if (compile_failed) {
         std.debug.print("zaza-drive: a compile step failed\n", .{});
@@ -182,18 +271,15 @@ pub fn main() !void {
     }
 
     // Link only when an object changed or the binary is missing.
-    const need_link = any_dirty or mtimeOf(m.bin) == null;
+    const need_link = any_dirty or statMtime(io, m.bin) == null;
     if (need_link) {
-        var argv = std.ArrayListUnmanaged([]const u8){};
+        var argv = std.ArrayListUnmanaged([]const u8).empty;
         try argv.appendSlice(a, m.compiler);
         try argv.appendSlice(a, m.cflags);
         for (units) |u| try argv.append(a, u.obj);
         try argv.appendSlice(a, &.{ "-o", m.bin });
-        var ch = std.process.Child.init(try argv.toOwnedSlice(a), a);
-        const term = try ch.spawnAndWait();
-        switch (term) {
-            .Exited => |code| if (code != 0) std.process.exit(1),
-            else => std.process.exit(1),
-        }
+        var ch = try spawnProc(io, env, a, try argv.toOwnedSlice(a));
+        const code = try waitProc(io, &ch);
+        if (code != 0) std.process.exit(1);
     }
 }
