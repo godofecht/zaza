@@ -78,5 +78,27 @@ This is a working prototype that validates the direction.
   link steps a persistent linker or incremental link would help. Not needed at
   this scale, and the driver already beats Ninja on the incremental rebuild here.
 
-Build it with `zig build-exe main.zig -O ReleaseFast -femit-bin=zaza-drive` and
-run `zaza-drive <manifest>`.
+## Workflow
+
+From the repo root, one command installs the driver and emits a manifest for
+the hello_zaza C++ target:
+
+```
+zig build drive
+```
+
+That writes `zig-out/bin/zaza-drive` and `zig-out/build.manifest`. Then invoke
+the driver directly for fast rebuilds:
+
+```
+./zig-out/bin/zaza-drive zig-out/build.manifest
+```
+
+The driver runs outside `zig build` on purpose. Running it through the build
+system would reintroduce the startup cost it exists to avoid, so the fast path
+is always a direct invocation of the binary. A no-op through the installed
+driver is under 2ms.
+
+To use it for another target, generate its manifest with
+`CppExample.writeDriveManifest` the same way `build.zig` does, or hand-write the
+format above.
