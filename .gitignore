@@ -65,3 +65,8 @@ www/
 # Local toolchain shims: these hardcode an absolute path to one machine.
 /zig
 /zig-build
+
+# zaza-drive build output
+/tools/zaza-drive/zaza-drive
+/tools/zaza-drive/zdrive
+/tools/zaza-drive/.zaza-drive/
