@@ -719,8 +719,7 @@ toolchains: the three CMake examples, the two JUCE examples, `json`, and
 
 Prefix each with `ZAZA_EXAMPLES=<name>` to build just that example.
 
-Three of the twenty-seven directories are not examples. `examples/build_lib`
-re-exports a helper module. `examples/cmake` is an early experiment that is not
+Two of the twenty-six directories are not examples. `examples/cmake` is an early experiment that is not
 wired into the root build and does not compile as written. `examples/json`
 builds the repo-root `src/main.cpp` rather than its own source file.
 
