@@ -627,7 +627,7 @@ pub const PerformanceMonitor = struct {
 ## 🚀 Success Metrics & KPIs
 
 ### Technical KPIs
-- **Build Performance**: 5x faster than CMake
+- **Build Performance**: see `benchmarks/` for measured figures. On the workload there, zaza runs slower than CMake on every phase. With the compiler held fixed it is 1.23x slower on a clean build and 1.39x slower on an incremental rebuild. The no-op gap is `zig build` startup rather than zaza overhead. The target is closing the clean-build and incremental gaps.
 - **Memory Usage**: < 50MB for medium projects
 - **Cache Hit Rate**: > 90% for incremental builds
 - **Parallel Efficiency**: > 80% on multi-core systems
