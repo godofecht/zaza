@@ -1,5 +1,5 @@
 const std = @import("std");
-const cpp = @import("build_lib/cpp_example.zig");
+const cpp = @import("../../build_lib/cpp_example.zig");
 
 pub var example = cpp.CppExample{
     .name = "json_example",
