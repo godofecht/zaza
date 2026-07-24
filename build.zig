@@ -287,10 +287,19 @@ pub fn build(b: *std.Build) !void {
     // The manifest describes the hello_zaza C++ target with the exact flags
     // buildWithTarget uses, so the fast path compiles identically.
     {
-        const manifest = try hello_zaza_example.cpp_example.writeDriveManifest(b);
         const wf = b.addWriteFiles();
+
+        // Faithful manifest: same zig c++ compiler as the normal build.
+        const manifest = try hello_zaza_example.cpp_example.writeDriveManifest(b, false);
         const mpath = wf.add("build.manifest", manifest);
         const install_manifest = b.addInstallFileWithDir(mpath, .prefix, "build.manifest");
+
+        // Native manifest: the system c++, which starts about twice as fast and
+        // roughly halves an incremental rebuild. A different compiler from the
+        // canonical build, so it is a fast iteration path.
+        const manifest_native = try hello_zaza_example.cpp_example.writeDriveManifest(b, true);
+        const mpath_native = wf.add("build-native.manifest", manifest_native);
+        const install_manifest_native = b.addInstallFileWithDir(mpath_native, .prefix, "build-native.manifest");
 
         // The driver is cross-version, so it compiles under whatever Zig runs
         // this build. Installed to zig-out/bin so it can be invoked directly.
@@ -304,13 +313,16 @@ pub fn build(b: *std.Build) !void {
         });
         const install_driver = b.addInstallArtifact(driver, .{});
 
-        // Kept as its own step for the manifest alone, and `drive` for both.
         const manifest_step = b.step("drive-manifest", "Emit a zaza-drive manifest into zig-out/");
         manifest_step.dependOn(&install_manifest.step);
 
-        const drive_step = b.step("drive", "Install the zaza-drive binary and emit its manifest");
+        const drive_step = b.step("drive", "Install zaza-drive and the faithful (zig c++) manifest");
         drive_step.dependOn(&install_manifest.step);
         drive_step.dependOn(&install_driver.step);
+
+        const drive_native_step = b.step("drive-native", "Install zaza-drive and a native (system c++) manifest, ~2x faster iteration");
+        drive_native_step.dependOn(&install_manifest_native.step);
+        drive_native_step.dependOn(&install_driver.step);
     }
 
     // Add clean tests that actually work

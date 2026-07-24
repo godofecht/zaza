@@ -786,9 +786,16 @@ pub const CppExample = struct {
     /// Emit a zaza-drive manifest for the first configured mode. The driver in
     /// tools/zaza-drive reads this to build the same target without the Zig
     /// build runner on the hot path. The compile flags come from the same
-    /// cppCompileFlags used by buildWithTarget, so the fast path and the normal
-    /// path compile identically.
-    pub fn writeDriveManifest(self: CppExample, b: *std.Build) ![]const u8 {
+    /// cppCompileFlags used by buildWithTarget.
+    ///
+    /// When `native` is false the compiler is `zig c++`, matching what
+    /// buildWithTarget uses, so the fast path compiles identically to the normal
+    /// build. When `native` is true the compiler is the system `c++`, which
+    /// starts about twice as fast as the zig wrapper and roughly halves an
+    /// incremental rebuild. That is a different compiler from the canonical
+    /// build, so it is a fast iteration path, and release or cross builds should
+    /// still go through `zig build`.
+    pub fn writeDriveManifest(self: CppExample, b: *std.Build, native: bool) ![]const u8 {
         const config = if (self.configs.len > 0) self.configs[0] else BuildConfig{ .mode = .Debug };
         const config_name = config.mode.toCMakeString();
 
@@ -800,8 +807,14 @@ pub const CppExample = struct {
         // 0.16 removed for unmanaged lists.
         var out: std.ArrayListUnmanaged(u8) = .empty;
 
-        // The compiler is the same zig binary running this build, in c++ mode.
-        try out.appendSlice(b.allocator, b.fmt("compiler {s} c++\n", .{b.graph.zig_exe}));
+        if (native) {
+            // The system default C++ compiler: clang++ on macOS, usually g++ or
+            // clang++ on Linux. Lower per-invocation startup than the zig wrapper.
+            try out.appendSlice(b.allocator, "compiler c++\n");
+        } else {
+            // The same zig binary running this build, in c++ mode.
+            try out.appendSlice(b.allocator, b.fmt("compiler {s} c++\n", .{b.graph.zig_exe}));
+        }
 
         // cflags = the shared compile flags, plus -I for each include dir.
         try out.appendSlice(b.allocator, "cflags");
@@ -810,7 +823,9 @@ pub const CppExample = struct {
         for (self.include_dirs) |dir| try out.appendSlice(b.allocator, b.fmt(" -I{s}", .{dir}));
         try out.appendSlice(b.allocator, "\n");
 
-        try out.appendSlice(b.allocator, "outdir .zaza-drive\n");
+        // Separate object dir per compiler: zig-compiled and system-compiled
+        // objects are not interchangeable, so they must not share a cache.
+        try out.appendSlice(b.allocator, if (native) "outdir .zaza-drive-native\n" else "outdir .zaza-drive\n");
         try out.appendSlice(b.allocator, b.fmt("bin {s}\n", .{self.name}));
 
         for (try self.allSourceFiles(b.allocator)) |src| {

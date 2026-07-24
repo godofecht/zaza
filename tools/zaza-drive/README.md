@@ -63,31 +63,49 @@ Watch mode removes the command, not the work. A rebuild under `--watch` takes
 the same time as a one-shot rebuild. See the performance note below for why the
 rebuild itself cannot be made faster.
 
-## Why the rebuild is not faster than this
+## The native compiler path
 
 A rebuild is dominated by process startup, not compilation. Measured on an
-Apple M4 Max with Zig 0.15.2:
+Apple M4 Max, one trivial translation unit, median of 10 cold runs:
 
 | | median |
 |---|---|
 | `zig version` (bare zig binary load) | ~14 ms |
-| `zig c++ -c` of a real translation unit | ~30-40 ms |
+| `zig c++ -c` | ~31 ms |
+| `clang++ -c` (Apple clang) | ~15 ms |
 
-The compile of one small unit is nil next to the ~14ms it takes to load and
-start `zig` itself. An incremental rebuild is one compile plus one link, so it
-pays that load twice, and that is most of its time.
+The compile of one small unit is nil next to the load. The zig wrapper is
+about twice the per-invocation cost of calling the system compiler directly. A
+manifest with `compiler c++` uses the system default compiler, and on the same
+16 unit workload the incremental rebuild drops from 127ms to 47ms.
 
-A resident compiler server would seem to fix this by keeping the compiler warm.
-It cannot here: `zig c++` runs clang in-process (its `-###` output says
-`(in-process)`), so there is no separate compiler to keep warm, and every
-compile is a fresh `zig` process paying the load. A daemon can only reclaim the
+`zig build drive-native` writes such a manifest:
+
+```
+zig build drive-native
+./zig-out/bin/zaza-drive zig-out/build-native.manifest
+```
+
+This is a fast iteration path. The system compiler is a different compiler from
+zig's bundled one, so it does not cross-compile and may differ in behaviour from
+the canonical build. Release and cross builds should still go through
+`zig build`, or through the faithful `zig build drive` manifest, which uses the
+same `zig c++`. The native objects live in `.zaza-drive-native/` so the two
+caches never mix.
+
+## Why it is not faster still
+
+Even with the system compiler, a rebuild pays that ~15ms load twice, once to
+compile and once to link. A resident compiler server would seem to fix this by
+keeping the compiler warm, but clang has no warm build-server mode here, and
+every compile is a fresh process paying the load. A daemon can only reclaim the
 driver's own startup, which is already about 2ms. Folding compile and link into
-one `zig c++` call does save one load, but it discards the object for the
-recompiled unit, which turns the next no-op into a full rebuild. That trade
-loses more than it gains.
+one call saves one load, but it discards the object for the recompiled unit,
+which turns the next no-op into a full rebuild. That trade loses more than it
+gains.
 
-So the driver is at its floor for this toolchain. Watch mode is the remaining
-win, and it is a convenience win: zero-command iteration, not faster builds.
+So watch mode and the native compiler are the wins available. Watch mode is a
+convenience win: zero-command iteration, not faster builds.
 
 ## Manifest
 

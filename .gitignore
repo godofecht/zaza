@@ -70,6 +70,7 @@ www/
 /tools/zaza-drive/zaza-drive
 /tools/zaza-drive/zdrive
 /tools/zaza-drive/.zaza-drive/
+/.zaza-drive-native/
 # Output of running the driver from the repo root (the `zig build drive` demo)
 /.zaza-drive/
 /hello_zaza_cpp
