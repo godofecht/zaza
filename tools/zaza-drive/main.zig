@@ -124,6 +124,14 @@ fn spawnProc(io: anytype, env: anytype, a: std.mem.Allocator, argv: []const []co
     }
 }
 
+fn sleepMs(io: anytype, ms: u64) void {
+    if (comptime has_io) {
+        std.Io.sleep(io, std.Io.Duration.fromNanoseconds(@intCast(ms * std.time.ns_per_ms)), .awake) catch {};
+    } else {
+        std.Thread.sleep(ms * std.time.ns_per_ms);
+    }
+}
+
 /// Wait for a child and return its exit code (non-zero for any abnormal exit).
 fn waitProc(io: anytype, ch: *std.process.Child) !u8 {
     const term = if (comptime has_io) try ch.wait(io) else try ch.wait();
@@ -187,9 +195,13 @@ fn mainPre016() !void {
     const a = arena_state.allocator();
 
     const args = try std.process.argsAlloc(a);
-    if (args.len < 2) return usageExit();
+    var watch = false;
+    var manifest: ?[]const u8 = null;
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "--watch")) watch = true else manifest = arg;
+    }
     // Older Child.init inherits the parent environment, so nothing to pass.
-    return run(a, {}, args[1]);
+    return run(a, {}, manifest orelse return usageExit(), watch);
 }
 
 fn main016(init: std.process.Init.Minimal) !void {
@@ -199,18 +211,22 @@ fn main016(init: std.process.Init.Minimal) !void {
 
     var it = init.args.iterate();
     _ = it.next(); // argv[0]
-    const manifest = it.next() orelse return usageExit();
+    var watch = false;
+    var manifest: ?[]const u8 = null;
+    while (it.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--watch")) watch = true else manifest = arg;
+    }
     // 0.16 spawns with an empty environment unless one is passed, so hand the
     // parent environment down for the child compilers to inherit.
-    return run(a, init.environ, manifest);
+    return run(a, init.environ, manifest orelse return usageExit(), watch);
 }
 
 fn usageExit() noreturn {
-    std.debug.print("usage: zaza-drive <manifest>\n", .{});
+    std.debug.print("usage: zaza-drive [--watch] <manifest>\n", .{});
     std.process.exit(2);
 }
 
-fn run(a: std.mem.Allocator, environ: anytype, manifest_path: []const u8) !void {
+fn run(a: std.mem.Allocator, environ: anytype, manifest_path: []const u8, watch: bool) !void {
     // On 0.16 every filesystem and process call needs an Io handle, and spawns
     // need an explicit environment map. On the older versions both are ignored
     // voids and Child.init inherits the environment.
@@ -225,9 +241,43 @@ fn run(a: std.mem.Allocator, environ: anytype, manifest_path: []const u8) !void 
     const text = readFileZ(io, a, manifest_path) orelse return error.MissingManifest;
     const m = try parseManifest(a, text);
 
+    if (!watch) {
+        const r = try buildOnce(a, io, env, m);
+        if (r == .failed) std.process.exit(1);
+        return;
+    }
+
+    // Watch mode: poll the sources and rebuild whatever is dirty. The build's
+    // own dirty check makes an unchanged poll a handful of stat calls, so a
+    // 200ms interval costs almost nothing while idle. A rebuild is not faster
+    // than a one-shot build; watch mode removes the command, not the work.
+    std.debug.print("zaza-drive: watching {d} sources; edit and save to rebuild, ctrl-c to stop\n", .{m.srcs.len});
+    while (true) {
+        const r = buildOnce(a, io, env, m) catch |e| {
+            std.debug.print("zaza-drive: {s}\n", .{@errorName(e)});
+            sleepMs(io, 200);
+            continue;
+        };
+        switch (r) {
+            .rebuilt => std.debug.print("zaza-drive: rebuilt\n", .{}),
+            .failed => std.debug.print("zaza-drive: build failed\n", .{}),
+            .up_to_date => {},
+        }
+        sleepMs(io, 200);
+    }
+}
+
+const BuildOutcome = enum { up_to_date, rebuilt, failed };
+
+// One build pass: detect dirty units, compile them, link if anything changed.
+// Uses a scratch arena so a long-running watch loop does not accumulate memory.
+fn buildOnce(gpa: std.mem.Allocator, io: anytype, env: anytype, m: Manifest) !BuildOutcome {
+    var arena = std.heap.ArenaAllocator.init(gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
+
     makeDirZ(io, m.outdir);
 
-    // Decide dirtiness for each unit.
     var units = try a.alloc(Unit, m.srcs.len);
     var any_dirty = false;
     for (m.srcs, 0..) |src, i| {
@@ -265,21 +315,19 @@ fn run(a: std.mem.Allocator, environ: anytype, manifest_path: []const u8) !void 
         const code = try waitProc(io, ch);
         if (code != 0) compile_failed = true;
     }
-    if (compile_failed) {
-        std.debug.print("zaza-drive: a compile step failed\n", .{});
-        std.process.exit(1);
-    }
+    if (compile_failed) return .failed;
 
     // Link only when an object changed or the binary is missing.
     const need_link = any_dirty or statMtime(io, m.bin) == null;
-    if (need_link) {
-        var argv = std.ArrayListUnmanaged([]const u8).empty;
-        try argv.appendSlice(a, m.compiler);
-        try argv.appendSlice(a, m.cflags);
-        for (units) |u| try argv.append(a, u.obj);
-        try argv.appendSlice(a, &.{ "-o", m.bin });
-        var ch = try spawnProc(io, env, a, try argv.toOwnedSlice(a));
-        const code = try waitProc(io, &ch);
-        if (code != 0) std.process.exit(1);
-    }
+    if (!need_link) return .up_to_date;
+
+    var argv = std.ArrayListUnmanaged([]const u8).empty;
+    try argv.appendSlice(a, m.compiler);
+    try argv.appendSlice(a, m.cflags);
+    for (units) |u| try argv.append(a, u.obj);
+    try argv.appendSlice(a, &.{ "-o", m.bin });
+    var ch = try spawnProc(io, env, a, try argv.toOwnedSlice(a));
+    const code = try waitProc(io, &ch);
+    if (code != 0) return .failed;
+    return .rebuilt;
 }
