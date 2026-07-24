@@ -282,6 +282,7 @@ pub fn build(b: *std.Build) !void {
     //
     //   zig build drive
     //   ./zig-out/bin/zaza-drive zig-out/build.manifest
+    //   ./zig-out/bin/zaza-drive --watch zig-out/build.manifest   # auto-rebuild
     //
     // The manifest describes the hello_zaza C++ target with the exact flags
     // buildWithTarget uses, so the fast path compiles identically.

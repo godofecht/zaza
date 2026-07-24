@@ -46,6 +46,49 @@ recorded header is newer. Verified: editing a header shared by two of four units
 rebuilds exactly those two and leaves the other two untouched. A stat-only driver
 would miss the header edit entirely.
 
+## Watch mode
+
+`--watch` keeps the driver resident and rebuilds whatever is dirty whenever a
+source changes:
+
+```
+./zig-out/bin/zaza-drive --watch zig-out/build.manifest
+```
+
+It polls every 200ms. An unchanged poll is the same handful of stat calls as a
+no-op, so watching an idle project costs almost nothing. Edit a file and the
+rebuild happens within 200ms with no command to run.
+
+Watch mode removes the command, not the work. A rebuild under `--watch` takes
+the same time as a one-shot rebuild. See the performance note below for why the
+rebuild itself cannot be made faster.
+
+## Why the rebuild is not faster than this
+
+A rebuild is dominated by process startup, not compilation. Measured on an
+Apple M4 Max with Zig 0.15.2:
+
+| | median |
+|---|---|
+| `zig version` (bare zig binary load) | ~14 ms |
+| `zig c++ -c` of a real translation unit | ~30-40 ms |
+
+The compile of one small unit is nil next to the ~14ms it takes to load and
+start `zig` itself. An incremental rebuild is one compile plus one link, so it
+pays that load twice, and that is most of its time.
+
+A resident compiler server would seem to fix this by keeping the compiler warm.
+It cannot here: `zig c++` runs clang in-process (its `-###` output says
+`(in-process)`), so there is no separate compiler to keep warm, and every
+compile is a fresh `zig` process paying the load. A daemon can only reclaim the
+driver's own startup, which is already about 2ms. Folding compile and link into
+one `zig c++` call does save one load, but it discards the object for the
+recompiled unit, which turns the next no-op into a full rebuild. That trade
+loses more than it gains.
+
+So the driver is at its floor for this toolchain. Watch mode is the remaining
+win, and it is a convenience win: zero-command iteration, not faster builds.
+
 ## Manifest
 
 Line-based. `compiler` and `cflags` appear once, `src` repeats. Paths are
