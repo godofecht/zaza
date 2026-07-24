@@ -18,6 +18,7 @@ Source: [github.com/godofecht/zaza](https://github.com/godofecht/zaza)
 - [Environment variables](#environment-variables)
 - [The example matrix](#the-example-matrix)
 - [WebAssembly](#webassembly)
+- [Fast rebuilds](#fast-rebuilds)
 - [Troubleshooting](#troubleshooting)
 - [Where to go next](#where-to-go-next)
 
@@ -793,6 +794,58 @@ Serving zig-out/www/wasm-exports at http://127.0.0.1:8123
 `wasm-web-demo-serve` binds `http://127.0.0.1:8000` and runs until interrupted.
 The server is `build_lib/static_server.zig`, built as part of the graph, so
 there is no external dependency for local serving.
+
+---
+
+## Fast rebuilds
+
+A build through `zig build` compiles and runs the build script on every
+invocation. That is most of a no-op rebuild's cost. Measured on an Apple M4 Max
+with Zig 0.15.2, the no-op is close to a measurement of `zig build` startup:
+about 39 ms to run a trivial build script, about 69 ms before any target
+declared, about 84 ms for the 16 translation unit project used in the benchmark.
+Ninja parses a static manifest and answers in about 4 ms.
+
+`zaza-drive` closes that gap. It is a native build driver that reads a manifest,
+stats the sources and the header dependencies each object recorded via
+`-MMD -MF`, compiles only what changed, and links only when an object changed. A
+no-op is a handful of `stat` calls and an exit. Same 16 unit workload, same
+machine, same compiler in every lane:
+
+| phase | zaza-drive | ninja | zig build |
+| --- | --- | --- | --- |
+| no-op rebuild | 2.3 ms | 3.3 ms | 69.7 ms |
+| incremental rebuild | 110.4 ms | 121.4 ms | 106.1 ms |
+
+On the no-op zaza-drive beats Ninja by a wide margin. On the incremental it is
+level with `zig build`, because once a real translation unit recompiles the
+compiler does the same work in every lane and that work dominates.
+
+### The native compiler fast path
+
+The remaining cost is process startup, paid twice on an incremental rebuild:
+once to compile, once to link. The `zig c++` wrapper is about twice the
+per-invocation cost of the system compiler. Measured, one trivial translation
+unit, median of ten: `zig c++ -c` at ~31 ms against Apple `clang++ -c` at ~15 ms.
+
+`zig build drive-native` writes a manifest that uses the system default
+compiler. On the same 16 unit workload the incremental rebuild drops from 127 ms
+to 47 ms, about 2.7x.
+
+The system compiler is a different compiler from Zig's bundled one. It does not
+cross-compile and can differ in behaviour, so this is an iteration path. Release
+and cross builds go through `zig build`, or through `zig build drive`, which
+writes a manifest that uses the faithful `zig c++`. The two caches never mix:
+native objects live in `.zaza-drive-native/`, faithful ones in `.zaza-drive/`.
+
+```bash
+zig build drive-native
+./zig-out/bin/zaza-drive zig-out/build-native.manifest
+```
+
+`tools/zaza-drive/README.md` documents the driver, its correctness check, and
+watch mode. The benchmark that produced these numbers is in `benchmarks/`; run
+`./tools/zaza-drive/bench.sh` to reproduce them on your own machine.
 
 ---
 

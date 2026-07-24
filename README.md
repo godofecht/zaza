@@ -47,6 +47,7 @@
     <li><a href="#example-highlights">Example Highlights</a></li>
     <li><a href="#replacing-cmake">Replacing CMake</a></li>
     <li><a href="#webassembly">WebAssembly</a></li>
+    <li><a href="#fast-builds">Fast builds</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
@@ -216,6 +217,29 @@ zig build wasm-web-demo-serve
 ```
 
 `wasm-web-demo-serve` stages and serves a browser harness at `http://127.0.0.1:8000`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Fast builds
+
+A `zig build` no-op is startup-bound: the build script compiles and runs on
+every invocation. `zaza-drive` is a native build driver that skips that. It
+reads a manifest, checks source and recorded-header timestamps, and rebuilds
+only what changed. Same 16 translation unit project, same machine, same
+compiler in every lane:
+
+| phase | zaza-drive | ninja | zig build |
+| --- | --- | --- | --- |
+| no-op rebuild | 2.3 ms | 3.3 ms | 69.7 ms |
+| incremental rebuild | 110.4 ms | 121.4 ms | 106.1 ms |
+
+`zig build drive-native` writes a manifest that uses the system compiler, which
+starts about twice as fast as the `zig c++` wrapper. That cuts the incremental
+rebuild from 127 ms to 47 ms, about 2.7x. It is an iteration path: the system
+compiler differs from Zig's bundled one, so release and cross builds still go
+through `zig build` or the faithful `zig build drive`.
+
+The numbers are measured, reproducible with [`tools/zaza-drive/bench.sh`](tools/zaza-drive/bench.sh). Details and the honest tradeoff are in [`tools/zaza-drive/README.md`](tools/zaza-drive/README.md) and [`benchmarks/README.md`](benchmarks/README.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

@@ -124,6 +124,18 @@ PAGES = (
         "parts": ("webassembly",),
     },
     {
+        "slug": "performance",
+        "src": "wiki",
+        "title": "Fast Rebuilds",
+        "nav": "Fast Rebuilds",
+        "group": "Reference",
+        "description": "Why a zig build no-op is startup-bound, how the "
+                       "zaza-drive native driver answers a no-op in ~2 ms, and "
+                       "the native compiler path that cuts incremental builds "
+                       "about 2.7x.",
+        "parts": ("fast-rebuilds",),
+    },
+    {
         "slug": "example-matrix",
         "src": "wiki",
         "title": "The Example Matrix",

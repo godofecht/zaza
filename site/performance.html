@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast Rebuilds · zaza</title>
+<meta name="description" content="Why a zig build no-op is startup-bound, how the zaza-drive native driver answers a no-op in ~2 ms, and the native compiler path that cuts incremental builds about 2.7x.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">zaza</a>
+  <div class="tagline">Build system for C, C++, Zig, Rust, and WebAssembly</div>
+  <span class="version">v0.2.0</span>
+  <div class="section-label">Guide</div>
+  <a href="index.html">Overview</a>
+  <a href="cmake-comparison.html">Compared to CMake</a>
+  <a href="installation.html">Installation</a>
+  <a href="quickstart.html">Quickstart</a>
+  <div class="section-label">Reference</div>
+  <a href="concepts.html">Core Concepts</a>
+  <a href="environment.html">Environment Variables</a>
+  <a href="webassembly.html">WebAssembly</a>
+  <a href="performance.html" class="active">Fast Rebuilds</a>
+  <div class="section-label">Examples</div>
+  <a href="example-matrix.html">The Example Matrix</a>
+  <a href="examples-index.html">All Examples</a>
+  <div class="section-label">Help</div>
+  <a href="troubleshooting.html">Troubleshooting</a>
+  <a href="next.html">Where to Go Next</a>
+  <div class="spacer"></div>
+  <div class="nav-footer">
+    <a href="https://github.com/godofecht/zaza">GitHub</a>
+    <a href="https://github.com/godofecht/danzig">Danzig</a>
+    <a href="https://github.com/godofecht/azazel">Azazel</a>
+  </div>
+</nav>
+<main>
+
+<h1 id="fast-rebuilds">Fast Rebuilds</h1>
+
+<p>A build through <code>zig build</code> compiles and runs the build script on every
+invocation. That is most of a no-op rebuild's cost. Measured on an Apple M4 Max
+with Zig 0.15.2, the no-op is close to a measurement of <code>zig build</code> startup:
+about 39 ms to run a trivial build script, about 69 ms before any target
+declared, about 84 ms for the 16 translation unit project used in the benchmark.
+Ninja parses a static manifest and answers in about 4 ms.</p>
+
+<p><code>zaza-drive</code> closes that gap. It is a native build driver that reads a manifest,
+stats the sources and the header dependencies each object recorded via
+<code>-MMD -MF</code>, compiles only what changed, and links only when an object changed. A
+no-op is a handful of <code>stat</code> calls and an exit. Same 16 unit workload, same
+machine, same compiler in every lane:</p>
+
+<div class="table-scroll">
+<table>
+<thead><tr><th>phase</th><th>zaza-drive</th><th>ninja</th><th>zig build</th></tr></thead>
+<tbody>
+<tr><td>no-op rebuild</td><td>2.3 ms</td><td>3.3 ms</td><td>69.7 ms</td></tr>
+<tr><td>incremental rebuild</td><td>110.4 ms</td><td>121.4 ms</td><td>106.1 ms</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>On the no-op zaza-drive beats Ninja by a wide margin. On the incremental it is
+level with <code>zig build</code>, because once a real translation unit recompiles the
+compiler does the same work in every lane and that work dominates.</p>
+
+<h3 id="the-native-compiler-fast-path">The native compiler fast path</h3>
+
+<p>The remaining cost is process startup, paid twice on an incremental rebuild:
+once to compile, once to link. The <code>zig c++</code> wrapper is about twice the
+per-invocation cost of the system compiler. Measured, one trivial translation
+unit, median of ten: <code>zig c++ -c</code> at ~31 ms against Apple <code>clang++ -c</code> at ~15 ms.</p>
+
+<p><code>zig build drive-native</code> writes a manifest that uses the system default
+compiler. On the same 16 unit workload the incremental rebuild drops from 127 ms
+to 47 ms, about 2.7x.</p>
+
+<p>The system compiler is a different compiler from Zig's bundled one. It does not
+cross-compile and can differ in behaviour, so this is an iteration path. Release
+and cross builds go through <code>zig build</code>, or through <code>zig build drive</code>, which
+writes a manifest that uses the faithful <code>zig c++</code>. The two caches never mix:
+native objects live in <code>.zaza-drive-native/</code>, faithful ones in <code>.zaza-drive/</code>.</p>
+
+<pre data-lang="bash"><code class="language-bash">zig build drive-native
+./zig-out/bin/zaza-drive zig-out/build-native.manifest</code></pre>
+
+<p><code>tools/zaza-drive/README.md</code> documents the driver, its correctness check, and
+watch mode. The benchmark that produced these numbers is in <code>benchmarks/</code>; run
+<code>./tools/zaza-drive/bench.sh</code> to reproduce them on your own machine.</p>
+
+<div class="page-footer">
+  <a href="webassembly.html">&larr; WebAssembly</a>
+  <a href="example-matrix.html">Next: The Example Matrix &rarr;</a>
+</div>
+
+</main>
+</body>
+</html>
