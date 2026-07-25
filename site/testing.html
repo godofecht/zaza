@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testing and Benchmarks · zaza</title>
+<meta name="description" content="The first-class test and benchmark API: declare a target plus labelled run cases, and Zaza wires the run and aggregate steps. addTest hooks the test step; addBench measures and stays off it.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav>
+  <a href="index.html" class="logo">zaza</a>
+  <div class="tagline">Build system for C, C++, Zig, Rust, and WebAssembly</div>
+  <span class="version">v0.2.0</span>
+  <div class="section-label">Guide</div>
+  <a href="index.html">Overview</a>
+  <a href="cmake-comparison.html">Compared to CMake</a>
+  <a href="installation.html">Installation</a>
+  <a href="quickstart.html">Quickstart</a>
+  <div class="section-label">Reference</div>
+  <a href="concepts.html">Core Concepts</a>
+  <a href="environment.html">Environment Variables</a>
+  <a href="webassembly.html">WebAssembly</a>
+  <a href="performance.html">Fast Rebuilds</a>
+  <a href="testing.html" class="active">Testing and Benchmarks</a>
+  <div class="section-label">Examples</div>
+  <a href="example-matrix.html">The Example Matrix</a>
+  <a href="examples-index.html">All Examples</a>
+  <div class="section-label">Help</div>
+  <a href="troubleshooting.html">Troubleshooting</a>
+  <a href="next.html">Where to Go Next</a>
+  <div class="spacer"></div>
+  <div class="nav-footer">
+    <a href="https://github.com/godofecht/zaza">GitHub</a>
+    <a href="https://github.com/godofecht/danzig">Danzig</a>
+    <a href="https://github.com/godofecht/azazel">Azazel</a>
+  </div>
+</nav>
+<main>
+
+<h1 id="testing-and-benchmarks">Testing and Benchmarks</h1>
+
+<p>A test or a benchmark in Zaza is an executable plus a list of run cases. Each
+case is data: a label, arguments, an environment, and a working directory. The
+API in <code>build_lib/test_suite.zig</code> turns that list into the run steps and the
+per-case and aggregate build steps, so a build file states what to run instead
+of wiring run steps by hand.</p>
+
+<pre data-lang="zig"><code class="language-zig">const cpp = @import("../../build_lib/cpp_example.zig");
+const test_suite = @import("../../build_lib/test_suite.zig");
+
+const demo = cpp.CppExample.executable(.{
+    .name = "workflows_demo",
+    .description = "workflow example",
+    .source_files = &amp;.{"examples/test_workflows/src/main.cpp"},
+    .cpp_std = "17",
+});
+
+_ = try test_suite.addTest(b, target, .{
+    .name = "test-workflows",
+    .target = demo,
+    .cases = &amp;.{
+        .{ .label = "unit", .args = &amp;.{"unit"},
+           .env = &amp;.{.{ .name = "WORKFLOW_MODE", .value = "unit" }},
+           .cwd = b.path("examples/test_workflows") },
+        .{ .label = "integration", .args = &amp;.{"integration"} },
+        .{ .label = "smoke", .args = &amp;.{"smoke"} },
+    },
+});</code></pre>
+
+<p>That call produces <code>test-workflows</code> (build), <code>test-workflows-run</code> (every case),
+and one <code>test-workflows-&lt;label&gt;</code> step per case. Because <code>hook_test_step</code>
+defaults to true, <code>zig build test</code> runs the cases too.</p>
+
+<p>A <code>RunCase</code> has four fields. <code>label</code> names the run step and its per-case step.
+<code>args</code> are passed to the process. <code>env</code> is a list of <code>{ name, value }</code> pairs.
+<code>cwd</code> is an optional <code>LazyPath</code> for the working directory. Only <code>label</code> is
+required.</p>
+
+<p>The compiler and optimize mode come from the <code>CppExample.configs</code> the target
+carries, the same way the rest of Zaza chooses them. A test compiles with the
+same flags as the normal build because it is built through the same
+<code>buildWithTarget</code>.</p>
+
+<h3 id="benchmarks">Benchmarks</h3>
+
+<p><code>addBench</code> has the same shape and different defaults. It builds in release (the
+target sets <code>.configs = cpp.BuildConfigs.release_only</code>), stays off the <code>test</code>
+step, inherits stdio so timings reach the terminal, and forwards
+<code>zig build &lt;step&gt; -- --reps 9</code> to every case.</p>
+
+<pre data-lang="zig"><code class="language-zig">const bench = cpp.CppExample.executable(.{
+    .name = "bench_suite_demo",
+    .description = "benchmark example",
+    .source_files = &amp;.{"examples/bench_suite/src/main.cpp"},
+    .cpp_std = "17",
+    .configs = cpp.BuildConfigs.release_only,
+});
+
+_ = try test_suite.addBench(b, target, .{
+    .name = "bench-suite",
+    .target = bench,
+    .cases = &amp;.{.{ .label = "compute" }},
+});</code></pre>
+
+<pre data-lang="sh"><code class="language-sh">zig build bench-suite-run              # default reps
+zig build bench-suite-run -- --reps 9  # forwarded to the process</code></pre>
+
+<p>A test asserts and belongs on <code>test</code>. A benchmark measures and does not, so it
+stays off <code>test</code> and prints its numbers. The two examples this API drives are
+<code>examples/test_workflows</code> and <code>examples/bench_suite</code>, both in
+<code>zig build example-matrix</code>.</p>
+
+<div class="page-footer">
+  <a href="performance.html">&larr; Fast Rebuilds</a>
+  <a href="example-matrix.html">Next: The Example Matrix &rarr;</a>
+</div>
+
+</main>
+</body>
+</html>

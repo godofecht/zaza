@@ -20,6 +20,7 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 
 | Example | Command | Demonstrates |
 | --- | --- | --- |
+| [bench_suite](bench_suite) | `ZAZA_EXAMPLES=bench-suite zig build bench-suite-run` | A benchmark declared through the `addBench` API |
 | [benchmark_workflow](benchmark_workflow) | `ZAZA_EXAMPLES=benchmark-workflow zig build benchmark-workflow-run` | A benchmark exposed as size-specific run targets |
 | [bindings](bindings) | `ZAZA_EXAMPLES=bindings zig build bindings-run` | Zig calling C++ across a C ABI wrapper |
 | [cmake](cmake) | (none) | Unwired early experiment, kept for reference |
@@ -42,7 +43,7 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 | [resources_bundle](resources_bundle) | `ZAZA_EXAMPLES=resources-bundle zig build resources-bundle-run` | A runtime asset staged into `zig-out/share` |
 | [rust_interop](rust_interop) | `ZAZA_EXAMPLES=rust-interop zig build rust-interop-run` | A Cargo staticlib linked into a Zig executable |
 | [shared_plugin](shared_plugin) | `ZAZA_EXAMPLES=shared-plugin zig build shared-plugin-run` | A shared library loaded at runtime via `dlopen` |
-| [test_workflows](test_workflows) | `ZAZA_EXAMPLES=test-workflows zig build test-workflows-run` | Run modes differing by arg, env, and cwd |
+| [test_workflows](test_workflows) | `ZAZA_EXAMPLES=test-workflows zig build test-workflows-run` | Run modes differing by arg, env, and cwd, via the `addTest` API |
 | [wasm_exports](wasm_exports) | `ZAZA_EXAMPLES=wasm-exports zig build wasm-exports-run` | A freestanding wasm module with exports |
 | [wasm_wasi](wasm_wasi) | `ZAZA_EXAMPLES=wasm-wasi zig build wasm-wasi-report` | A `wasm32-wasi-musl` executable, validated |
 | [zaza-juce](zaza-juce) | `ZAZA_EXAMPLES=zaza-juce ZAZA_SYSTEM_CMDS=1 zig build zaza-juce` | A JUCE audio app with the audio modules on |
@@ -79,7 +80,8 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 
 **Configuration and workflow**
 
-`preset_profiles`, `test_workflows`, `benchmark_workflow`, `cross_compile_cli`.
+`preset_profiles`, `test_workflows`, `bench_suite`, `benchmark_workflow`,
+`cross_compile_cli`.
 
 ## Optional tools
 

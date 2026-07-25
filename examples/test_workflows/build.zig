@@ -1,4 +1,15 @@
+//! The test workflow example, declared through the first-class test API.
+//!
+//! Before, this file hand-wired an executable and three run steps, each with its
+//! own name, cwd, env var, and argument, then assembled the aggregate and
+//! per-mode steps by hand. Now the three modes are data: one `RunCase` each,
+//! passed to `test_suite.addTest`. The API produces the same steps
+//! (`test-workflows`, `test-workflows-run`, and one `test-workflows-<mode>` per
+//! case) and hooks the aggregate onto the top `test` step.
+
 const std = @import("std");
+const cpp = @import("../../build_lib/cpp_example.zig");
+const test_suite = @import("../../build_lib/test_suite.zig");
 
 pub const BuildResult = struct {
     build_step: *std.Build.Step,
@@ -6,54 +17,45 @@ pub const BuildResult = struct {
 };
 
 pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) BuildResult {
-    const exe = b.addExecutable(.{
+    _ = optimize;
+
+    const demo = cpp.CppExample.executable(.{
         .name = "test_workflows_demo",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-        }),
+        .description = "Workflow example driven by the first-class test API",
+        .source_files = &.{"examples/test_workflows/src/main.cpp"},
+        .cpp_std = "17",
     });
-    exe.root_module.addCSourceFiles(.{
-        .files = &.{"examples/test_workflows/src/main.cpp"},
-        .flags = &.{"-std=c++17"},
-    });
-    exe.root_module.link_libcpp = true;
 
-    const build_step = b.step("test-workflows", "Build the workflow example");
-    build_step.dependOn(&b.addInstallArtifact(exe, .{}).step);
+    const cwd = b.path("examples/test_workflows");
 
-    const unit_run = b.addRunArtifact(exe);
-    unit_run.setName("workflow-unit");
-    unit_run.setCwd(b.path("examples/test_workflows"));
-    unit_run.setEnvironmentVariable("WORKFLOW_MODE", "unit");
-    unit_run.addArg("unit");
-
-    const integration_run = b.addRunArtifact(exe);
-    integration_run.setName("workflow-integration");
-    integration_run.setCwd(b.path("examples/test_workflows"));
-    integration_run.setEnvironmentVariable("WORKFLOW_MODE", "integration");
-    integration_run.addArg("integration");
-
-    const smoke_run = b.addRunArtifact(exe);
-    smoke_run.setName("workflow-smoke");
-    smoke_run.setCwd(b.path("examples/test_workflows"));
-    smoke_run.setEnvironmentVariable("WORKFLOW_MODE", "smoke");
-    smoke_run.addArg("smoke");
-
-    const run_step = b.step("test-workflows-run", "Run all workflow example modes");
-    run_step.dependOn(&unit_run.step);
-    run_step.dependOn(&integration_run.step);
-    run_step.dependOn(&smoke_run.step);
-
-    const unit_step = b.step("test-workflows-unit", "Run workflow example unit mode");
-    unit_step.dependOn(&unit_run.step);
-
-    const integration_step = b.step("test-workflows-integration", "Run workflow example integration mode");
-    integration_step.dependOn(&integration_run.step);
+    const result = test_suite.addTest(b, target, .{
+        .name = "test-workflows",
+        .target = demo,
+        .cases = &.{
+            .{
+                .label = "unit",
+                .args = &.{"unit"},
+                .env = &.{.{ .name = "WORKFLOW_MODE", .value = "unit" }},
+                .cwd = cwd,
+            },
+            .{
+                .label = "integration",
+                .args = &.{"integration"},
+                .env = &.{.{ .name = "WORKFLOW_MODE", .value = "integration" }},
+                .cwd = cwd,
+            },
+            .{
+                .label = "smoke",
+                .args = &.{"smoke"},
+                .env = &.{.{ .name = "WORKFLOW_MODE", .value = "smoke" }},
+                .cwd = cwd,
+            },
+        },
+    }) catch @panic("failed to declare test-workflows suite");
 
     return .{
-        .build_step = build_step,
-        .run_step = run_step,
+        .build_step = result.build_step,
+        .run_step = result.run_step,
     };
 }
 

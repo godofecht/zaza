@@ -19,6 +19,7 @@ Source: [github.com/godofecht/zaza](https://github.com/godofecht/zaza)
 - [The example matrix](#the-example-matrix)
 - [WebAssembly](#webassembly)
 - [Fast rebuilds](#fast-rebuilds)
+- [Testing and benchmarks](#testing-and-benchmarks)
 - [Troubleshooting](#troubleshooting)
 - [Where to go next](#where-to-go-next)
 
@@ -846,6 +847,87 @@ zig build drive-native
 `tools/zaza-drive/README.md` documents the driver, its correctness check, and
 watch mode. The benchmark that produced these numbers is in `benchmarks/`; run
 `./tools/zaza-drive/bench.sh` to reproduce them on your own machine.
+
+---
+
+## Testing and benchmarks
+
+A test or a benchmark in Zaza is an executable plus a list of run cases. Each
+case is data: a label, arguments, an environment, and a working directory. The
+API in `build_lib/test_suite.zig` turns that list into the run steps and the
+per-case and aggregate build steps, so a build file states what to run instead
+of wiring run steps by hand.
+
+```zig
+const cpp = @import("../../build_lib/cpp_example.zig");
+const test_suite = @import("../../build_lib/test_suite.zig");
+
+const demo = cpp.CppExample.executable(.{
+    .name = "workflows_demo",
+    .description = "workflow example",
+    .source_files = &.{"examples/test_workflows/src/main.cpp"},
+    .cpp_std = "17",
+});
+
+_ = try test_suite.addTest(b, target, .{
+    .name = "test-workflows",
+    .target = demo,
+    .cases = &.{
+        .{ .label = "unit", .args = &.{"unit"},
+           .env = &.{.{ .name = "WORKFLOW_MODE", .value = "unit" }},
+           .cwd = b.path("examples/test_workflows") },
+        .{ .label = "integration", .args = &.{"integration"} },
+        .{ .label = "smoke", .args = &.{"smoke"} },
+    },
+});
+```
+
+That call produces `test-workflows` (build), `test-workflows-run` (every case),
+and one `test-workflows-<label>` step per case. Because `hook_test_step`
+defaults to true, `zig build test` runs the cases too.
+
+A `RunCase` has four fields. `label` names the run step and its per-case step.
+`args` are passed to the process. `env` is a list of `{ name, value }` pairs.
+`cwd` is an optional `LazyPath` for the working directory. Only `label` is
+required.
+
+The compiler and optimize mode come from the `CppExample.configs` the target
+carries, the same way the rest of Zaza chooses them. A test compiles with the
+same flags as the normal build because it is built through the same
+`buildWithTarget`.
+
+### Benchmarks
+
+`addBench` has the same shape and different defaults. It builds in release (the
+target sets `.configs = cpp.BuildConfigs.release_only`), stays off the `test`
+step, inherits stdio so timings reach the terminal, and forwards
+`zig build <step> -- --reps 9` to every case.
+
+```zig
+const bench = cpp.CppExample.executable(.{
+    .name = "bench_suite_demo",
+    .description = "benchmark example",
+    .source_files = &.{"examples/bench_suite/src/main.cpp"},
+    .cpp_std = "17",
+    .configs = cpp.BuildConfigs.release_only,
+});
+
+_ = try test_suite.addBench(b, target, .{
+    .name = "bench-suite",
+    .target = bench,
+    .cases = &.{.{ .label = "compute" }},
+});
+```
+
+```sh
+zig build bench-suite-run              # default reps
+zig build bench-suite-run -- --reps 9  # forwarded to the process
+```
+
+A test asserts and belongs on `test`. A benchmark measures and does not, so it
+stays off `test` and prints its numbers. The two examples this API drives are
+`examples/test_workflows` and `examples/bench_suite`, both in
+`zig build example-matrix`.
 
 ---
 

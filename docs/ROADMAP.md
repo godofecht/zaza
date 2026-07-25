@@ -25,9 +25,14 @@ Implemented and verified in the repo now:
   - freestanding exported wasm module executed via Node
   - staged browser demo + local smoke test
 
+Recently added:
+
+- first-class test and benchmark API in `build_lib/test_suite.zig`
+  (`addTest` / `addBench`), driving `examples/test_workflows` and
+  `examples/bench_suite`
+
 Still notably incomplete:
 
-- first-class benchmark/test API rather than example-only workflow coverage
 - stronger package discovery/import UX beyond the current producer/consumer proof
 - broader cross-target/platform matrix in CI
 - richer editor/IDE integration
@@ -48,7 +53,7 @@ Still notably incomplete:
 - cache info command (shows `ZIG_*_CACHE_DIR` + writability)
 
 ## 3) Project Workflows
-- first-class test target API
+- [done] first-class test target API (`test_suite.addTest`, labels/env/cwd/args)
 - custom-command / generated-source support
 - presets for `debug`, `release`, `asan`, and `lto`
 - parity command for `zig build run-zig -- file.zig`
@@ -68,8 +73,12 @@ Still notably incomplete:
 
 ## Next Best Work
 
-- add a first-class benchmark target API rather than ad hoc benchmark examples
-- add a first-class test target model with labels/env/cwd/args encoded in the API
-- add CI jobs that run `zig build example-matrix`
+- [done] first-class benchmark target API (`test_suite.addBench`,
+  `examples/bench_suite`)
+- [done] first-class test target model with labels/env/cwd/args encoded in the
+  API (`test_suite.addTest`, `examples/test_workflows`)
+- run the test and benchmark API end to end in CI (added to the macOS
+  full-build job); running the whole `example-matrix` in CI still needs the
+  `./zig` wrapper and the node/cmake/cross toolchain
 - add toolchain-selection helpers for modules/sanitizers/LTO
 - add a browser-oriented wasm example that goes beyond smoke testing into user-visible interaction patterns

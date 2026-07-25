@@ -22,6 +22,7 @@
   <a href="environment.html">Environment Variables</a>
   <a href="webassembly.html">WebAssembly</a>
   <a href="performance.html">Fast Rebuilds</a>
+  <a href="testing.html">Testing and Benchmarks</a>
   <div class="section-label">Examples</div>
   <a href="example-matrix.html">The Example Matrix</a>
   <a href="examples-index.html" class="active">All Examples</a>
@@ -61,6 +62,7 @@ Dropping the prefix also works, at the cost of configuring the whole graph.</p>
 <table>
 <thead><tr><th>Example</th><th>Command</th><th>Demonstrates</th></tr></thead>
 <tbody>
+<tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/bench_suite">bench_suite</a></td><td><code>ZAZA_EXAMPLES=bench-suite zig build bench-suite-run</code></td><td>A benchmark declared through the <code>addBench</code> API</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/benchmark_workflow">benchmark_workflow</a></td><td><code>ZAZA_EXAMPLES=benchmark-workflow zig build benchmark-workflow-run</code></td><td>A benchmark exposed as size-specific run targets</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/bindings">bindings</a></td><td><code>ZAZA_EXAMPLES=bindings zig build bindings-run</code></td><td>Zig calling C++ across a C ABI wrapper</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/cmake">cmake</a></td><td>(none)</td><td>Unwired early experiment, kept for reference</td></tr>
@@ -83,7 +85,7 @@ Dropping the prefix also works, at the cost of configuring the whole graph.</p>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/resources_bundle">resources_bundle</a></td><td><code>ZAZA_EXAMPLES=resources-bundle zig build resources-bundle-run</code></td><td>A runtime asset staged into <code>zig-out/share</code></td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/rust_interop">rust_interop</a></td><td><code>ZAZA_EXAMPLES=rust-interop zig build rust-interop-run</code></td><td>A Cargo staticlib linked into a Zig executable</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/shared_plugin">shared_plugin</a></td><td><code>ZAZA_EXAMPLES=shared-plugin zig build shared-plugin-run</code></td><td>A shared library loaded at runtime via <code>dlopen</code></td></tr>
-<tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/test_workflows">test_workflows</a></td><td><code>ZAZA_EXAMPLES=test-workflows zig build test-workflows-run</code></td><td>Run modes differing by arg, env, and cwd</td></tr>
+<tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/test_workflows">test_workflows</a></td><td><code>ZAZA_EXAMPLES=test-workflows zig build test-workflows-run</code></td><td>Run modes differing by arg, env, and cwd, via the <code>addTest</code> API</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/wasm_exports">wasm_exports</a></td><td><code>ZAZA_EXAMPLES=wasm-exports zig build wasm-exports-run</code></td><td>A freestanding wasm module with exports</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/wasm_wasi">wasm_wasi</a></td><td><code>ZAZA_EXAMPLES=wasm-wasi zig build wasm-wasi-report</code></td><td>A <code>wasm32-wasi-musl</code> executable, validated</td></tr>
 <tr><td><a href="https://github.com/godofecht/zaza/tree/main/examples/zaza-juce">zaza-juce</a></td><td><code>ZAZA_EXAMPLES=zaza-juce ZAZA_SYSTEM_CMDS=1 zig build zaza-juce</code></td><td>A JUCE audio app with the audio modules on</td></tr>
@@ -123,7 +125,8 @@ Dropping the prefix also works, at the cost of configuring the whole graph.</p>
 
 <p><strong>Configuration and workflow</strong></p>
 
-<p><code>preset_profiles</code>, <code>test_workflows</code>, <code>benchmark_workflow</code>, <code>cross_compile_cli</code>.</p>
+<p><code>preset_profiles</code>, <code>test_workflows</code>, <code>bench_suite</code>, <code>benchmark_workflow</code>,
+<code>cross_compile_cli</code>.</p>
 
 <h2 id="optional-tools">Optional tools</h2>
 

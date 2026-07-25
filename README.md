@@ -48,6 +48,7 @@
     <li><a href="#replacing-cmake">Replacing CMake</a></li>
     <li><a href="#webassembly">WebAssembly</a></li>
     <li><a href="#fast-builds">Fast builds</a></li>
+    <li><a href="#tests-and-benchmarks">Tests and benchmarks</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
@@ -240,6 +241,34 @@ compiler differs from Zig's bundled one, so release and cross builds still go
 through `zig build` or the faithful `zig build drive`.
 
 The numbers are measured, reproducible with [`tools/zaza-drive/bench.sh`](tools/zaza-drive/bench.sh). Details and the honest tradeoff are in [`tools/zaza-drive/README.md`](tools/zaza-drive/README.md) and [`benchmarks/README.md`](benchmarks/README.md).
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Tests and benchmarks
+
+A test or a benchmark is an executable plus a list of run cases, where each case
+is data: a label, arguments, an environment, and a working directory. The API in
+[`build_lib/test_suite.zig`](build_lib/test_suite.zig) turns that list into the
+run steps for you.
+
+```zig
+_ = try test_suite.addTest(b, target, .{
+    .name = "test-workflows",
+    .target = demo,                      // a CppExample
+    .cases = &.{
+        .{ .label = "unit", .args = &.{"unit"} },
+        .{ .label = "integration", .args = &.{"integration"} },
+    },
+});
+```
+
+This gives `test-workflows`, `test-workflows-run`, and a step per case, and
+hooks the cases onto `zig build test`. `addBench` is the same shape with release
+defaults: it stays off `test`, prints its timings, and forwards
+`zig build bench-suite-run -- --reps 9` to the process. Full detail is in
+[`docs/WIKI.md`](docs/WIKI.md#testing-and-benchmarks); the two examples are
+[`examples/test_workflows`](examples/test_workflows) and
+[`examples/bench_suite`](examples/bench_suite).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

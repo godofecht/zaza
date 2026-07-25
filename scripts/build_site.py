@@ -136,6 +136,18 @@ PAGES = (
         "parts": ("fast-rebuilds",),
     },
     {
+        "slug": "testing",
+        "src": "wiki",
+        "title": "Testing and Benchmarks",
+        "nav": "Testing and Benchmarks",
+        "group": "Reference",
+        "description": "The first-class test and benchmark API: declare a "
+                       "target plus labelled run cases, and Zaza wires the run "
+                       "and aggregate steps. addTest hooks the test step; "
+                       "addBench measures and stays off it.",
+        "parts": ("testing-and-benchmarks",),
+    },
+    {
         "slug": "example-matrix",
         "src": "wiki",
         "title": "The Example Matrix",

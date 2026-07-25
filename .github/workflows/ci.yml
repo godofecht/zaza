@@ -64,3 +64,10 @@ jobs:
 
       - name: Build everything
         run: zig build --summary all
+
+      # Exercise the first-class test and benchmark API end to end: the run
+      # steps, not just the build. test-workflows also runs transitively through
+      # the top `test` step, but naming it here keeps the coverage explicit, and
+      # the benchmark is off `test` by design so it needs its own line.
+      - name: Exercise the test and benchmark API
+        run: zig build test-workflows-run bench-suite-run -- --reps 3

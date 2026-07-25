@@ -23,6 +23,7 @@ const wasm_wasi_example = @import("examples/wasm_wasi/build.zig");
 const wasm_exports_example = @import("examples/wasm_exports/build.zig");
 const zaza_juce_example = @import("examples/zaza-juce/build.zig");
 const rust_interop_example = @import("examples/rust_interop/build.zig");
+const bench_suite_example = @import("examples/bench_suite/build.zig");
 const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -40,6 +41,11 @@ pub fn build(b: *std.Build) !void {
     const verbose = b.option(bool, "verbose", "Print build status messages") orelse true;
     const target = selectTarget(b);
     const optimize = b.standardOptimizeOption(.{});
+
+    // Create the top `test` step up front so example test suites declared below
+    // can hook onto it through test_suite.addTest. Its unit-test dependencies are
+    // added further down.
+    const test_step = b.step("test", "Run all tests");
 
     // Auto-fetch registry deps into build.zig.zon (can disable with ZAZA_REGISTRY=0)
     try ensureRegistryDeps(b);
@@ -157,6 +163,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "test-workflows")) {
         _ = test_workflows_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "bench-suite")) {
+        bench_suite_example.addSteps(b, target);
     }
 
     if (exampleEnabled(b, "generated-headers")) {
@@ -325,9 +335,7 @@ pub fn build(b: *std.Build) !void {
         drive_native_step.dependOn(&install_driver.step);
     }
 
-    // Add clean tests that actually work
-    const test_step = b.step("test", "Run all tests");
-    
+    // Add clean tests that actually work (test_step was created up front).
     const clean_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("build/clean_tests.zig"),
@@ -471,6 +479,7 @@ pub fn build(b: *std.Build) !void {
         "mixed-stack-run",
         "interface-object-graph-run",
         "test-workflows-run",
+        "bench-suite-run",
         "generated-headers-run",
         "shared-plugin-run",
         "preset-profiles-run",
