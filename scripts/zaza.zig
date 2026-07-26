@@ -68,6 +68,56 @@ fn makePath(path: []const u8) !void {
     }
 }
 
+/// Delete a directory tree if it is there. Returns whether anything was removed.
+pub fn removeTreeIfExists(path: []const u8) !bool {
+    if (!pathExists(path)) return false;
+    if (comptime on_016) {
+        try std.Io.Dir.cwd().deleteTree(io(), path);
+    } else {
+        try std.fs.cwd().deleteTree(path);
+    }
+    return true;
+}
+
+/// Delete a single file, ignoring "not found" and any other error. Used to
+/// clean up a probe file, where a failure to remove it is not worth surfacing.
+fn deleteFileBestEffort(path: []const u8) void {
+    if (comptime on_016) {
+        std.Io.Dir.cwd().deleteFile(io(), path) catch {};
+    } else {
+        std.fs.cwd().deleteFile(path) catch {};
+    }
+}
+
+/// True when a file can be written into `path`. It creates the directory if it
+/// is missing, which is what Zig does with a cache directory on the next build,
+/// then writes and removes a probe file. A read-only or unwritable directory
+/// fails the write and reports false.
+fn dirWritable(allocator: std.mem.Allocator, path: []const u8) bool {
+    if (path.len == 0) return false;
+    makePath(path) catch return false;
+    const probe = std.fs.path.join(allocator, &.{ path, ".zaza-write-probe" }) catch return false;
+    defer allocator.free(probe);
+    writeFile(probe, "") catch return false;
+    deleteFileBestEffort(probe);
+    return true;
+}
+
+/// Zig 0.14 and 0.15 read the current process environment with
+/// `getEnvVarOwned`. Zig 0.16 removed it: the environment arrives through the
+/// entry point instead, so callers pass the `EnvMap` built from it. `env` is
+/// that map on 0.16 and an unused void on the older versions.
+const has_env_owned = @hasDecl(std.process, "getEnvVarOwned");
+
+fn getEnvOwned(env: anytype, allocator: std.mem.Allocator, name: []const u8) ?[]u8 {
+    if (comptime has_env_owned) {
+        return std.process.getEnvVarOwned(allocator, name) catch null;
+    } else {
+        const borrowed = env.get(name) orelse return null;
+        return allocator.dupe(u8, borrowed) catch null;
+    }
+}
+
 /// `std.json.stringifyAlloc` (Zig 0.14) became `std.json.Stringify.valueAlloc` (Zig 0.15).
 fn jsonStringifyIndent2(allocator: std.mem.Allocator, value: anytype) ![]u8 {
     if (@hasDecl(std.json, "Stringify")) {
@@ -90,7 +140,8 @@ fn mainLegacy() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    try run(allocator, args);
+    // Legacy reads the environment through getEnvVarOwned, so nothing to pass.
+    try run(allocator, args, {});
 }
 
 fn main016(init: std.process.Init.Minimal) !void {
@@ -102,10 +153,14 @@ fn main016(init: std.process.Init.Minimal) !void {
     defer arena.deinit();
     const args = try init.args.toSlice(arena.allocator());
 
-    try run(allocator, args);
+    // 0.16 hands the environment to the entry point rather than exposing a
+    // global accessor, so build the map here and pass it down.
+    var env_map = try init.environ.createMap(allocator);
+    defer env_map.deinit();
+    try run(allocator, args, &env_map);
 }
 
-fn run(allocator: std.mem.Allocator, args: []const [:0]const u8) !void {
+fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !void {
     if (args.len < 2) return usage();
 
     const cmd = args[1];
@@ -126,6 +181,16 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8) !void {
 
     if (std.mem.eql(u8, cmd, "deps")) {
         try listCurrentDependencies(allocator, "build.zig.zon", "zaza.lock");
+        return;
+    }
+
+    if (std.mem.eql(u8, cmd, "clean-deps") or std.mem.eql(u8, cmd, "clean")) {
+        try cleanDeps(allocator);
+        return;
+    }
+
+    if (std.mem.eql(u8, cmd, "cache")) {
+        try cacheInfo(env, allocator);
         return;
     }
 
@@ -162,7 +227,9 @@ fn usage() !void {
         \\  zaza add <name>      Alias for fetch
         \\  zaza remove <name>   Remove a dependency from build.zig.zon (alias: rm)
         \\  zaza list            List all packages available in the registry (alias: ls)
-        \\  zaza deps            List dependencies from build.zig.zon and lockfile state
+        \\  zaza deps            List dependencies with source, lock state, and on-disk presence
+        \\  zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
+        \\  zaza cache           Show the Zig cache directories and whether they are writable
         \\  zaza search <query>  Search packages by name
         \\  zaza init [name]     Scaffold a new Zaza project in the current directory
         \\
@@ -568,6 +635,55 @@ pub fn removeLockEntry(allocator: std.mem.Allocator, path: []const u8, name: []c
     try writeFile(path, out.items);
 }
 
+fn cleanDeps(allocator: std.mem.Allocator) !void {
+    _ = allocator;
+    const stdout = stdoutWriter();
+    // deps/ holds fetched sources; zig-out/deps holds their built outputs.
+    const targets = [_][]const u8{ "deps", "zig-out/deps" };
+    var removed_any = false;
+    for (targets) |target| {
+        const removed = removeTreeIfExists(target) catch |err| {
+            const stderr = stderrWriter();
+            try stderr.print("error: could not remove {s}: {s}\n", .{ target, @errorName(err) });
+            return err;
+        };
+        if (removed) {
+            try stdout.print("removed {s}\n", .{target});
+            removed_any = true;
+        }
+    }
+    if (!removed_any) {
+        try stdout.print("nothing to remove: deps/ and zig-out/deps are already absent\n", .{});
+    }
+}
+
+fn cacheInfo(env: anytype, allocator: std.mem.Allocator) !void {
+    const stdout = stdoutWriter();
+    try stdout.print("Zig cache directories:\n", .{});
+
+    if (getEnvOwned(env, allocator, "ZIG_GLOBAL_CACHE_DIR")) |path| {
+        defer allocator.free(path);
+        const state = if (dirWritable(allocator, path)) "writable" else "not writable";
+        try stdout.print("  global   {s}  ({s})\n", .{ path, state });
+    } else {
+        try stdout.print("  global   unset  (Zig uses its per-user default; set ZIG_GLOBAL_CACHE_DIR to override)\n", .{});
+    }
+
+    // The local cache defaults to .zig-cache in the working directory.
+    if (getEnvOwned(env, allocator, "ZIG_LOCAL_CACHE_DIR")) |path| {
+        defer allocator.free(path);
+        const state = if (dirWritable(allocator, path)) "writable" else "not writable";
+        try stdout.print("  local    {s}  ({s})\n", .{ path, state });
+    } else {
+        const default_local = ".zig-cache";
+        const state = if (pathExists(default_local))
+            (if (dirWritable(allocator, default_local)) "writable" else "not writable")
+        else
+            "absent, created on first build";
+        try stdout.print("  local    {s} (default)  ({s})\n", .{ default_local, state });
+    }
+}
+
 pub fn parseDependencyNames(allocator: std.mem.Allocator, zon: []const u8) ![][]const u8 {
     const dep_marker = ".dependencies = .{";
     const idx = std.mem.indexOf(u8, zon, dep_marker) orelse return allocator.alloc([]const u8, 0);
@@ -587,6 +703,31 @@ pub fn parseDependencyNames(allocator: std.mem.Allocator, zon: []const u8) ![][]
     return names.toOwnedSlice(allocator);
 }
 
+pub const LockEntry = struct {
+    /// Where the dependency came from, e.g. "registry". Empty when the lock
+    /// recorded no source. Owned by the caller.
+    source: []u8,
+    /// The recorded content hash. Empty when absent. Owned by the caller.
+    hash: []u8,
+};
+
+/// Look up a dependency's recorded source and hash in the lock file contents.
+/// Returns null when the name is not locked. The caller frees the returned
+/// slices.
+pub fn lockEntryInfo(allocator: std.mem.Allocator, lock_data: []const u8, name: []const u8) !?LockEntry {
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
+    defer parsed.deinit();
+
+    const packages = parsed.value.object.get("packages") orelse return null;
+    const entry = packages.object.get(name) orelse return null;
+    const source = if (entry.object.get("source")) |s| s.string else "";
+    const hash = if (entry.object.get("hash")) |h| h.string else "";
+    return LockEntry{
+        .source = try allocator.dupe(u8, source),
+        .hash = try allocator.dupe(u8, hash),
+    };
+}
+
 pub fn listCurrentDependencies(allocator: std.mem.Allocator, zon_path: []const u8, lock_path: []const u8) !void {
     const zon = try readFile(allocator, zon_path);
     defer allocator.free(zon);
@@ -596,23 +737,38 @@ pub fn listCurrentDependencies(allocator: std.mem.Allocator, zon_path: []const u
         allocator.free(names);
     }
 
-    var locked = std.StringHashMap(void).init(allocator);
-    defer locked.deinit();
-    if (readFile(allocator, lock_path)) |lock_data| {
-        defer allocator.free(lock_data);
-        var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
-        defer parsed.deinit();
-        if (parsed.value.object.get("packages")) |packages| {
-            var it = packages.object.iterator();
-            while (it.next()) |entry| {
-                try locked.put(entry.key_ptr.*, {});
-            }
-        }
-    } else |_| {}
+    const lock_data: ?[]u8 = readFile(allocator, lock_path) catch null;
+    defer if (lock_data) |data| allocator.free(data);
 
     const stdout = stdoutWriter();
     try stdout.print("Dependencies ({d}):\n", .{names.len});
+    if (names.len == 0) {
+        try stdout.print("  (none declared in {s})\n", .{zon_path});
+        return;
+    }
+    try stdout.print("  {s:<16} {s:<10} {s:<14} {s}\n", .{ "name", "source", "hash", "on disk" });
+
     for (names) |name| {
-        try stdout.print("  {s:20} {s}\n", .{ name, if (locked.contains(name)) "locked" else "unlocked" });
+        const entry_opt: ?LockEntry = if (lock_data) |data|
+            lockEntryInfo(allocator, data, name) catch null
+        else
+            null;
+        defer if (entry_opt) |entry| {
+            allocator.free(entry.source);
+            allocator.free(entry.hash);
+        };
+
+        var source: []const u8 = "unlocked";
+        var hash_disp: []const u8 = "-";
+        if (entry_opt) |entry| {
+            source = if (entry.source.len > 0) entry.source else "locked";
+            if (entry.hash.len > 0) hash_disp = entry.hash[0..@min(entry.hash.len, 14)];
+        }
+
+        const dep_path = std.fs.path.join(allocator, &.{ "deps", name }) catch continue;
+        defer allocator.free(dep_path);
+        const on_disk = if (pathExists(dep_path)) "yes" else "no";
+
+        try stdout.print("  {s:<16} {s:<10} {s:<14} {s}\n", .{ name, source, hash_disp, on_disk });
     }
 }

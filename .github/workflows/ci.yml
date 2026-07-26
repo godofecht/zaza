@@ -35,6 +35,17 @@ jobs:
       - name: Test
         run: zig build test --summary all
 
+      # Build and run the dependency CLI as an executable. `zig build test` only
+      # analyses the CLI functions the tests reference, so it would miss a
+      # version-specific break in the entry point or the cache/env path. Running
+      # it compiles the whole program on each Zig version and exercises the
+      # read-only commands.
+      - name: Smoke-test the zaza CLI
+        run: |
+          zig run scripts/zaza.zig -- list
+          zig run scripts/zaza.zig -- deps
+          zig run scripts/zaza.zig -- cache
+
   # The whole graph, C++ examples and JUCE included. Slow (JUCE is compiled
   # from source), so it is kept off the PR path.
   full-build:

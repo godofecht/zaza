@@ -170,23 +170,38 @@ preset runtime ready</code></pre>
 zaza add &lt;name&gt;      Alias for fetch
 zaza remove &lt;name&gt;   Remove a dependency from build.zig.zon (alias: rm)
 zaza list            List all packages available in the registry (alias: ls)
-zaza deps            List dependencies from build.zig.zon and lockfile state
+zaza deps            List dependencies with source, lock state, and on-disk presence
+zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
+zaza cache           Show the Zig cache directories and whether they are writable
 zaza search &lt;query&gt;  Search packages by name
 zaza init [name]     Scaffold a new Zaza project in the current directory</code></pre>
+
+<p><code>zaza deps</code> reads <code>build.zig.zon</code> for the declared names and <code>zaza.lock</code> for
+what has been pinned, and checks <code>deps/</code> for what is present on disk:</p>
 
 <pre data-lang="bash"><code class="language-bash">zig run scripts/zaza.zig -- deps</code></pre>
 
 <pre data-lang="text"><code class="language-text">Dependencies (7):
-               mbedtls unlocked
-                  zlib unlocked
-                  curl unlocked
-                spdlog unlocked
-                   fmt unlocked
-                  juce unlocked
-         nlohmann_json unlocked</code></pre>
+  name             source     hash           on disk
+  mbedtls          unlocked   -              no
+  fmt              registry   1220abcdef0123 yes
+  ...</code></pre>
 
-<p><code>unlocked</code> means there is no <code>zaza.lock</code> entry pinning that dependency. The
-lockfile format exists but is not yet populated by the fetch path.</p>
+<p><code>fetch</code> resolves the hash with <code>zig fetch</code> and records it in both
+<code>build.zig.zon</code> and <code>zaza.lock</code>, so a fetched dependency shows its source and
+hash here. <code>unlocked</code> means there is no <code>zaza.lock</code> entry pinning it yet.</p>
+
+<p><code>zaza clean-deps</code> removes the fetched sources in <code>deps/</code> and their built outputs
+in <code>zig-out/deps</code>, so the next build re-fetches from the pinned hashes. <code>zaza
+cache</code> reports the global and local Zig cache directories and whether each is
+writable, which is the first thing to check when a build fails with a cache
+error:</p>
+
+<pre data-lang="bash"><code class="language-bash">zig run scripts/zaza.zig -- cache</code></pre>
+
+<pre data-lang="text"><code class="language-text">Zig cache directories:
+  global   /Users/you/.cache/zig  (writable)
+  local    .zig-cache (default)  (writable)</code></pre>
 
 <p>The root build also resolves registry entries on your behalf. If an enabled
 example needs a package that is missing from <code>build.zig.zon</code>, the build adds it

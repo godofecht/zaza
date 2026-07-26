@@ -45,12 +45,12 @@ Still notably incomplete:
 - add graph tests covering include dirs, defines, link flags, and link order
 
 ## 2) Dependency and Package UX
-- lockfile with exact fetched revisions/hashes
+- [done] lockfile with exact fetched hashes (`zaza.lock`, written by `fetch`)
 - local dependency overrides for development
 - package install/export layout that downstream projects can consume cleanly
-- `zaza deps` listing (source, build system, install prefix, lock state)
-- `zaza clean-deps` to wipe `deps/` + `zig-out/deps`
-- cache info command (shows `ZIG_*_CACHE_DIR` + writability)
+- [done] `zaza deps` listing (source, lock state, on-disk presence)
+- [done] `zaza clean-deps` to wipe `deps/` + `zig-out/deps`
+- [done] cache info command (`zaza cache`, shows the Zig cache dirs + writability)
 
 ## 3) Project Workflows
 - [done] first-class test target API (`test_suite.addTest`, labels/env/cwd/args)

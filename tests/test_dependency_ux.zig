@@ -16,6 +16,14 @@ fn tmpWriteFile(tmp: *std.testing.TmpDir, sub_path: []const u8, data: []const u8
     }
 }
 
+fn tmpMakePath(tmp: *std.testing.TmpDir, sub_path: []const u8) !void {
+    if (comptime @hasDecl(std.fs, "cwd")) {
+        try tmp.dir.makePath(sub_path);
+    } else {
+        try tmp.dir.createDirPath(testing.io, sub_path);
+    }
+}
+
 fn openCurrentDir() !Dir {
     if (comptime @hasDecl(std.fs, "cwd")) {
         return std.fs.cwd().openDir(".", .{});
@@ -128,4 +136,40 @@ test "dependency sync script checks out requested git ref" {
     defer testing.allocator.free(script);
     try testing.expect(std.mem.indexOf(u8, script, "git -C deps/mbedtls checkout --force mbedtls-3.6.2") != null);
     try testing.expect(std.mem.indexOf(u8, script, "git clone --depth 1 --branch mbedtls-3.6.2") != null);
+}
+
+test "lockEntryInfo reads source and hash for a locked name" {
+    const lock =
+        \\{ "packages": { "fmt": { "name": "fmt", "source": "registry", "url": "u", "hash": "1220abcdef" } } }
+    ;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const entry = (try zaza.lockEntryInfo(arena.allocator(), lock, "fmt")).?;
+    try testing.expectEqualStrings("registry", entry.source);
+    try testing.expectEqualStrings("1220abcdef", entry.hash);
+}
+
+test "lockEntryInfo returns null for an unlocked name" {
+    const lock = "{ \"packages\": {} }";
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    try testing.expect((try zaza.lockEntryInfo(arena.allocator(), lock, "fmt")) == null);
+}
+
+test "removeTreeIfExists deletes a tree, then reports it absent" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmpMakePath(&tmp, "deps/fmt");
+
+    var old_cwd = try openCurrentDir();
+    defer closeDir(&old_cwd);
+    try setCurrentDir(tmp.dir);
+    defer setCurrentDir(old_cwd) catch {};
+
+    // First call removes the tree and reports it did.
+    try testing.expect(try zaza.removeTreeIfExists("deps"));
+    // Second call finds nothing and reports so, without erroring.
+    try testing.expect(!(try zaza.removeTreeIfExists("deps")));
 }
