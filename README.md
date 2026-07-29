@@ -353,6 +353,8 @@ Project Link: [https://github.com/godofecht/zaza](https://github.com/godofecht/z
 | [`docs`](docs) | Documentation |
 | [`setup.sh`](setup.sh) | Toolchain check, wrapper creation, and test run |
 
+Published at [godofecht.github.io/zaza](https://godofecht.github.io/zaza/).
+
 **Documentation map**
 
 | Document | Covers |
