@@ -71,6 +71,33 @@ test "parse dependency names from zon" {
     try testing.expectEqualStrings("spdlog", names[1]);
 }
 
+test "matchScore ranks name over keyword over description" {
+    const kws = &[_][]const u8{ "audio", "gui" };
+
+    // Exact name beats a prefix, which beats a substring.
+    try testing.expectEqual(@as(usize, 100), zaza.matchScore("juce", "", &.{}, "juce"));
+    try testing.expect(zaza.matchScore("juce", "", &.{}, "ju") < 100);
+    try testing.expect(zaza.matchScore("juce", "", &.{}, "ju") > zaza.matchScore("nlohmann_json", "", &.{}, "json"));
+
+    // A keyword hit outranks a description-only hit.
+    const kw_hit = zaza.matchScore("pkg", "some prose", kws, "audio");
+    const desc_hit = zaza.matchScore("pkg", "an audio thing", &.{}, "audio");
+    try testing.expect(kw_hit > desc_hit);
+    try testing.expect(desc_hit > 0);
+
+    // No signal anywhere scores zero.
+    try testing.expectEqual(@as(usize, 0), zaza.matchScore("pkg", "prose", kws, "xyzzy"));
+    // Empty query never matches.
+    try testing.expectEqual(@as(usize, 0), zaza.matchScore("pkg", "prose", kws, ""));
+}
+
+test "matchScore is case insensitive across fields" {
+    const kws = &[_][]const u8{"Serialization"};
+    try testing.expectEqual(@as(usize, 100), zaza.matchScore("JSON", "", &.{}, "json"));
+    try testing.expect(zaza.matchScore("pkg", "", kws, "serial") > 0);
+    try testing.expect(zaza.matchScore("pkg", "Modern C++", &.{}, "modern") > 0);
+}
+
 test "update and remove lock entries" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();
