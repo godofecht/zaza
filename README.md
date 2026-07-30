@@ -146,10 +146,10 @@ ZAZA_SYSTEM_CMDS=1 zig build cmake-shim
 
 ```zig
 const std = @import("std");
-const cpp = @import("build/cpp_example.zig");
+const zaza = @import("build_lib/zaza.zig");
 
 pub fn build(b: *std.Build) !void {
-    const exe = try cpp.CppExample.executable(.{
+    const exe = try zaza.Target.executable(.{
         .name = "my_app",
         .source_files = &.{"src/main.cpp"},
         .public_include_dirs = &.{"include"},
@@ -163,7 +163,11 @@ pub fn build(b: *std.Build) !void {
 }
 ```
 
-_For the full syntax surface, please refer to the [Syntax Reference](docs/SYNTAX_REFERENCE.md)._
+`build_lib/zaza.zig` is the stable entry module: import it once and reach the
+supported types and functions through it. `zaza.Target` is the C and C++ target
+type; `zaza.CppExample` is kept as an alias so existing build files keep
+working. The full surface is in [`docs/API.md`](docs/API.md), and the field list
+is in the [Syntax Reference](docs/SYNTAX_REFERENCE.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

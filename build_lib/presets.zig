@@ -1,6 +1,10 @@
 const std = @import("std");
 const cpp = @import("cpp_example.zig");
 
+/// Resolve a preset name to a build configuration list. Known names are
+/// `debug`, `release`, `relwithdebinfo`, `minsizerel`, `asan`, and `lto`; the
+/// match is case-insensitive. An unknown name falls back to debug. This is what
+/// `ZAZA_PRESET` selects.
 pub fn presetConfigs(preset: []const u8) []const cpp.BuildConfig {
     if (std.ascii.eqlIgnoreCase(preset, "debug")) {
         return &.{.{ .mode = .Debug }};

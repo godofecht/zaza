@@ -369,6 +369,7 @@ pub fn build(b: *std.Build) !void {
         "tests/test_interop_hints_full.zig",
         "tests/test_presets_full.zig",
         "tests/test_cpp_example_api.zig",
+        "tests/test_public_api.zig",
         "tests/test_build_graph.zig",
         // TODO: test_zaza_juce.zig disabled - cpp_example exists in multiple modules (direct + via zaza_juce)
         // "tests/test_zaza_juce.zig",
@@ -418,6 +419,11 @@ pub fn build(b: *std.Build) !void {
         if (std.mem.eql(u8, path, "tests/test_cpp_example_api.zig")) {
             t.root_module.addImport("cpp_example", b.createModule(.{
                 .root_source_file = b.path("build_lib/cpp_example.zig"),
+            }));
+        }
+        if (std.mem.eql(u8, path, "tests/test_public_api.zig")) {
+            t.root_module.addImport("zaza", b.createModule(.{
+                .root_source_file = b.path("build_lib/zaza.zig"),
             }));
         }
         if (std.mem.eql(u8, path, "tests/test_build_graph.zig")) {

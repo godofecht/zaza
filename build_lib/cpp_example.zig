@@ -44,6 +44,8 @@ fn writeBuildRootFile(b: *std.Build, sub_path: []const u8, data: []const u8) !vo
     }
 }
 
+/// A source dependency: a name, a URL, and how to fetch and build it. A null
+/// `type` means "use the parent target's build system".
 pub const Dependency = struct {
     name: []const u8,
     url: []const u8,
@@ -68,6 +70,8 @@ pub const Dependency = struct {
     }
 };
 
+/// CMake settings for a dependency or a CMake-built target: source and build
+/// directories, generator, toolchain, and the argument lists for each phase.
 pub const CMakeConfig = struct {
     source_dir: ?[]const u8 = null,
     build_dir: ?[]const u8 = null,
@@ -149,6 +153,9 @@ pub const BuildConfigs = struct {
     };
 };
 
+/// The option bag accepted by the `CppExample` constructors. Most fields
+/// default, so a target names only what it needs. `null` `configs` means the
+/// debug-only default.
 pub const TargetOptions = struct {
     name: []const u8,
     description: ?[]const u8 = null,
@@ -176,11 +183,13 @@ pub const TargetOptions = struct {
     enable_system_commands: bool = false,
 };
 
+/// Whether a target or dependency builds through Zig or through CMake.
 pub const BuildSystem = enum {
     Zig,
     CMake,
 };
 
+/// Which artifact a target produces.
 pub const TargetKind = enum {
     executable,
     static_library,
@@ -189,6 +198,8 @@ pub const TargetKind = enum {
     interface_library,
 };
 
+/// How a usage requirement propagates across a dependency edge, mirroring
+/// CMake's PUBLIC, PRIVATE, and INTERFACE.
 pub const Visibility = enum {
     public,
     private,
@@ -237,6 +248,8 @@ pub const CppTarget = struct {
     }
 };
 
+/// Optimisation intent for a configuration. Mapped to Zig optimize modes when
+/// built and to CMake build types when a CMake project is generated.
 pub const BuildMode = enum {
     Debug,
     Release,
@@ -262,6 +275,9 @@ pub const BuildMode = enum {
     }
 };
 
+/// One build configuration: a mode plus the flags, defines, and link inputs
+/// applied when a target is built in that mode. A target carries a list of
+/// these in `configs`.
 pub const BuildConfig = struct {
     mode: BuildMode,
     target: ?[]const u8 = null,
@@ -275,6 +291,8 @@ pub const BuildConfig = struct {
     want_lto: bool = false,
 };
 
+/// A named command that produces generated sources. It runs before compilation
+/// and only when system commands are enabled on the target.
 pub const CustomCommand = struct {
     name: []const u8,
     argv: []const []const u8,
@@ -517,6 +535,11 @@ pub const Configs = struct {
     };
 };
 
+/// A C or C++ build target: an executable or a library. It is a plain struct,
+/// so a target is data you can inspect, serialise, and modify before building
+/// it. Construct one through a kind constructor (`executable`, `staticLibrary`,
+/// `sharedLibrary`, `objectLibrary`, `interfaceLibrary`) and build it with
+/// `build` or `buildWithTarget`. The public API re-exports this as `Target`.
 pub const CppExample = struct {
     name: []const u8,
     description: []const u8,
@@ -544,6 +567,8 @@ pub const CppExample = struct {
     cmake_config: ?CMakeConfig = null,
     enable_system_commands: bool = false,
 
+    /// Build a target of the given kind from `options`. The five kind
+    /// constructors below call this; use one of them rather than `make`.
     pub fn make(kind: TargetKind, options: TargetOptions) CppExample {
         return .{
             .name = options.name,
@@ -574,22 +599,27 @@ pub const CppExample = struct {
         };
     }
 
+    /// An executable target.
     pub fn executable(options: TargetOptions) CppExample {
         return make(.executable, options);
     }
 
+    /// A static library (`.a` / `.lib`).
     pub fn staticLibrary(options: TargetOptions) CppExample {
         return make(.static_library, options);
     }
 
+    /// A shared library (`.so` / `.dylib` / `.dll`).
     pub fn sharedLibrary(options: TargetOptions) CppExample {
         return make(.shared_library, options);
     }
 
+    /// An object library: compiled objects with no final link.
     pub fn objectLibrary(options: TargetOptions) CppExample {
         return make(.object_library, options);
     }
 
+    /// An interface library: usage requirements only, nothing compiled.
     pub fn interfaceLibrary(options: TargetOptions) CppExample {
         return make(.interface_library, options);
     }
@@ -756,6 +786,9 @@ pub const CppExample = struct {
         try writeBuildRootFile(b, "CMakeLists.txt", writer.items);
     }
 
+    /// Build the target for the standard target the user selected on the
+    /// command line, and return the final compile step. This is the usual entry
+    /// point from a build file.
     pub fn build(self: CppExample, b: *std.Build) !*std.Build.Step.Compile {
         const target = b.standardTargetOptions(.{});
         return self.buildWithTarget(b, target);
@@ -834,6 +867,9 @@ pub const CppExample = struct {
         return out.toOwnedSlice(b.allocator);
     }
 
+    /// Build the target for a specific resolved target and return the final
+    /// compile step. Use this when the caller chooses the target rather than the
+    /// command line, for example when cross-compiling in a fixed configuration.
     pub fn buildWithTarget(self: CppExample, b: *std.Build, target: std.Build.ResolvedTarget) !*std.Build.Step.Compile {
         if (target.result.os.tag == .windows and target.result.abi == .msvc and self.main_build_system == .Zig) {
             @panic(
