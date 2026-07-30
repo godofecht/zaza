@@ -109,17 +109,22 @@ convenience win: zero-command iteration, not faster builds.
 
 ## Manifest
 
-Line-based. `compiler` and `cflags` appear once, `src` repeats. Paths are
-relative to the working directory.
+Line-based. `compiler`, `cflags`, and `ldflags` appear once, `src` repeats.
+Paths are relative to the working directory.
 
 ```
 compiler zig c++
 cflags -std=c++17 -g -Iinclude
+ldflags -fuse-ld=mold
 outdir .zaza-drive
 bin app
 src src/main.cpp
 src src/unit_0.cpp
 ```
+
+`ldflags` is optional and appended to the link step only, after the objects. It
+is empty by default, which leaves Zig's own linker in place. See the linker note
+below for when to set it.
 
 ## Status and limits
 
@@ -135,9 +140,33 @@ This is a working prototype that validates the direction.
   process spawning under `std.Io` and changed how `main` receives arguments, so
   the driver comptime-dispatches those calls. Verified to build and drive
   correctly on all three, with the same no-op time.
-- **It links the whole object set every time an object changes.** For very large
-  link steps a persistent linker or incremental link would help. Not needed at
-  this scale, and the driver already beats Ninja on the incremental rebuild here.
+- **It links the whole object set every time an object changes.** The `ldflags`
+  manifest field selects the linker for that step. See the linker note.
+
+## The linker
+
+The relink processes every object on any change, so at very large object counts
+the link becomes the cost. The obvious lever is a faster linker, so this was
+measured. Linking 2000 objects on this machine (macOS):
+
+| linker | time |
+| --- | --- |
+| Zig's own linker (default) | 651 ms |
+| ld64.lld (`-fuse-ld=lld`) | 1125 ms |
+| system ld (`-fuse-ld=/usr/bin/ld`) | 2274 ms |
+
+Zig's linker is already the fastest available here, so swapping it in for lld or
+the system linker loses. The default is correct, and the `ldflags` field exists
+for the case where it is not: a very large link on Linux, where `-fuse-ld=mold`
+is a real win. `zig cc` honors `-fuse-ld` and passes `-Wl,...` through, so the
+field reaches the link.
+
+A persistent or incremental linker was considered and is not worth building at
+this scale. `zig cc -fincremental` does not apply to a link of prebuilt objects,
+and there is no warm linker server to hand the objects to. The only saveable
+cost is process startup, and that is already small next to the link itself. If
+Zig's own incremental linker grows to cover this path, it becomes the right
+answer; until then, the configurable linker is the honest improvement.
 
 ## Workflow
 

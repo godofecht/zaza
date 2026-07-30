@@ -31,6 +31,11 @@ const std = @import("std");
 const Manifest = struct {
     compiler: [][]const u8,
     cflags: [][]const u8,
+    // Extra flags for the link step only, appended after the objects. Empty by
+    // default, which leaves Zig's own linker in place. On this machine Zig's
+    // linker is the fastest available, so the default is deliberate; on Linux a
+    // very large link can be handed to mold with `ldflags -fuse-ld=mold`.
+    ldflags: [][]const u8,
     outdir: []const u8,
     bin: []const u8,
     srcs: [][]const u8,
@@ -46,6 +51,7 @@ fn splitArgs(a: std.mem.Allocator, rest: []const u8) ![][]const u8 {
 fn parseManifest(a: std.mem.Allocator, text: []const u8) !Manifest {
     var compiler: [][]const u8 = &.{};
     var cflags: [][]const u8 = &.{};
+    var ldflags: [][]const u8 = &.{};
     var outdir: []const u8 = ".zaza-drive";
     var bin: []const u8 = "app";
     var srcs = std.ArrayListUnmanaged([]const u8).empty;
@@ -61,6 +67,8 @@ fn parseManifest(a: std.mem.Allocator, text: []const u8) !Manifest {
             compiler = try splitArgs(a, rest);
         } else if (std.mem.eql(u8, key, "cflags")) {
             cflags = try splitArgs(a, rest);
+        } else if (std.mem.eql(u8, key, "ldflags")) {
+            ldflags = try splitArgs(a, rest);
         } else if (std.mem.eql(u8, key, "outdir")) {
             outdir = try a.dupe(u8, rest);
         } else if (std.mem.eql(u8, key, "bin")) {
@@ -73,6 +81,7 @@ fn parseManifest(a: std.mem.Allocator, text: []const u8) !Manifest {
     return .{
         .compiler = compiler,
         .cflags = cflags,
+        .ldflags = ldflags,
         .outdir = outdir,
         .bin = bin,
         .srcs = try srcs.toOwnedSlice(a),
@@ -288,6 +297,7 @@ fn buildOnce(gpa: std.mem.Allocator, io: anytype, env: anytype, m: Manifest) !Bu
     try argv.appendSlice(a, m.compiler);
     try argv.appendSlice(a, m.cflags);
     for (units) |u| try argv.append(a, u.obj);
+    try argv.appendSlice(a, m.ldflags);
     try argv.appendSlice(a, &.{ "-o", m.bin });
     var ch = try spawnProc(io, env, a, try argv.toOwnedSlice(a));
     const code = try waitProc(io, &ch);
