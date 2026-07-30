@@ -1,4 +1,5 @@
 const std = @import("std");
+const compat = @import("compat.zig");
 
 pub fn addCommandStep(b: *std.Build, name: []const u8, argv: []const []const u8) *std.Build.Step {
     const run = b.addSystemCommand(argv);
@@ -7,15 +8,8 @@ pub fn addCommandStep(b: *std.Build, name: []const u8, argv: []const []const u8)
     return &run.step;
 }
 
-/// Zig 0.16 removed std.process.getEnvVarOwned and keeps the environment on
-/// the build graph, under a field whose name also changed. Callers free what
-/// this returns, so both branches hand back owned memory. Only the taken
-/// branch is analysed.
+/// An environment variable, or null if unset. Caller frees the result. The
+/// cross-version handling lives in the compat adaptor.
 pub fn envString(b: *std.Build, name: []const u8) ?[]const u8 {
-    if (comptime @hasDecl(std.process, "getEnvVarOwned")) {
-        return std.process.getEnvVarOwned(b.allocator, name) catch null;
-    } else {
-        const borrowed = b.graph.environ_map.get(name) orelse return null;
-        return b.allocator.dupe(u8, borrowed) catch null;
-    }
+    return compat.buildEnv(b, name);
 }

@@ -76,6 +76,12 @@ jobs:
       - name: Build everything
         run: zig build --summary all
 
+      # Build zaza-drive so its use of the version-compat adaptor (filesystem
+      # and process spawning) is compiled on every supported Zig version. The
+      # default build does not install the driver, so it needs its own line.
+      - name: Build zaza-drive
+        run: zig build drive --summary all
+
       # Exercise the first-class test and benchmark API end to end: the run
       # steps, not just the build. test-workflows also runs transitively through
       # the top `test` step, but naming it here keeps the coverage explicit, and

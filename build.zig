@@ -321,6 +321,9 @@ pub fn build(b: *std.Build) !void {
                 .optimize = .ReleaseFast,
             }),
         });
+        driver.root_module.addImport("compat", b.createModule(.{
+            .root_source_file = b.path("build_lib/compat.zig"),
+        }));
         const install_driver = b.addInstallArtifact(driver, .{});
 
         const manifest_step = b.step("drive-manifest", "Emit a zaza-drive manifest into zig-out/");
@@ -355,6 +358,7 @@ pub fn build(b: *std.Build) !void {
 
     // Wire up tests/
     const standalone_tests: []const []const u8 = &.{
+        "build_lib/compat.zig",
         "tests/test_string_split.zig",
         "tests/test_fetch_minimal.zig",
         "tests/test_cpp_targets.zig",

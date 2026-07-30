@@ -79,74 +79,37 @@ fn parseManifest(a: std.mem.Allocator, text: []const u8) !Manifest {
     };
 }
 
-// Zig 0.16 moved the filesystem and process spawning under std.Io, threading an
-// Io handle through every call. 0.14 and 0.15 have the older free functions.
-// has_io is true only on 0.16; the compat helpers below take an io value that
-// is a real Io there and an ignored void on the older versions.
-const has_io = !@hasDecl(std.fs, "cwd");
+// The Zig 0.14 / 0.15 / 0.16 divergences live in the compat adaptor. These
+// thin wrappers keep the call sites below unchanged. `io` is a real Io on 0.16
+// and an ignored void on the older versions.
+const compat = @import("compat");
+const has_io = compat.has_io;
 
 fn statMtime(io: anytype, path: []const u8) ?i128 {
-    if (comptime has_io) {
-        const st = std.Io.Dir.cwd().statFile(io, path, .{}) catch return null;
-        // 0.16 reports mtime as an Io.Timestamp; compare in nanoseconds.
-        return @as(i128, st.mtime.nanoseconds);
-    } else {
-        const st = std.fs.cwd().statFile(path) catch return null;
-        return st.mtime;
-    }
+    return compat.mtimeNs(io, path);
 }
 
 fn readFileZ(io: anytype, a: std.mem.Allocator, path: []const u8) ?[]u8 {
-    if (comptime has_io) {
-        return std.Io.Dir.cwd().readFileAlloc(io, path, a, .unlimited) catch return null;
-    } else {
-        return std.fs.cwd().readFileAlloc(a, path, 16 * 1024 * 1024) catch return null;
-    }
+    return compat.readFile(io, a, path);
 }
 
 fn makeDirZ(io: anytype, path: []const u8) void {
-    if (comptime has_io) {
-        _ = std.Io.Dir.cwd().createDirPathOpen(io, path, .{}) catch {};
-    } else {
-        std.fs.cwd().makePath(path) catch {};
-    }
+    compat.makePath(io, path);
 }
 
 /// Spawn a child and return it. On 0.16 spawning is a std.process free function
 /// taking an Io; on the older versions it is Child.init plus spawn.
 fn spawnProc(io: anytype, env: anytype, a: std.mem.Allocator, argv: []const []const u8) !std.process.Child {
-    if (comptime has_io) {
-        return std.process.spawn(io, .{ .argv = argv, .environ_map = env });
-    } else {
-        var ch = std.process.Child.init(argv, a);
-        try ch.spawn();
-        return ch;
-    }
+    return compat.spawn(io, env, a, argv);
 }
 
 fn sleepMs(io: anytype, ms: u64) void {
-    if (comptime has_io) {
-        std.Io.sleep(io, std.Io.Duration.fromNanoseconds(@intCast(ms * std.time.ns_per_ms)), .awake) catch {};
-    } else {
-        std.Thread.sleep(ms * std.time.ns_per_ms);
-    }
+    compat.sleepMs(io, ms);
 }
 
 /// Wait for a child and return its exit code (non-zero for any abnormal exit).
 fn waitProc(io: anytype, ch: *std.process.Child) !u8 {
-    const term = if (comptime has_io) try ch.wait(io) else try ch.wait();
-    // 0.16 renamed the Term tags to lowercase.
-    if (comptime has_io) {
-        return switch (term) {
-            .exited => |code| code,
-            else => 1,
-        };
-    } else {
-        return switch (term) {
-            .Exited => |code| code,
-            else => 1,
-        };
-    }
+    return compat.wait(io, ch);
 }
 
 // A .d file is Make syntax: "target: dep1 dep2 \<newline> dep3 ...". Return the
