@@ -181,6 +181,24 @@ is in the [Syntax Reference](docs/SYNTAX_REFERENCE.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Packages
+
+Zaza tracks C and C++ dependencies in `registry/registry.json` and fetches them
+into `build.zig.zon`. Discover and inspect them from the CLI:
+
+```sh
+zig run scripts/zaza.zig -- list                # every package, with descriptions
+zig run scripts/zaza.zig -- search audio        # ranked across name, keywords, description
+zig run scripts/zaza.zig -- info juce           # full metadata for one package
+zig run scripts/zaza.zig -- fetch fmt           # add it to build.zig.zon
+```
+
+`search` scores each package across its name, keywords, and description, so
+`search http` finds curl even though the name does not contain the word. Each
+registry entry carries a description, keywords, repo, homepage, and license.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ## Example Highlights
 
 | Workflow | Command |
@@ -293,9 +311,9 @@ defaults: it stays off `test`, prints its timings, and forwards
 - [x] WebAssembly (WASI, host embedding, browser)
 - [x] CMake interop layer
 - [x] Verified example matrix
-- [ ] Polished public API
-- [ ] Registry and package discovery
-- [ ] IDE integration (language server, VS Code extension)
+- [x] Polished public API: the `build_lib/zaza.zig` facade and [`docs/API.md`](docs/API.md)
+- [x] Registry and package discovery: ranked `search`, `zaza info`, richer metadata
+- [x] IDE integration: azazel's [VS Code extension and LSP](https://github.com/godofecht/azazel/tree/main/ide) for `project.cue`
 
 See the [open issues](https://github.com/godofecht/zaza/issues) for a full list of proposed features (and known issues). See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed roadmap.
 
