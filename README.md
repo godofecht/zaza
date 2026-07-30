@@ -92,6 +92,16 @@ Zaza makes new native projects feel simpler than CMake without giving up serious
 
 ### Installation
 
+Zaza ships a `build.zig.zon` and is indexed by the Zig package trackers. Fetch it
+with the package manager:
+
+```sh
+zig fetch --save git+https://github.com/godofecht/zaza
+```
+
+Or clone and run the setup, which is the usual flow since build files import
+`build_lib/zaza.zig` directly:
+
 ```sh
 git clone https://github.com/godofecht/zaza.git
 cd zaza
