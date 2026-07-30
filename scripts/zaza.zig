@@ -216,6 +216,14 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !
         return;
     }
 
+    if (std.mem.eql(u8, cmd, "info") or std.mem.eql(u8, cmd, "show")) {
+        if (args.len < 3) return usage();
+        const name = args[2];
+        const registry_path = "registry/registry.json";
+        try infoPackage(allocator, registry_path, name);
+        return;
+    }
+
     return usage();
 }
 
@@ -230,7 +238,8 @@ fn usage() !void {
         \\  zaza deps            List dependencies with source, lock state, and on-disk presence
         \\  zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
         \\  zaza cache           Show the Zig cache directories and whether they are writable
-        \\  zaza search <query>  Search packages by name
+        \\  zaza search <query>  Search packages by name, description, and keywords (ranked)
+        \\  zaza info <name>     Show full metadata for a package (alias: show)
         \\  zaza init [name]     Scaffold a new Zaza project in the current directory
         \\
         , .{},
@@ -386,6 +395,65 @@ pub fn writeFile(path: []const u8, data: []const u8) !void {
     }
 }
 
+/// Read a string field from a registry entry object, returning "" when the
+/// field is missing or is not a string. Extra fields are ignored, so a v1
+/// entry (only version + url) and a v2 entry (with description, keywords,
+/// repo, homepage, license) both read cleanly.
+fn jsonStr(obj: std.json.Value, key: []const u8) []const u8 {
+    const v = obj.object.get(key) orelse return "";
+    return switch (v) {
+        .string => |s| s,
+        else => "",
+    };
+}
+
+fn versionOrUnknown(entry: std.json.Value) []const u8 {
+    const v = jsonStr(entry, "version");
+    return if (v.len > 0) v else "?";
+}
+
+fn startsWithIgnoreCase(haystack: []const u8, prefix: []const u8) bool {
+    if (prefix.len > haystack.len) return false;
+    return std.ascii.eqlIgnoreCase(haystack[0..prefix.len], prefix);
+}
+
+/// Score how well a package matches a search query. Higher is a better match;
+/// zero means no match. The score blends name, keywords and description so a
+/// user can find a package by what it does, without knowing its exact name.
+/// The strongest single signal wins rather than summing, which keeps an exact
+/// name match ahead of a package that merely mentions the term in prose.
+pub fn matchScore(
+    name: []const u8,
+    description: []const u8,
+    keywords: []const []const u8,
+    query: []const u8,
+) usize {
+    if (query.len == 0) return 0;
+    var best: usize = 0;
+
+    if (std.ascii.eqlIgnoreCase(name, query)) {
+        best = @max(best, 100);
+    } else if (startsWithIgnoreCase(name, query)) {
+        best = @max(best, 80);
+    } else if (std.ascii.indexOfIgnoreCase(name, query) != null) {
+        best = @max(best, 60);
+    }
+
+    for (keywords) |kw| {
+        if (std.ascii.eqlIgnoreCase(kw, query)) {
+            best = @max(best, 55);
+        } else if (std.ascii.indexOfIgnoreCase(kw, query) != null) {
+            best = @max(best, 40);
+        }
+    }
+
+    if (std.ascii.indexOfIgnoreCase(description, query) != null) {
+        best = @max(best, 25);
+    }
+
+    return best;
+}
+
 fn listPackages(allocator: std.mem.Allocator, registry_path: []const u8) !void {
     const registry = readFile(allocator, registry_path) catch {
         const stderr = stderrWriter();
@@ -402,9 +470,26 @@ fn listPackages(allocator: std.mem.Allocator, registry_path: []const u8) !void {
     try stdout.print("Available packages ({d}):\n", .{packages.object.count()});
     var it = packages.object.iterator();
     while (it.next()) |entry| {
-        const version = if (entry.value_ptr.object.get("version")) |v| v.string else "?";
-        try stdout.print("  {s:20} {s}\n", .{ entry.key_ptr.*, version });
+        const version = versionOrUnknown(entry.value_ptr.*);
+        const description = jsonStr(entry.value_ptr.*, "description");
+        if (description.len > 0) {
+            try stdout.print("  {s:<16} {s:<10} {s}\n", .{ entry.key_ptr.*, version, description });
+        } else {
+            try stdout.print("  {s:<16} {s}\n", .{ entry.key_ptr.*, version });
+        }
     }
+}
+
+const Match = struct {
+    name: []const u8,
+    version: []const u8,
+    description: []const u8,
+    score: usize,
+};
+
+fn matchLessThan(_: void, a: Match, b: Match) bool {
+    if (a.score != b.score) return a.score > b.score;
+    return std.mem.lessThan(u8, a.name, b.name);
 }
 
 fn searchPackages(allocator: std.mem.Allocator, registry_path: []const u8, query: []const u8) !void {
@@ -419,19 +504,110 @@ fn searchPackages(allocator: std.mem.Allocator, registry_path: []const u8, query
     defer parsed.deinit();
 
     const packages = parsed.value.object.get("packages") orelse return error.InvalidRegistry;
-    const stdout = stdoutWriter();
-    var found: usize = 0;
+
+    // Slices below borrow from the parsed tree, which lives to the end of the
+    // function; the arena only owns the small bookkeeping arrays.
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    var matches: std.ArrayListUnmanaged(Match) = .empty;
+
     var it = packages.object.iterator();
     while (it.next()) |entry| {
-        if (std.ascii.indexOfIgnoreCase(entry.key_ptr.*, query) != null) {
-            const version = if (entry.value_ptr.object.get("version")) |v| v.string else "?";
-            try stdout.print("  {s:20} {s}\n", .{ entry.key_ptr.*, version });
-            found += 1;
+        const name = entry.key_ptr.*;
+        const val = entry.value_ptr.*;
+        const description = jsonStr(val, "description");
+
+        var keywords: std.ArrayListUnmanaged([]const u8) = .empty;
+        if (val.object.get("keywords")) |kv| switch (kv) {
+            .array => |arr| for (arr.items) |item| switch (item) {
+                .string => |s| try keywords.append(a, s),
+                else => {},
+            },
+            else => {},
+        };
+
+        const score = matchScore(name, description, keywords.items, query);
+        if (score > 0) {
+            try matches.append(a, .{
+                .name = name,
+                .version = versionOrUnknown(val),
+                .description = description,
+                .score = score,
+            });
         }
     }
-    if (found == 0) {
+
+    std.mem.sort(Match, matches.items, {}, matchLessThan);
+
+    const stdout = stdoutWriter();
+    if (matches.items.len == 0) {
         try stdout.print("No packages matching '{s}'\n", .{query});
+        return;
     }
+    try stdout.print("Packages matching '{s}' ({d}):\n", .{ query, matches.items.len });
+    for (matches.items) |m| {
+        if (m.description.len > 0) {
+            try stdout.print("  {s:<16} {s:<10} {s}\n", .{ m.name, m.version, m.description });
+        } else {
+            try stdout.print("  {s:<16} {s}\n", .{ m.name, m.version });
+        }
+    }
+}
+
+fn printField(stdout: StdWriter, label: []const u8, value: []const u8) !void {
+    if (value.len == 0) return;
+    try stdout.print("  {s:<10}{s}\n", .{ label, value });
+}
+
+fn infoPackage(allocator: std.mem.Allocator, registry_path: []const u8, name: []const u8) !void {
+    const registry = readFile(allocator, registry_path) catch {
+        const stderr = stderrWriter();
+        try stderr.print("error: registry not found at {s}\n", .{registry_path});
+        return error.RegistryNotFound;
+    };
+    defer allocator.free(registry);
+
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, registry, .{});
+    defer parsed.deinit();
+
+    const packages = parsed.value.object.get("packages") orelse return error.InvalidRegistry;
+    const entry = packages.object.get(name) orelse {
+        const stderr = stderrWriter();
+        try stderr.print("error: no package named '{s}' in the registry\n", .{name});
+        try stderr.print("try: zaza search {s}\n", .{name});
+        return error.PackageNotFound;
+    };
+
+    const stdout = stdoutWriter();
+    try stdout.print("{s}  {s}\n", .{ name, versionOrUnknown(entry) });
+
+    const description = jsonStr(entry, "description");
+    if (description.len > 0) try stdout.print("  {s}\n", .{description});
+
+    try printField(stdout, "license", jsonStr(entry, "license"));
+    try printField(stdout, "repo", jsonStr(entry, "repo"));
+    try printField(stdout, "homepage", jsonStr(entry, "homepage"));
+
+    if (entry.object.get("keywords")) |kv| switch (kv) {
+        .array => |arr| if (arr.items.len > 0) {
+            try stdout.print("  {s:<10}", .{"keywords"});
+            var first = true;
+            for (arr.items) |item| switch (item) {
+                .string => |s| {
+                    if (!first) try stdout.print(", ", .{});
+                    try stdout.print("{s}", .{s});
+                    first = false;
+                },
+                else => {},
+            };
+            try stdout.print("\n", .{});
+        },
+        else => {},
+    };
+
+    try printField(stdout, "url", jsonStr(entry, "url"));
 }
 
 pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name: []const u8) !void {
