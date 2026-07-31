@@ -35,6 +35,12 @@ jobs:
       - name: Test
         run: zig build test --summary all
 
+      # zaza-lipo uses the version-compat adaptor, and `zig build test` does not
+      # build it. Compile it on each Zig version so a version-specific break in
+      # the tool's entry point is caught here.
+      - name: Build zaza-lipo
+        run: zig build zaza-lipo --summary all
+
       # Build and run the dependency CLI as an executable. `zig build test` only
       # analyses the CLI functions the tests reference, so it would miss a
       # version-specific break in the entry point or the cache/env path. Running
