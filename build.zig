@@ -338,6 +338,30 @@ pub fn build(b: *std.Build) !void {
         drive_native_step.dependOn(&install_driver.step);
     }
 
+    // zaza-lipo: a portable replacement for Apple's `lipo`, built on
+    // build_lib/fatbinary.zig. `zig build zaza-lipo` installs it to
+    // zig-out/bin so macOS universal binaries can be assembled on any host,
+    // including a Linux runner with no Xcode. See tools/zaza-lipo.
+    {
+        const lipo = b.addExecutable(.{
+            .name = "zaza-lipo",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("tools/zaza-lipo/main.zig"),
+                .target = target,
+                .optimize = .ReleaseFast,
+            }),
+        });
+        lipo.root_module.addImport("fatbinary", b.createModule(.{
+            .root_source_file = b.path("build_lib/fatbinary.zig"),
+        }));
+        lipo.root_module.addImport("compat", b.createModule(.{
+            .root_source_file = b.path("build_lib/compat.zig"),
+        }));
+        const install_lipo = b.addInstallArtifact(lipo, .{});
+        const lipo_step = b.step("zaza-lipo", "Install zaza-lipo, a portable lipo replacement (zaza#38)");
+        lipo_step.dependOn(&install_lipo.step);
+    }
+
     // Add clean tests that actually work (test_step was created up front).
     const clean_tests = b.addTest(.{
         .root_module = b.createModule(.{
