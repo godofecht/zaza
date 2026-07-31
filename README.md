@@ -109,6 +109,10 @@ cd zaza
 ```
 
 [`setup.sh`](setup.sh) reports your Zig version, warns if it is outside the tested range, creates the machine-local `./zig` wrapper if it is missing, lists which optional examples your machine cannot run, and then runs the test suite. It is safe to run repeatedly.
+Use `ZIG=/path/to/zig ./setup.sh` to check a specific supported lane, for
+example a `zigup`-installed 0.14.1, 0.15.2, or 0.16.0 binary.
+The setup uses a Zig-version-specific cache directory by default, so changing
+lanes does not reuse a stale build runner from another Zig release.
 
 ```text
 Toolchain

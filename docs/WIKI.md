@@ -1089,6 +1089,19 @@ a `if (comptime @hasDecl(...))` picks one: the `std.Io` filesystem move,
 unmanaged `ObjectMap`. Other versions may work and are not tested. `setup.sh`
 warns when it sees one.
 
+To test a specific lane, pass the compiler explicitly:
+
+```sh
+ZIG=/path/to/zig-0.14.1 ./setup.sh
+ZIG=/path/to/zig-0.15.2 ./setup.sh
+ZIG=/path/to/zig-0.16.0 ./setup.sh
+```
+
+The generated `./zig` wrapper points at the selected binary and keeps local
+cache paths stable for nested build steps. Setup also uses a
+Zig-version-specific `--cache-dir` by default, which avoids stale build runners
+when switching between the 0.14, 0.15, and 0.16 lanes.
+
 ---
 
 ## Where to go next

@@ -1,6 +1,8 @@
 # Zig
 .zig-cache/
 .zig-cache-global/
+.zig-cache-*/
+.zig-cache-global-*/
 zig-cache/
 zig-out/
 # Zig 0.16 unpacks fetched packages here.

@@ -6,6 +6,9 @@
 #
 #   ./setup.sh
 #
+# Environment:
+#   ZIG=/path/to/zig    use a specific Zig binary, for example one lane under zigup
+#
 # Exits non-zero if Zig is missing or the test suite fails. Missing optional
 # tools are warnings, not failures.
 
@@ -15,6 +18,7 @@ ROOT_DIR=$(cd "$(dirname "$0")" && pwd)
 cd "$ROOT_DIR"
 
 SUPPORTED_ZIG="0.14.1 0.15.2 0.16.0"
+ZIG=${ZIG:-zig}
 
 if [ -t 1 ]; then
     C_RESET=$(printf '\033[0m')
@@ -43,17 +47,24 @@ note_unavailable() {
 
 head1 "Toolchain"
 
-if ! command -v zig >/dev/null 2>&1; then
-    fail "zig is not on PATH"
+if ! command -v "$ZIG" >/dev/null 2>&1; then
+    fail "$ZIG is not on PATH"
     printf '\n'
     printf 'Install Zig 0.14.1, 0.15.2 or 0.16.0 from https://ziglang.org/download/\n'
-    printf 'and make sure the binary is on PATH, then run ./setup.sh again.\n'
+    printf 'and make sure the binary is on PATH, or run ZIG=/path/to/zig ./setup.sh.\n'
     exit 1
 fi
 
-ZIG_BIN=$(command -v zig)
-ZIG_VERSION=$(zig version)
+ZIG_BIN=$(command -v "$ZIG")
+ZIG_VERSION=$("$ZIG" version)
 ok "zig $ZIG_VERSION ($ZIG_BIN)"
+
+CACHE_SUFFIX=$(printf '%s' "$ZIG_VERSION" | tr -c 'A-Za-z0-9._-' '_')
+ZIG_CACHE_DIR=${ZIG_CACHE_DIR:-"$ROOT_DIR/.zig-cache-$CACHE_SUFFIX"}
+ZIG_GLOBAL_CACHE_DIR=${ZIG_GLOBAL_CACHE_DIR:-"$ROOT_DIR/.zig-cache-global-$CACHE_SUFFIX"}
+ZIG_LOCAL_CACHE_DIR=${ZIG_LOCAL_CACHE_DIR:-"$ZIG_CACHE_DIR"}
+export ZIG_GLOBAL_CACHE_DIR ZIG_LOCAL_CACHE_DIR
+ok "local cache $ZIG_CACHE_DIR"
 
 ZIG_SUPPORTED=0
 for v in $SUPPORTED_ZIG; do
@@ -86,8 +97,8 @@ else
 set -eu
 ROOT_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
 ZIG_BIN="\${ZIG_REAL:-$ZIG_BIN}"
-: "\${ZIG_GLOBAL_CACHE_DIR:=\$ROOT_DIR/.zig-cache-global}"
-: "\${ZIG_LOCAL_CACHE_DIR:=\$ROOT_DIR/.zig-cache}"
+: "\${ZIG_GLOBAL_CACHE_DIR:=$ZIG_GLOBAL_CACHE_DIR}"
+: "\${ZIG_LOCAL_CACHE_DIR:=$ZIG_CACHE_DIR}"
 export ZIG_GLOBAL_CACHE_DIR ZIG_LOCAL_CACHE_DIR
 exec "\$ZIG_BIN" "\$@"
 EOF
@@ -159,12 +170,12 @@ fi
 
 head1 "Tests"
 
-printf 'ZAZA_EXAMPLES=none zig build test --summary all\n\n'
+printf 'ZAZA_EXAMPLES=none %s build test --cache-dir %s --summary all\n\n' "$ZIG" "$ZIG_CACHE_DIR"
 
 # ZAZA_EXAMPLES=none keeps the C++ examples out of the graph. Zig resolves every
 # declared dependency while the graph is built, so leaving them on would fetch
 # JUCE, curl, mbedtls, zlib, spdlog and fmt just to run the Zig tests.
-if ZAZA_EXAMPLES=none zig build test --summary all; then
+if ZAZA_EXAMPLES=none "$ZIG" build test --cache-dir "$ZIG_CACHE_DIR" --summary all; then
     head1 "Done"
     ok "setup complete"
     printf '\nNext:\n'

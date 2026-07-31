@@ -174,6 +174,7 @@ pub const TargetOptions = struct {
     export_name: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
     custom_commands: []const CustomCommand = &.{},
+    post_build_commands: []const CustomCommand = &.{},
     deps: []const Dependency = &.{},
     configs: ?[]const BuildConfig = null,
     deps_build_system: BuildSystem = .Zig,
@@ -297,6 +298,30 @@ pub const CustomCommand = struct {
     name: []const u8,
     argv: []const []const u8,
 };
+
+fn addPostBuildCommands(
+    b: *std.Build,
+    self: CppExample,
+    config_name: []const u8,
+    dependency: ?*std.Build.Step,
+) !?*std.Build.Step {
+    if (self.post_build_commands.len == 0) return null;
+    if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+
+    var last_step = dependency;
+    for (self.post_build_commands) |cmd| {
+        const post_step = zaza_cmd.addCommandStep(
+            b,
+            b.fmt("{s}_{s}", .{ cmd.name, config_name }),
+            cmd.argv,
+        );
+        if (last_step) |prev| {
+            post_step.dependencies.append(prev) catch unreachable;
+        }
+        last_step = post_step;
+    }
+    return last_step;
+}
 
 pub fn dependencySyncScript(allocator: std.mem.Allocator, dep: Dependency, windows: bool) []const u8 {
     const url = normalizeGitUrlFromAllocator(allocator, dep.url);
@@ -559,6 +584,7 @@ pub const CppExample = struct {
     export_name: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
     custom_commands: []const CustomCommand = &.{},
+    post_build_commands: []const CustomCommand = &.{},
     deps: []const Dependency,
     configs: []const BuildConfig,
     deps_build_system: BuildSystem,
@@ -589,6 +615,7 @@ pub const CppExample = struct {
             .export_name = options.export_name,
             .generated_source_files = options.generated_source_files,
             .custom_commands = options.custom_commands,
+            .post_build_commands = options.post_build_commands,
             .deps = options.deps,
             .configs = options.configs orelse BuildConfigs.debug_only,
             .deps_build_system = options.deps_build_system,
@@ -649,6 +676,12 @@ pub const CppExample = struct {
             allocator.free(cmd.argv);
         }
         allocator.free(self.custom_commands);
+        for (self.post_build_commands) |cmd| {
+            allocator.free(cmd.name);
+            for (cmd.argv) |arg| allocator.free(arg);
+            allocator.free(cmd.argv);
+        }
+        allocator.free(self.post_build_commands);
         for (self.deps) |dep| {
             allocator.free(dep.name);
             allocator.free(dep.url);
@@ -1053,6 +1086,11 @@ pub const CppExample = struct {
                     last_step = cmake_install;
                 }
                 if (last_step) |step| {
+                    if (try addPostBuildCommands(b, self, config_name, step)) |post_step| {
+                        last_step = post_step;
+                    }
+                }
+                if (last_step) |step| {
                     final_steps.append(b.allocator, step) catch unreachable;
                 }
                 try emitInstallAndExport(b, self, config_name);
@@ -1155,6 +1193,9 @@ pub const CppExample = struct {
                     compile.step.dependencies.append(prev) catch unreachable;
                 }
                 last_step = &compile.step;
+                if (try addPostBuildCommands(b, self, config_name, last_step)) |post_step| {
+                    last_step = post_step;
+                }
                 last_exe = compile;
             }
 
