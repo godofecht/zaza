@@ -43,6 +43,8 @@ Still notably incomplete:
 - add static/shared/interface/object library support
 - add target-to-target dependency wiring with transitive usage requirements
 - add graph tests covering include dirs, defines, link flags, and link order
+- macOS universal (fat) binaries: build both arches and combine the slices with
+  a toolchain-pure lipo-equivalent step ([#38](https://github.com/godofecht/zaza/issues/38))
 
 ## 2) Dependency and Package UX
 - [done] lockfile with exact fetched hashes (`zaza.lock`, written by `fetch`)
