@@ -359,6 +359,7 @@ pub fn build(b: *std.Build) !void {
     // Wire up tests/
     const standalone_tests: []const []const u8 = &.{
         "build_lib/compat.zig",
+        "build_lib/fatbinary.zig",
         "tests/test_string_split.zig",
         "tests/test_fetch_minimal.zig",
         "tests/test_cpp_targets.zig",
