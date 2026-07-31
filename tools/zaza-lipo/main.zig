@@ -47,13 +47,32 @@ fn usage() noreturn {
     std.process.exit(2);
 }
 
-pub fn main() !void {
+// Zig 0.16 removed std.process.argsAlloc; argv now arrives through the entry
+// point's parameter, which older versions do not accept. Select the entry
+// point at comptime so one dispatch body serves all three lanes, the same way
+// scripts/zaza.zig does. compat.has_io is the 0.16 marker.
+const on_016 = compat.has_io;
+
+pub const main = if (on_016) main016 else mainLegacy;
+
+fn mainLegacy() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const ioh = compat.io();
-
     const args = try std.process.argsAlloc(a);
+    try dispatch(a, args);
+}
+
+fn main016(init: std.process.Init.Minimal) !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const args = try init.args.toSlice(a);
+    try dispatch(a, args);
+}
+
+fn dispatch(a: std.mem.Allocator, args: []const [:0]const u8) !void {
+    const ioh = compat.io();
     if (args.len < 2) usage();
     const cmd = args[1];
 
@@ -69,7 +88,7 @@ pub fn main() !void {
     }
 }
 
-fn create(a: std.mem.Allocator, ioh: anytype, args: []const [:0]u8) !void {
+fn create(a: std.mem.Allocator, ioh: anytype, args: []const [:0]const u8) !void {
     // At most one slice per two args, so this upper bound never overflows.
     const slices = try a.alloc(fatbinary.Slice, args.len);
     var n: usize = 0;
@@ -114,7 +133,7 @@ fn create(a: std.mem.Allocator, ioh: anytype, args: []const [:0]u8) !void {
     );
 }
 
-fn info(a: std.mem.Allocator, ioh: anytype, args: []const [:0]u8) !void {
+fn info(a: std.mem.Allocator, ioh: anytype, args: []const [:0]const u8) !void {
     if (args.len < 1) fail("usage: zaza-lipo info <file>", .{});
     const path = args[0];
     const bytes = compat.readFile(ioh, a, path) orelse fail("cannot read {s}", .{path});
@@ -137,7 +156,7 @@ fn info(a: std.mem.Allocator, ioh: anytype, args: []const [:0]u8) !void {
     std.debug.print("\n", .{});
 }
 
-fn thin(a: std.mem.Allocator, ioh: anytype, args: []const [:0]u8) !void {
+fn thin(a: std.mem.Allocator, ioh: anytype, args: []const [:0]const u8) !void {
     if (args.len < 2) fail("usage: zaza-lipo thin <file> <arch> -output <out>", .{});
     const path = args[0];
     const want = archFromName(args[1]) orelse fail("unknown arch '{s}'", .{args[1]});
