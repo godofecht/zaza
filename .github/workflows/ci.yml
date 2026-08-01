@@ -41,6 +41,13 @@ jobs:
       - name: Build zaza-lipo
         run: zig build zaza-lipo --summary all
 
+      # Same reasoning for zaza-drive: it drives the compat adaptor's filesystem
+      # and process-spawn paths and has a comptime-dispatched entry point. The
+      # full-build job compiles it, but only on one Zig version. Build it here on
+      # each lane. ZAZA_EXAMPLES=none keeps it from fetching the C++ deps.
+      - name: Build zaza-drive
+        run: zig build drive --summary all
+
       # Build and run the dependency CLI as an executable. `zig build test` only
       # analyses the CLI functions the tests reference, so it would miss a
       # version-specific break in the entry point or the cache/env path. Running
