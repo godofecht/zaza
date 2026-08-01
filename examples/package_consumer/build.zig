@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) !void {
     const package_prefix = b.option([]const u8, "package-prefix", "Prefix where the producer package was installed") orelse "../../zig-out";
 
     const manifest_path = b.pathJoin(&.{ package_prefix, "share", "zaza", "package_math.json" });
-    const manifest = try readPackageManifest(b.allocator, manifest_path);
+    const manifest = try readPackageManifest(b, b.allocator, manifest_path);
 
     const exe = b.addExecutable(.{
         .name = "package_consumer",
@@ -48,8 +48,14 @@ pub fn build(b: *std.Build) !void {
     run_step.dependOn(&run.step);
 }
 
-fn readPackageManifest(allocator: std.mem.Allocator, path: []const u8) !PackageManifest {
-    const file = try std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024);
+// Zig 0.16 moved the filesystem under std.Io and removed std.fs.cwd, so the
+// read needs the build graph's Io handle. The path is cwd-relative, so it uses
+// the cwd Dir on each version. Only the taken branch is analysed.
+fn readPackageManifest(b: *std.Build, allocator: std.mem.Allocator, path: []const u8) !PackageManifest {
+    const file = if (comptime @hasDecl(std.fs, "cwd"))
+        try std.fs.cwd().readFileAlloc(allocator, path, 1024 * 1024)
+    else
+        try std.Io.Dir.cwd().readFileAlloc(b.graph.io, path, allocator, .unlimited);
     defer allocator.free(file);
 
     const parsed = try std.json.parseFromSlice(PackageManifest, allocator, file, .{
