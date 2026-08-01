@@ -536,6 +536,12 @@ pub fn build(b: *std.Build) !void {
         if (comptime !@hasDecl(std, "net")) {
             if (std.mem.eql(u8, target_name, "wasm-web-demo-smoke")) continue;
         }
+        // cxx20-modules drives a C++20-modules-capable clang++ (ZAZA_MODULES_CXX,
+        // or the macOS Homebrew LLVM by default). That toolchain is not present
+        // on a stock non-macOS CI runner, so skip it off macOS. See #48.
+        if (comptime builtin.os.tag != .macos) {
+            if (std.mem.eql(u8, target_name, "cxx20-modules-run")) continue;
+        }
         const nested = addNestedBuildStep(b, target_name);
         if (previous_matrix_step) |prev| {
             nested.dependencies.append(prev) catch unreachable;
