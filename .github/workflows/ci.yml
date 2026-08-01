@@ -84,12 +84,13 @@ jobs:
         with:
           version: ${{ matrix.zig }}
 
-      # example-matrix shells out to ./zig for each nested step, so point the
-      # wrapper at the Zig this job installed.
+      # example-matrix shells out to ./zig for each nested step. That wrapper is
+      # machine-local and gitignored, so it is absent on a fresh checkout.
+      # Generate a minimal one that execs the Zig this job installed.
       - name: Run the example matrix
         run: |
+          printf '#!/bin/sh\nexec "%s" "$@"\n' "$(command -v zig)" > ./zig
           chmod +x ./zig
-          export ZIG_REAL="$(command -v zig)"
           ./zig build example-matrix --summary all
 
   # The whole graph, C++ examples and JUCE included. Slow (JUCE is compiled
