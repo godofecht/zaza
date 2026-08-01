@@ -77,12 +77,20 @@ jobs:
     env:
       ZAZA_REGISTRY: "0"
       ZAZA_EXAMPLES: "hello-zaza,proof-library,generated-code,package-consumer,package-producer,mixed-stack,interface-object-graph,test-workflows,bench-suite,generated-headers,shared-plugin,preset-profiles,cross-compile-cli,resources-bundle,bindings,benchmark-workflow,cxx20-modules,wasm-wasi,wasm-exports"
+      # cxx20-modules needs a C++20-modules-capable clang++. Ubuntu ships one;
+      # point the example at it so the matrix covers it off macOS too.
+      ZAZA_MODULES_CXX: "/usr/bin/clang++"
     steps:
       - uses: actions/checkout@v4
 
       - uses: mlugg/setup-zig@v2
         with:
           version: ${{ matrix.zig }}
+
+      # The cxx20-modules example precompiles a C++20 module with clang. Ensure a
+      # recent clang is present (ubuntu images ship one, this pins it).
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
 
       # example-matrix shells out to ./zig for each nested step. That wrapper is
       # machine-local and gitignored, so it is absent on a fresh checkout.
