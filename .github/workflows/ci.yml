@@ -59,6 +59,39 @@ jobs:
           zig run scripts/zaza.zig -- deps
           zig run scripts/zaza.zig -- cache
 
+  # Cross-version example coverage. `zig build test` never builds the examples,
+  # and the macOS full-build runs a single Zig version, so a version-specific
+  # break in an example (a std.fs.cwd in a build.zig, say) had no lane to catch
+  # it. example-matrix builds and runs the verified example surface. The matrix
+  # examples are all self-contained, so ZAZA_EXAMPLES scopes the graph to them
+  # and a fresh runner fetches nothing (no cmake, cargo, or JUCE). If a matrix
+  # target's example is missing from this list its nested step fails loudly, so
+  # the list stays honest.
+  examples:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        zig: ["0.14.1", "0.15.2", "0.16.0"]
+    name: examples (zig ${{ matrix.zig }})
+    env:
+      ZAZA_REGISTRY: "0"
+      ZAZA_EXAMPLES: "hello-zaza,proof-library,generated-code,package-consumer,package-producer,mixed-stack,interface-object-graph,test-workflows,bench-suite,generated-headers,shared-plugin,preset-profiles,cross-compile-cli,resources-bundle,bindings,benchmark-workflow,cxx20-modules,wasm-wasi,wasm-exports"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ matrix.zig }}
+
+      # example-matrix shells out to ./zig for each nested step, so point the
+      # wrapper at the Zig this job installed.
+      - name: Run the example matrix
+        run: |
+          chmod +x ./zig
+          export ZIG_REAL="$(command -v zig)"
+          ./zig build example-matrix --summary all
+
   # The whole graph, C++ examples and JUCE included. Slow (JUCE is compiled
   # from source), so it is kept off the PR path.
   full-build:

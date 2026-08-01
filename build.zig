@@ -529,6 +529,13 @@ pub fn build(b: *std.Build) !void {
     };
     var previous_matrix_step: ?*std.Build.Step = null;
     for (matrix_targets) |target_name| {
+        // wasm-web-demo-smoke runs build_lib/static_server.zig, whose networking
+        // still uses std.net. Zig 0.16 moved that to std.Io.net, so the server
+        // does not yet compile there. Skip this one target on 0.16 until the
+        // migration lands (#47) so the rest of the matrix still runs on that lane.
+        if (comptime !@hasDecl(std, "net")) {
+            if (std.mem.eql(u8, target_name, "wasm-web-demo-smoke")) continue;
+        }
         const nested = addNestedBuildStep(b, target_name);
         if (previous_matrix_step) |prev| {
             nested.dependencies.append(prev) catch unreachable;
