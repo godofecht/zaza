@@ -441,9 +441,34 @@ ZAZA_SYSTEM_CMDS=1 zig build cmake-shim</code></pre>
           <tr><td><code>add_executable()</code></td><td>Executable target</td></tr>
           <tr><td><code>add_library()</code></td><td>Library target with <code>.kind</code></td></tr>
           <tr><td><code>add_custom_command()</code></td><td><code>.custom_commands</code></td></tr>
+          <tr><td><code>POST_BUILD copy</code></td><td><code>.artifact_copies</code> or <code>zaza.addArtifactCopies</code></td></tr>
           <tr><td><code>find_package()</code></td><td>Package producer and consumer flow</td></tr>
         </tbody>
       </table>
+    `,
+  },
+  {
+    id: "artifact-copies",
+    category: "Tutorial",
+    title: "Stage plugin artifacts",
+    summary: "Copy a built output into a host-loadable or bundle-style directory as part of the build graph.",
+    body: `
+      <h3>Try the shared plugin</h3>
+      <pre><code>zig build shared-plugin-run</code></pre>
+      <h3>Target field</h3>
+      <pre><code>.artifact_copies = &.{
+    .{ .dest_dir = "share/my_host/plugins" },
+},</code></pre>
+      <h3>Manual artifact helper</h3>
+      <pre><code>const copy = zaza.addArtifactCopies(
+    b,
+    "shared-plugin",
+    plugin,
+    &.{.{ .dest_dir = "share/shared_plugin/plugins" }},
+    &install_plugin.step,
+).?;</code></pre>
+      <h3>How to think about it</h3>
+      <p>This is the build-graph version of a post-build copy step. The copy depends on the built artifact and can be used by a run step before a host loads the plugin.</p>
     `,
   },
   {

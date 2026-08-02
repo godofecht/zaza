@@ -220,6 +220,11 @@ registry entry carries a description, keywords, repo, homepage, and license.
 
 Every example has its own README with prerequisites and an exact command. The index is [`examples/README.md`](examples/README.md). Per-example diagrams and syntax notes live in [`docs/EXAMPLES.md`](docs/EXAMPLES.md).
 
+Plugin and bundle-style layouts can stage built outputs with `artifact_copies`
+or the lower-level `zaza.addArtifactCopies` helper. The shared plugin example
+copies the dynamic library into `zig-out/share/shared_plugin/plugins/` before
+the host loads it.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Replacing CMake
@@ -234,6 +239,7 @@ The intent is not to mimic CMake syntax one-for-one. The intent is to cover the 
 | `target_include_directories()` | include-dir fields on the target |
 | `target_compile_definitions()` | `public_defines` / `private_defines` / config defines |
 | `add_custom_command()` | `custom_commands` |
+| `add_custom_command(TARGET ... POST_BUILD copy ...)` | `artifact_copies` / `zaza.addArtifactCopies` |
 | `install()` / `export()` | install/export fields and Zaza package metadata |
 | `find_package()` consumer flow | package producer / consumer example |
 

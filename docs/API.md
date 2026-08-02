@@ -83,6 +83,26 @@ falls back to debug. This is the same resolution `ZAZA_PRESET` uses.
 | `Deps` | namespace | Ready-made dependency descriptions. |
 | `Defines` | namespace | Common preprocessor define strings, plus a `custom` helper. |
 | `CustomCommand` | type | A named command that produces generated sources. |
+| `ArtifactCopy` | type | Extra install-style copies of a built artifact. |
+| `addArtifactCopies` | fn | Attach artifact copy steps to a manually built artifact. |
+
+`Target.artifact_copies` is the target-level form for artifacts built through
+Zaza. Use it when a plugin, app bundle, or package layout needs the same output
+outside the default `zig-out/bin` or `zig-out/lib` location:
+
+```zig
+const plugin = zaza.Target.sharedLibrary(.{
+    .name = "my_plugin",
+    .source_files = &.{"src/plugin.cpp"},
+    .artifact_copies = &.{
+        .{ .dest_dir = "share/my_host/plugins" },
+    },
+});
+```
+
+For hand-built artifacts, use `addArtifactCopies` with the artifact and an
+optional dependency step. The helper returns the last copy step so callers can
+depend on it before running a host.
 
 ## Target usage graph
 

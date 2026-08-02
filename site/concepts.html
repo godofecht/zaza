@@ -113,6 +113,18 @@ zig-out/lib/...
 zig-out/cmake/&lt;export_name&gt;/&lt;export_name&gt;Config.cmake
 zig-out/share/zaza/&lt;export_name&gt;.json</code></pre>
 
+<p>Artifact copies stage a built output in extra install-style directories without
+shelling out to <code>cp</code>:</p>
+
+<pre data-lang="zig"><code class="language-zig">.artifact_copies = &amp;.{
+    .{ .dest_dir = "share/my_host/plugins" },
+},</code></pre>
+
+<p>Use <code>zaza.addArtifactCopies</code> when a build file hand-builds the artifact with
+plain <code>std.Build</code> calls. The shared plugin example uses that lower-level helper
+to copy the dynamic library into <code>zig-out/share/shared_plugin/plugins/</code> before
+the host loads it.</p>
+
 <p>The full field list is in <a href="https://github.com/godofecht/zaza/blob/main/docs/SYNTAX_REFERENCE.md"><code>SYNTAX_REFERENCE.md</code></a>.</p>
 
 <h3 id="presets">Presets</h3>

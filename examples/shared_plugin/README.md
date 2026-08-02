@@ -6,6 +6,7 @@ A shared library loaded at runtime by a host executable through `dlopen`.
 
 - `b.addLibrary` with `.linkage = .dynamic`.
 - Platform-specific artifact naming (`.dylib` / `.so` / `.dll`).
+- `zaza.addArtifactCopies` staging the plugin into a host-loadable directory.
 - Linking `dl` only on the platforms that need it.
 
 ## Prerequisites
@@ -28,7 +29,8 @@ plugin result: 42
 
 ## Notes
 
-The run step passes the installed plugin path to the host as an argument.
+The run step passes the staged plugin path to the host as an argument:
+`zig-out/share/shared_plugin/plugins/<platform plugin name>`.
 
 ---
 

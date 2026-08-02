@@ -54,6 +54,7 @@ one-for-one syntax compatibility.</p>
 <tr><td><code>target_include_directories(PUBLIC ...)</code></td><td><code>.public_include_dirs</code></td></tr>
 <tr><td><code>target_compile_definitions(PRIVATE ...)</code></td><td><code>.private_defines</code></td></tr>
 <tr><td><code>add_custom_command()</code></td><td><code>.custom_commands</code> + <code>.generated_source_files</code></td></tr>
+<tr><td><code>add_custom_command(TARGET ... POST_BUILD copy ...)</code></td><td><code>.artifact_copies</code> / <code>zaza.addArtifactCopies</code></td></tr>
 <tr><td><code>install()</code> / <code>export()</code></td><td><code>.install_headers</code>, <code>.export_cmake</code>, <code>.export_name</code></td></tr>
 <tr><td><code>find_package()</code></td><td>package manifest read at configure time</td></tr>
 <tr><td><code>FetchContent</code></td><td>registry entry resolved into <code>build.zig.zon</code></td></tr>

@@ -25,3 +25,7 @@ Open `http://localhost:8000`.
 - `index.html`: page shell and layout
 - `styles.css`: tutorial site styling
 - `app.js`: tutorial content, navigation, and search
+
+Keep API tutorials in sync with `docs/API.md` and `docs/SYNTAX_REFERENCE.md`.
+For example, artifact staging belongs in both the reference docs and the
+interactive `artifact-copies` tutorial card.

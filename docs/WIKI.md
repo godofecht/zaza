@@ -91,6 +91,7 @@ one-for-one syntax compatibility.
 | `target_include_directories(PUBLIC ...)` | `.public_include_dirs` |
 | `target_compile_definitions(PRIVATE ...)` | `.private_defines` |
 | `add_custom_command()` | `.custom_commands` + `.generated_source_files` |
+| `add_custom_command(TARGET ... POST_BUILD copy ...)` | `.artifact_copies` / `zaza.addArtifactCopies` |
 | `install()` / `export()` | `.install_headers`, `.export_cmake`, `.export_name` |
 | `find_package()` | package manifest read at configure time |
 | `FetchContent` | registry entry resolved into `build.zig.zon` |
@@ -394,6 +395,20 @@ zig-out/lib/...
 zig-out/cmake/<export_name>/<export_name>Config.cmake
 zig-out/share/zaza/<export_name>.json
 ```
+
+Artifact copies stage a built output in extra install-style directories without
+shelling out to `cp`:
+
+```zig
+.artifact_copies = &.{
+    .{ .dest_dir = "share/my_host/plugins" },
+},
+```
+
+Use `zaza.addArtifactCopies` when a build file hand-builds the artifact with
+plain `std.Build` calls. The shared plugin example uses that lower-level helper
+to copy the dynamic library into `zig-out/share/shared_plugin/plugins/` before
+the host loads it.
 
 The full field list is in [`SYNTAX_REFERENCE.md`](SYNTAX_REFERENCE.md).
 

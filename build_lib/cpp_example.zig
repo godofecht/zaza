@@ -170,6 +170,7 @@ pub const TargetOptions = struct {
     private_link_libs: []const []const u8 = &.{},
     install_headers: []const []const u8 = &.{},
     install_libs: []const []const u8 = &.{},
+    artifact_copies: []const ArtifactCopy = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
@@ -298,6 +299,45 @@ pub const CustomCommand = struct {
     name: []const u8,
     argv: []const []const u8,
 };
+
+/// Extra install-style copies of a built artifact. This is for plugin bundles,
+/// staged app layouts, and package directories that need the same artifact in
+/// more than Zig's default `bin`/`lib` output.
+pub const ArtifactCopy = struct {
+    /// Destination directory relative to the install prefix, for example
+    /// `share/my_app/plugins` or `lib/vst3/MyPlugin.vst3/Contents/MacOS`.
+    dest_dir: []const u8,
+    /// Optional public step name. Defaults to `<target>-copy-<index>`.
+    step_name: ?[]const u8 = null,
+};
+
+pub fn addArtifactCopies(
+    b: *std.Build,
+    target_name: []const u8,
+    artifact: *std.Build.Step.Compile,
+    copies: []const ArtifactCopy,
+    dependency: ?*std.Build.Step,
+) ?*std.Build.Step {
+    if (copies.len == 0) return dependency;
+
+    var last_step = dependency;
+    for (copies, 0..) |copy, idx| {
+        const install_copy = b.addInstallArtifact(artifact, .{
+            .dest_dir = .{ .override = .{ .custom = copy.dest_dir } },
+        });
+        if (last_step) |prev| {
+            install_copy.step.dependencies.append(prev) catch unreachable;
+        }
+
+        const step = b.step(
+            copy.step_name orelse b.fmt("{s}-copy-{d}", .{ target_name, idx }),
+            b.fmt("Copy {s} artifact to {s}", .{ target_name, copy.dest_dir }),
+        );
+        step.dependOn(&install_copy.step);
+        last_step = step;
+    }
+    return last_step;
+}
 
 fn addPostBuildCommands(
     b: *std.Build,
@@ -580,6 +620,7 @@ pub const CppExample = struct {
     private_link_libs: []const []const u8 = &.{},
     install_headers: []const []const u8 = &.{},
     install_libs: []const []const u8 = &.{},
+    artifact_copies: []const ArtifactCopy = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
@@ -611,6 +652,7 @@ pub const CppExample = struct {
             .private_link_libs = options.private_link_libs,
             .install_headers = options.install_headers,
             .install_libs = options.install_libs,
+            .artifact_copies = options.artifact_copies,
             .export_cmake = options.export_cmake,
             .export_name = options.export_name,
             .generated_source_files = options.generated_source_files,
@@ -670,6 +712,11 @@ pub const CppExample = struct {
             allocator.free(src);
         }
         allocator.free(self.generated_source_files);
+        for (self.artifact_copies) |copy| {
+            allocator.free(copy.dest_dir);
+            if (copy.step_name) |name| allocator.free(name);
+        }
+        allocator.free(self.artifact_copies);
         for (self.custom_commands) |cmd| {
             allocator.free(cmd.name);
             for (cmd.argv) |arg| allocator.free(arg);
@@ -1038,6 +1085,7 @@ pub const CppExample = struct {
             // Build main project with selected build system
             if (self.main_build_system == .CMake) {
                 if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+                if (self.artifact_copies.len > 0) return error.ArtifactCopyRequiresZigArtifact;
                 // Use CMake for main project
                 const cmake_cfg = self.cmake_config orelse CMakeConfig{};
                 const source_dir = cmake_cfg.source_dir orelse ".";
@@ -1193,6 +1241,15 @@ pub const CppExample = struct {
                     compile.step.dependencies.append(prev) catch unreachable;
                 }
                 last_step = &compile.step;
+                if (addArtifactCopies(
+                    b,
+                    b.fmt("{s}-{s}", .{ self.name, config_name }),
+                    compile,
+                    self.artifact_copies,
+                    last_step,
+                )) |copy_step| {
+                    last_step = copy_step;
+                }
                 if (try addPostBuildCommands(b, self, config_name, last_step)) |post_step| {
                     last_step = post_step;
                 }

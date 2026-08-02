@@ -114,6 +114,30 @@ test "cpp example basic construction" {
     try testing.expectEqual(@as(usize, 1), ex.include_dirs.len);
 }
 
+test "target options default artifact copies are empty" {
+    const ex = cpp.CppExample.executable(.{
+        .name = "copy_defaults",
+        .source_files = &.{"src/main.cpp"},
+    });
+    try testing.expectEqual(@as(usize, 0), ex.artifact_copies.len);
+}
+
+test "target options preserve artifact copy declarations" {
+    const ex = cpp.CppExample.sharedLibrary(.{
+        .name = "plugin",
+        .source_files = &.{"src/plugin.cpp"},
+        .artifact_copies = &.{
+            .{
+                .dest_dir = "share/plugin_bundle/Contents/MacOS",
+                .step_name = "plugin-copy-bundle-binary",
+            },
+        },
+    });
+    try testing.expectEqual(@as(usize, 1), ex.artifact_copies.len);
+    try testing.expectEqualStrings("share/plugin_bundle/Contents/MacOS", ex.artifact_copies[0].dest_dir);
+    try testing.expectEqualStrings("plugin-copy-bundle-binary", ex.artifact_copies[0].step_name.?);
+}
+
 test "all source files without generated sources" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

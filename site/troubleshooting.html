@@ -153,6 +153,17 @@ a <code>if (comptime @hasDecl(...))</code> picks one: the <code>std.Io</code> fi
 unmanaged <code>ObjectMap</code>. Other versions may work and are not tested. <code>setup.sh</code>
 warns when it sees one.</p>
 
+<p>To test a specific lane, pass the compiler explicitly:</p>
+
+<pre data-lang="sh"><code class="language-sh">ZIG=/path/to/zig-0.14.1 ./setup.sh
+ZIG=/path/to/zig-0.15.2 ./setup.sh
+ZIG=/path/to/zig-0.16.0 ./setup.sh</code></pre>
+
+<p>The generated <code>./zig</code> wrapper points at the selected binary and keeps local
+cache paths stable for nested build steps. Setup also uses a
+Zig-version-specific <code>--cache-dir</code> by default, which avoids stale build runners
+when switching between the 0.14, 0.15, and 0.16 lanes.</p>
+
 <div class="page-footer">
   <a href="examples-index.html">&larr; All Examples</a>
   <a href="next.html">Next: Where to Go Next &rarr;</a>

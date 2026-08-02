@@ -23,6 +23,7 @@ Each example also names the syntax it is demonstrating.
 - `CppExample.kind`: target shape such as executable, static library, or shared library
 - `custom_commands`: pre-build commands that generate sources or headers
 - `generated_source_files`: generated `.c` / `.cpp` inputs that still need compilation
+- `artifact_copies`: extra install-style copies of a built artifact
 - `public_include_dirs` / `public_defines` / `public_link_libs`: usage that should propagate to downstream targets
 - `BuildConfig`: per-configuration flags, defines, link settings, and mode selection
 - nested build: a root target that intentionally shells out into another `build.zig`
@@ -254,15 +255,18 @@ zig build shared-plugin-run
 What it proves:
 - shared library build support
 - runtime dynamic loading with an executable host
+- artifact-aware copy steps for host-loadable plugin directories
 
 Syntax focus:
 - `CppExample.kind = .shared_library`
+- `zaza.ArtifactCopy` / `zaza.addArtifactCopies`
 - runtime loading rather than normal static link-time consumption
 
 Diagram:
 
 ```text
 plugin.cpp -> shared_plugin.(dylib|so|dll)
+          -> zig-out/share/shared_plugin/plugins/
 host.cpp   -> shared_plugin_host
 shared_plugin_host --dlopen--> shared_plugin
 ```

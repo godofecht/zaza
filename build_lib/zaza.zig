@@ -101,6 +101,12 @@ pub const Defines = cpp.Defines;
 /// A named command that produces generated sources, run before compilation.
 pub const CustomCommand = cpp.CustomCommand;
 
+/// Extra install-style copies of a built artifact.
+pub const ArtifactCopy = cpp.ArtifactCopy;
+
+/// Add extra install-style copies for a manually built artifact.
+pub const addArtifactCopies = cpp.addArtifactCopies;
+
 // --- Target usage graph -------------------------------------------------------
 //
 // A lighter target model that resolves transitive include dirs, defines, and

@@ -206,6 +206,7 @@ Pattern:
 
 - `.install_headers`
 - `.install_libs`
+- `.artifact_copies`
 - `.export_cmake`
 - `.export_name`
 
@@ -217,6 +218,22 @@ zig-out/lib/...
 zig-out/cmake/<export_name>/<export_name>Config.cmake
 zig-out/share/zaza/<export_name>.json
 ```
+
+`artifact_copies` adds extra install-style copies of the built artifact. Each
+copy has a destination directory relative to `zig-out` and an optional public
+step name:
+
+```zig
+.artifact_copies = &.{
+    .{
+        .dest_dir = "share/my_host/plugins",
+        .step_name = "my-plugin-copy",
+    },
+},
+```
+
+Use this for plugin hosts, app bundle layouts, and package staging directories
+that need the artifact somewhere other than the default `bin` or `lib` output.
 
 ### Dependencies
 

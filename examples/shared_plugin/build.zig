@@ -1,4 +1,5 @@
 const std = @import("std");
+const zaza = @import("../../build_lib/zaza.zig");
 
 pub const BuildResult = struct {
     build_step: *std.Build.Step,
@@ -40,14 +41,21 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const install_plugin = b.addInstallArtifact(plugin, .{});
     const install_host = b.addInstallArtifact(host, .{});
+    const copy_plugin = zaza.addArtifactCopies(
+        b,
+        "shared-plugin",
+        plugin,
+        &.{.{ .dest_dir = "share/shared_plugin/plugins", .step_name = "shared-plugin-copy-plugin" }},
+        &install_plugin.step,
+    ).?;
 
     const build_step = b.step("shared-plugin", "Build the shared plugin example");
-    build_step.dependOn(&install_plugin.step);
+    build_step.dependOn(copy_plugin);
     build_step.dependOn(&install_host.step);
 
     const run = b.addRunArtifact(host);
-    run.step.dependencies.append(&install_plugin.step) catch unreachable;
-    run.addArg(installedPluginPath(b, target.result.os.tag));
+    run.step.dependencies.append(copy_plugin) catch unreachable;
+    run.addArg(copiedPluginPath(b, target.result.os.tag));
     const run_step = b.step("shared-plugin-run", "Run the shared plugin example");
     run_step.dependOn(&run.step);
 
@@ -57,13 +65,13 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     };
 }
 
-fn installedPluginPath(b: *std.Build, os_tag: std.Target.Os.Tag) []const u8 {
+fn copiedPluginPath(b: *std.Build, os_tag: std.Target.Os.Tag) []const u8 {
     const basename = switch (os_tag) {
         .windows => "shared_plugin.dll",
         .macos => "libshared_plugin.dylib",
         else => "libshared_plugin.so",
     };
-    return b.pathJoin(&.{ "zig-out", "lib", basename });
+    return b.pathJoin(&.{ "zig-out", "share", "shared_plugin", "plugins", basename });
 }
 
 pub fn build(b: *std.Build) void {
