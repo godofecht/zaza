@@ -207,6 +207,7 @@ Pattern:
 - `.install_headers`
 - `.install_libs`
 - `.artifact_copies`
+- `.file_copies`
 - `.export_cmake`
 - `.export_name`
 
@@ -234,6 +235,23 @@ step name:
 
 Use this for plugin hosts, app bundle layouts, and package staging directories
 that need the artifact somewhere other than the default `bin` or `lib` output.
+
+`file_copies` stages source files or generated files. Each copy has a source
+path and a destination path relative to `zig-out`; the destination includes the
+file name:
+
+```zig
+.file_copies = &.{
+    .{
+        .source_path = "assets/message.txt",
+        .dest_path = "share/my_app/message.txt",
+        .step_name = "my-app-copy-message",
+    },
+},
+```
+
+Use this for runtime assets, presets, web harnesses, and package metadata that
+should be part of the build graph without shelling out to `cp`.
 
 ### Dependencies
 

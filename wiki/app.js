@@ -441,17 +441,17 @@ ZAZA_SYSTEM_CMDS=1 zig build cmake-shim</code></pre>
           <tr><td><code>add_executable()</code></td><td>Executable target</td></tr>
           <tr><td><code>add_library()</code></td><td>Library target with <code>.kind</code></td></tr>
           <tr><td><code>add_custom_command()</code></td><td><code>.custom_commands</code></td></tr>
-          <tr><td><code>POST_BUILD copy</code></td><td><code>.artifact_copies</code> or <code>zaza.addArtifactCopies</code></td></tr>
+          <tr><td><code>POST_BUILD copy</code></td><td><code>.artifact_copies</code>, <code>.file_copies</code>, and copy helpers</td></tr>
           <tr><td><code>find_package()</code></td><td>Package producer and consumer flow</td></tr>
         </tbody>
       </table>
     `,
   },
   {
-    id: "artifact-copies",
+    id: "copy-staging",
     category: "Tutorial",
-    title: "Stage plugin artifacts",
-    summary: "Copy a built output into a host-loadable or bundle-style directory as part of the build graph.",
+    title: "Stage artifacts and files",
+    summary: "Copy built outputs and runtime assets into stable install-style directories as part of the build graph.",
     body: `
       <h3>Try the shared plugin</h3>
       <pre><code>zig build shared-plugin-run</code></pre>
@@ -469,6 +469,17 @@ ZAZA_SYSTEM_CMDS=1 zig build cmake-shim</code></pre>
 ).?;</code></pre>
       <h3>How to think about it</h3>
       <p>This is the build-graph version of a post-build copy step. The copy depends on the built artifact and can be used by a run step before a host loads the plugin.</p>
+      <h3>Runtime files</h3>
+      <pre><code>const copy = zaza.addFileCopies(
+    b,
+    "resources-bundle",
+    &.{.{
+        .source_path = "examples/resources_bundle/assets/message.txt",
+        .dest_path = "share/resources_bundle/message.txt",
+    }},
+    &install_exe.step,
+).?;</code></pre>
+      <p>Use file copies for assets, presets, generated metadata, and other non-code files that need a predictable path under <code>zig-out</code>.</p>
     `,
   },
   {

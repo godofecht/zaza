@@ -125,6 +125,20 @@ plain <code>std.Build</code> calls. The shared plugin example uses that lower-le
 to copy the dynamic library into <code>zig-out/share/shared_plugin/plugins/</code> before
 the host loads it.</p>
 
+<p>File copies stage runtime assets and other non-code files the same way:</p>
+
+<pre data-lang="zig"><code class="language-zig">.file_copies = &amp;.{
+    .{
+        .source_path = "assets/message.txt",
+        .dest_path = "share/my_app/message.txt",
+    },
+},</code></pre>
+
+<p>Use <code>zaza.addFileCopies</code> when a build file assembles the executable manually.
+The resources bundle example uses it to copy
+<code>examples/resources_bundle/assets/message.txt</code> into
+<code>zig-out/share/resources_bundle/message.txt</code> before the run step reads it.</p>
+
 <p>The full field list is in <a href="https://github.com/godofecht/zaza/blob/main/docs/SYNTAX_REFERENCE.md"><code>SYNTAX_REFERENCE.md</code></a>.</p>
 
 <h3 id="presets">Presets</h3>

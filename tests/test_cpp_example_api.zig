@@ -61,7 +61,7 @@ test "cmake config with all fields" {
         .install_prefix = "zig-out",
         .install = true,
         .configure_args = &.{"-DBUILD_TESTING=OFF"},
-        .build_args = &.{"--parallel", "8"},
+        .build_args = &.{ "--parallel", "8" },
         .install_args = &.{"--strip"},
     };
     try testing.expectEqualStrings("deps/zlib", cfg.source_dir.?);
@@ -120,6 +120,7 @@ test "target options default artifact copies are empty" {
         .source_files = &.{"src/main.cpp"},
     });
     try testing.expectEqual(@as(usize, 0), ex.artifact_copies.len);
+    try testing.expectEqual(@as(usize, 0), ex.file_copies.len);
 }
 
 test "target options preserve artifact copy declarations" {
@@ -136,6 +137,24 @@ test "target options preserve artifact copy declarations" {
     try testing.expectEqual(@as(usize, 1), ex.artifact_copies.len);
     try testing.expectEqualStrings("share/plugin_bundle/Contents/MacOS", ex.artifact_copies[0].dest_dir);
     try testing.expectEqualStrings("plugin-copy-bundle-binary", ex.artifact_copies[0].step_name.?);
+}
+
+test "target options preserve file copy declarations" {
+    const ex = cpp.CppExample.executable(.{
+        .name = "asset_app",
+        .source_files = &.{"src/main.cpp"},
+        .file_copies = &.{
+            .{
+                .source_path = "assets/message.txt",
+                .dest_path = "share/asset_app/message.txt",
+                .step_name = "asset-app-copy-message",
+            },
+        },
+    });
+    try testing.expectEqual(@as(usize, 1), ex.file_copies.len);
+    try testing.expectEqualStrings("assets/message.txt", ex.file_copies[0].source_path);
+    try testing.expectEqualStrings("share/asset_app/message.txt", ex.file_copies[0].dest_path);
+    try testing.expectEqualStrings("asset-app-copy-message", ex.file_copies[0].step_name.?);
 }
 
 test "all source files without generated sources" {

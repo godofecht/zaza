@@ -4,7 +4,7 @@ A runtime asset staged into `zig-out/share` and read back by the executable.
 
 ## What it demonstrates
 
-- `b.addInstallFileWithDir` for non-code outputs.
+- `zaza.FileCopy` / `zaza.addFileCopies` for non-code outputs.
 - Ordering the asset install ahead of the run step.
 - Passing the staged path to the program as an argument.
 

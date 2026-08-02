@@ -27,5 +27,5 @@ Open `http://localhost:8000`.
 - `app.js`: tutorial content, navigation, and search
 
 Keep API tutorials in sync with `docs/API.md` and `docs/SYNTAX_REFERENCE.md`.
-For example, artifact staging belongs in both the reference docs and the
-interactive `artifact-copies` tutorial card.
+For example, artifact and file staging belong in both the reference docs and
+the interactive staging tutorial card.

@@ -91,7 +91,7 @@ one-for-one syntax compatibility.
 | `target_include_directories(PUBLIC ...)` | `.public_include_dirs` |
 | `target_compile_definitions(PRIVATE ...)` | `.private_defines` |
 | `add_custom_command()` | `.custom_commands` + `.generated_source_files` |
-| `add_custom_command(TARGET ... POST_BUILD copy ...)` | `.artifact_copies` / `zaza.addArtifactCopies` |
+| `add_custom_command(TARGET ... POST_BUILD copy ...)` | `.artifact_copies`, `.file_copies`, and copy helpers |
 | `install()` / `export()` | `.install_headers`, `.export_cmake`, `.export_name` |
 | `find_package()` | package manifest read at configure time |
 | `FetchContent` | registry entry resolved into `build.zig.zon` |
@@ -409,6 +409,22 @@ Use `zaza.addArtifactCopies` when a build file hand-builds the artifact with
 plain `std.Build` calls. The shared plugin example uses that lower-level helper
 to copy the dynamic library into `zig-out/share/shared_plugin/plugins/` before
 the host loads it.
+
+File copies stage runtime assets and other non-code files the same way:
+
+```zig
+.file_copies = &.{
+    .{
+        .source_path = "assets/message.txt",
+        .dest_path = "share/my_app/message.txt",
+    },
+},
+```
+
+Use `zaza.addFileCopies` when a build file assembles the executable manually.
+The resources bundle example uses it to copy
+`examples/resources_bundle/assets/message.txt` into
+`zig-out/share/resources_bundle/message.txt` before the run step reads it.
 
 The full field list is in [`SYNTAX_REFERENCE.md`](SYNTAX_REFERENCE.md).
 

@@ -24,6 +24,7 @@ Each example also names the syntax it is demonstrating.
 - `custom_commands`: pre-build commands that generate sources or headers
 - `generated_source_files`: generated `.c` / `.cpp` inputs that still need compilation
 - `artifact_copies`: extra install-style copies of a built artifact
+- `file_copies`: install-style staging for runtime assets and generated files
 - `public_include_dirs` / `public_defines` / `public_link_libs`: usage that should propagate to downstream targets
 - `BuildConfig`: per-configuration flags, defines, link settings, and mode selection
 - nested build: a root target that intentionally shells out into another `build.zig`
@@ -340,6 +341,7 @@ What it proves:
 
 Syntax focus:
 - staged runtime assets
+- `zaza.FileCopy` / `zaza.addFileCopies`
 - install-style output layout under `zig-out/share/...`
 
 Diagram:

@@ -1,4 +1,5 @@
 const std = @import("std");
+const zaza = @import("../../build_lib/zaza.zig");
 
 pub const BuildResult = struct {
     build_step: *std.Build.Step,
@@ -21,18 +22,24 @@ pub fn addSteps(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
     const install_exe = b.addInstallArtifact(exe, .{});
     const asset_rel = "share/resources_bundle/message.txt";
-    const install_asset = b.addInstallFileWithDir(
-        b.path("examples/resources_bundle/assets/message.txt"),
-        .prefix,
-        asset_rel,
-    );
+    const copy_asset = zaza.addFileCopies(
+        b,
+        "resources-bundle",
+        &.{
+            .{
+                .source_path = "examples/resources_bundle/assets/message.txt",
+                .dest_path = asset_rel,
+                .step_name = "resources-bundle-copy-message",
+            },
+        },
+        &install_exe.step,
+    ).?;
 
     const build_step = b.step("resources-bundle", "Build the resources bundle example");
-    build_step.dependOn(&install_exe.step);
-    build_step.dependOn(&install_asset.step);
+    build_step.dependOn(copy_asset);
 
     const run = b.addRunArtifact(exe);
-    run.step.dependencies.append(&install_asset.step) catch unreachable;
+    run.step.dependencies.append(copy_asset) catch unreachable;
     run.addArg(b.pathJoin(&.{ "zig-out", asset_rel }));
 
     const run_step = b.step("resources-bundle-run", "Run the resources bundle example");

@@ -107,6 +107,12 @@ pub const ArtifactCopy = cpp.ArtifactCopy;
 /// Add extra install-style copies for a manually built artifact.
 pub const addArtifactCopies = cpp.addArtifactCopies;
 
+/// Install-style copies of source files or generated files.
+pub const FileCopy = cpp.FileCopy;
+
+/// Add install-style file/resource copies to a build graph.
+pub const addFileCopies = cpp.addFileCopies;
+
 // --- Target usage graph -------------------------------------------------------
 //
 // A lighter target model that resolves transitive include dirs, defines, and

@@ -85,6 +85,8 @@ falls back to debug. This is the same resolution `ZAZA_PRESET` uses.
 | `CustomCommand` | type | A named command that produces generated sources. |
 | `ArtifactCopy` | type | Extra install-style copies of a built artifact. |
 | `addArtifactCopies` | fn | Attach artifact copy steps to a manually built artifact. |
+| `FileCopy` | type | Install-style copies of source files or generated files. |
+| `addFileCopies` | fn | Attach file/resource copy steps to a build graph. |
 
 `Target.artifact_copies` is the target-level form for artifacts built through
 Zaza. Use it when a plugin, app bundle, or package layout needs the same output
@@ -103,6 +105,27 @@ const plugin = zaza.Target.sharedLibrary(.{
 For hand-built artifacts, use `addArtifactCopies` with the artifact and an
 optional dependency step. The helper returns the last copy step so callers can
 depend on it before running a host.
+
+`Target.file_copies` stages non-code files into the install layout. Use it for
+runtime assets, presets, package metadata, web harnesses, or generated files
+that need a stable `zig-out/...` path:
+
+```zig
+const app = zaza.Target.executable(.{
+    .name = "asset_app",
+    .source_files = &.{"src/main.cpp"},
+    .file_copies = &.{
+        .{
+            .source_path = "assets/message.txt",
+            .dest_path = "share/asset_app/message.txt",
+        },
+    },
+});
+```
+
+For build files that assemble artifacts manually with `std.Build`, use
+`addFileCopies(b, name, copies, dependency)`. It returns the last copy step, so
+run steps can depend on it before reading the staged file.
 
 ## Target usage graph
 

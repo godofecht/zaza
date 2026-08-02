@@ -51,12 +51,12 @@ pub const Dependency = struct {
     url: []const u8,
     git_ref: ?[]const u8 = null,
     include_path: ?[]const u8 = null,
-    type: ?BuildSystem = null,  // null means "use parent's build system"
+    type: ?BuildSystem = null, // null means "use parent's build system"
     build_command: []const []const u8 = &.{},
     cmake_config: ?CMakeConfig = null,
     pkg_name: ?[]const u8 = null,
     pkg_include: ?[]const u8 = null,
-    
+
     pub fn getBuildCommand(self: Dependency, b: *std.Build, config_name: []const u8, parent_build_system: BuildSystem) []const []const u8 {
         const effective_type = self.type orelse parent_build_system;
         if (effective_type == .CMake) {
@@ -64,7 +64,7 @@ pub const Dependency = struct {
             _ = config_name;
             return &.{};
         }
-        
+
         // For custom build commands or Zig
         return self.build_command;
     }
@@ -120,7 +120,7 @@ pub const Deps = struct {
         .name = "json",
         .url = "https://github.com/nlohmann/json.git",
         .include_path = "deps/json/single_include/nlohmann/json.hpp",
-        .type = null,  // Use parent's build system
+        .type = null, // Use parent's build system
         .build_command = &.{},
     };
 };
@@ -171,6 +171,7 @@ pub const TargetOptions = struct {
     install_headers: []const []const u8 = &.{},
     install_libs: []const []const u8 = &.{},
     artifact_copies: []const ArtifactCopy = &.{},
+    file_copies: []const FileCopy = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
@@ -269,9 +270,9 @@ pub const BuildMode = enum {
 
     pub fn toCompileFlags(self: BuildMode) []const []const u8 {
         return switch (self) {
-            .Debug => &.{"-g", "-O0"},
+            .Debug => &.{ "-g", "-O0" },
             .Release => &.{"-O3"},
-            .RelWithDebInfo => &.{"-g", "-O2"},
+            .RelWithDebInfo => &.{ "-g", "-O2" },
             .MinSizeRel => &.{"-Os"},
         };
     }
@@ -311,6 +312,19 @@ pub const ArtifactCopy = struct {
     step_name: ?[]const u8 = null,
 };
 
+/// Install-style copies of source files or generated files into a stable output
+/// layout. `dest_path` is relative to the install prefix and includes the file
+/// name, for example `share/my_app/assets/preset.json`.
+pub const FileCopy = struct {
+    /// Source path relative to the build root, or any path accepted by
+    /// `b.path(...)`.
+    source_path: []const u8,
+    /// Destination path relative to the install prefix, including the file name.
+    dest_path: []const u8,
+    /// Optional public step name. Defaults to `<target>-copy-file-<index>`.
+    step_name: ?[]const u8 = null,
+};
+
 pub fn addArtifactCopies(
     b: *std.Build,
     target_name: []const u8,
@@ -332,6 +346,35 @@ pub fn addArtifactCopies(
         const step = b.step(
             copy.step_name orelse b.fmt("{s}-copy-{d}", .{ target_name, idx }),
             b.fmt("Copy {s} artifact to {s}", .{ target_name, copy.dest_dir }),
+        );
+        step.dependOn(&install_copy.step);
+        last_step = step;
+    }
+    return last_step;
+}
+
+pub fn addFileCopies(
+    b: *std.Build,
+    target_name: []const u8,
+    copies: []const FileCopy,
+    dependency: ?*std.Build.Step,
+) ?*std.Build.Step {
+    if (copies.len == 0) return dependency;
+
+    var last_step = dependency;
+    for (copies, 0..) |copy, idx| {
+        const install_copy = b.addInstallFileWithDir(
+            b.path(copy.source_path),
+            .prefix,
+            copy.dest_path,
+        );
+        if (last_step) |prev| {
+            install_copy.step.dependencies.append(prev) catch unreachable;
+        }
+
+        const step = b.step(
+            copy.step_name orelse b.fmt("{s}-copy-file-{d}", .{ target_name, idx }),
+            b.fmt("Copy {s} to {s}", .{ copy.source_path, copy.dest_path }),
         );
         step.dependOn(&install_copy.step);
         last_step = step;
@@ -367,23 +410,27 @@ pub fn dependencySyncScript(allocator: std.mem.Allocator, dep: Dependency, windo
     const url = normalizeGitUrlFromAllocator(allocator, dep.url);
     if (windows) {
         if (dep.git_ref) |git_ref| {
-            return std.fmt.allocPrint(allocator,
+            return std.fmt.allocPrint(
+                allocator,
                 "if exist deps\\{0s}\\.git (git -C deps\\{0s} fetch --tags origin {1s} || git -C deps\\{0s} fetch --tags) && git -C deps\\{0s} checkout --force {1s} else (git clone --depth 1 --branch {1s} {2s} deps/{0s} || (git clone {2s} deps/{0s} && git -C deps\\{0s} checkout --force {1s}))",
                 .{ dep.name, git_ref, url },
             ) catch unreachable;
         }
-        return std.fmt.allocPrint(allocator,
+        return std.fmt.allocPrint(
+            allocator,
             "if not exist deps\\{0s}\\.git git clone --depth 1 {1s} deps/{0s}",
             .{ dep.name, url },
         ) catch unreachable;
     }
     if (dep.git_ref) |git_ref| {
-        return std.fmt.allocPrint(allocator,
+        return std.fmt.allocPrint(
+            allocator,
             "if test -d deps/{0s}/.git; then (git -C deps/{0s} fetch --tags origin {1s} || git -C deps/{0s} fetch --tags) && git -C deps/{0s} checkout --force {1s}; else git clone --depth 1 --branch {1s} {2s} deps/{0s} || (git clone {2s} deps/{0s} && git -C deps/{0s} checkout --force {1s}); fi",
             .{ dep.name, git_ref, url },
         ) catch unreachable;
     }
-    return std.fmt.allocPrint(allocator,
+    return std.fmt.allocPrint(
+        allocator,
         "test -d deps/{0s}/.git || git clone --depth 1 {1s} deps/{0s}",
         .{ dep.name, url },
     ) catch unreachable;
@@ -413,19 +460,13 @@ fn makeSubmoduleInitCommand(b: *std.Build, dep_name: []const u8) []const []const
         args.appendSlice(b.allocator, &.{
             "cmd.exe",
             "/c",
-            b.fmt(
-                "cd deps\\{s} && git submodule update --init --recursive",
-                .{dep_name}
-            ),
+            b.fmt("cd deps\\{s} && git submodule update --init --recursive", .{dep_name}),
         }) catch unreachable;
     } else {
         args.appendSlice(b.allocator, &.{
             "sh",
             "-c",
-            b.fmt(
-                "cd deps/{s} && git submodule update --init --recursive",
-                .{dep_name}
-            ),
+            b.fmt("cd deps/{s} && git submodule update --init --recursive", .{dep_name}),
         }) catch unreachable;
     }
     return args.toOwnedSlice(b.allocator) catch unreachable;
@@ -519,7 +560,6 @@ fn chooseCMakeToolchain(b: *std.Build) ?[]const u8 {
     return null;
 }
 
-
 fn makeCMakeConfigureCommand(
     b: *std.Build,
     source_dir: []const u8,
@@ -531,9 +571,9 @@ fn makeCMakeConfigureCommand(
     extra_args: []const []const u8,
 ) []const []const u8 {
     var args: std.ArrayListUnmanaged([]const u8) = .empty;
-    args.appendSlice(b.allocator, &.{"cmake", "-S", source_dir, "-B", build_dir}) catch unreachable;
+    args.appendSlice(b.allocator, &.{ "cmake", "-S", source_dir, "-B", build_dir }) catch unreachable;
     if (generator orelse chooseCMakeGenerator(b)) |gen| {
-        args.appendSlice(b.allocator, &.{"-G", gen}) catch unreachable;
+        args.appendSlice(b.allocator, &.{ "-G", gen }) catch unreachable;
     }
     args.append(b.allocator, b.fmt("-DCMAKE_BUILD_TYPE={s}", .{config_name})) catch unreachable;
     if (toolchain_file orelse chooseCMakeToolchain(b)) |toolchain| {
@@ -556,7 +596,7 @@ fn makeCMakeBuildCommand(
     extra_args: []const []const u8,
 ) []const []const u8 {
     var args: std.ArrayListUnmanaged([]const u8) = .empty;
-    args.appendSlice(b.allocator, &.{"cmake", "--build", build_dir, "--config", config_name}) catch unreachable;
+    args.appendSlice(b.allocator, &.{ "cmake", "--build", build_dir, "--config", config_name }) catch unreachable;
     args.appendSlice(b.allocator, extra_args) catch unreachable;
     return args.toOwnedSlice(b.allocator) catch unreachable;
 }
@@ -569,9 +609,9 @@ fn makeCMakeInstallCommand(
     extra_args: []const []const u8,
 ) []const []const u8 {
     var args: std.ArrayListUnmanaged([]const u8) = .empty;
-    args.appendSlice(b.allocator, &.{"cmake", "--install", build_dir, "--config", config_name}) catch unreachable;
+    args.appendSlice(b.allocator, &.{ "cmake", "--install", build_dir, "--config", config_name }) catch unreachable;
     if (install_prefix) |prefix| {
-        args.appendSlice(b.allocator, &.{"--prefix", prefix}) catch unreachable;
+        args.appendSlice(b.allocator, &.{ "--prefix", prefix }) catch unreachable;
     }
     args.appendSlice(b.allocator, extra_args) catch unreachable;
     return args.toOwnedSlice(b.allocator) catch unreachable;
@@ -591,7 +631,7 @@ pub const Configs = struct {
 
     pub const RelWithDebInfo = BuildConfig{
         .mode = .RelWithDebInfo,
-        .defines = &.{"DEBUG=1", "NDEBUG=1"},
+        .defines = &.{ "DEBUG=1", "NDEBUG=1" },
     };
 
     pub const MinSizeRel = BuildConfig{
@@ -621,6 +661,7 @@ pub const CppExample = struct {
     install_headers: []const []const u8 = &.{},
     install_libs: []const []const u8 = &.{},
     artifact_copies: []const ArtifactCopy = &.{},
+    file_copies: []const FileCopy = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
@@ -653,6 +694,7 @@ pub const CppExample = struct {
             .install_headers = options.install_headers,
             .install_libs = options.install_libs,
             .artifact_copies = options.artifact_copies,
+            .file_copies = options.file_copies,
             .export_cmake = options.export_cmake,
             .export_name = options.export_name,
             .generated_source_files = options.generated_source_files,
@@ -717,6 +759,12 @@ pub const CppExample = struct {
             if (copy.step_name) |name| allocator.free(name);
         }
         allocator.free(self.artifact_copies);
+        for (self.file_copies) |copy| {
+            allocator.free(copy.source_path);
+            allocator.free(copy.dest_path);
+            if (copy.step_name) |name| allocator.free(name);
+        }
+        allocator.free(self.file_copies);
         for (self.custom_commands) |cmd| {
             allocator.free(cmd.name);
             for (cmd.argv) |arg| allocator.free(arg);
@@ -767,7 +815,7 @@ pub const CppExample = struct {
         }
 
         fn listScoped(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, scope: []const u8, items: []const []const u8) !void {
-            try listPrint(writer, gpa, "{s}({s} {s}\n", .{name, target, scope});
+            try listPrint(writer, gpa, "{s}({s} {s}\n", .{ name, target, scope });
             for (items) |item| {
                 try listPrint(writer, gpa, "    {s}\n", .{item});
             }
@@ -952,15 +1000,11 @@ pub const CppExample = struct {
     /// command line, for example when cross-compiling in a fixed configuration.
     pub fn buildWithTarget(self: CppExample, b: *std.Build, target: std.Build.ResolvedTarget) !*std.Build.Step.Compile {
         if (target.result.os.tag == .windows and target.result.abi == .msvc and self.main_build_system == .Zig) {
-            @panic(
-                "Zig 0.14 cannot compile C++ with the MSVC ABI (see Zig issue #18685). "
-                ++ "Use ZAZA_WINDOWS_TOOLCHAIN=gnu or ZAZA_TARGET=x86_64-windows-gnu, "
-                ++ "or switch this example to a system toolchain (CMake)."
-            );
+            @panic("Zig 0.14 cannot compile C++ with the MSVC ABI (see Zig issue #18685). " ++ "Use ZAZA_WINDOWS_TOOLCHAIN=gnu or ZAZA_TARGET=x86_64-windows-gnu, " ++ "or switch this example to a system toolchain (CMake).");
         }
         // Generate CMakeLists.txt first
         try self.generateCMake(b);
-        
+
         // Print build information (disabled in build runner to avoid crashes)
 
         var last_exe: ?*std.Build.Step.Compile = null;
@@ -970,7 +1014,7 @@ pub const CppExample = struct {
         // For each configuration
         for (self.configs) |config| {
             const config_name = config.mode.toCMakeString();
-            
+
             var last_step: ?*std.Build.Step = null;
 
             // Clone and build dependencies (optional)
@@ -1004,53 +1048,41 @@ pub const CppExample = struct {
                     const dep_build_system = dep.type orelse self.deps_build_system;
                     if (dep_build_system == .CMake) {
                         const cmake_cfg = dep.cmake_config orelse CMakeConfig{};
-                        const dep_source_dir = cmake_cfg.source_dir orelse b.pathJoin(&.{"deps", dep.name});
-                        const dep_build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{"deps", dep.name, "build", config_name});
+                        const dep_source_dir = cmake_cfg.source_dir orelse b.pathJoin(&.{ "deps", dep.name });
+                        const dep_build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{ "deps", dep.name, "build", config_name });
                         const extra_configure_args = buildDefaultCMakeArgs(b, dep.name, cmake_cfg.configure_args);
 
-                        const configure_step = zaza_cmd.addCommandStep(
+                        const configure_step = zaza_cmd.addCommandStep(b, b.fmt("configure_{s}_{s}", .{ dep.name, config_name }), makeCMakeConfigureCommand(
                             b,
-                            b.fmt("configure_{s}_{s}", .{ dep.name, config_name }),
-                            makeCMakeConfigureCommand(
-                                b,
-                                dep_source_dir,
-                                dep_build_dir,
-                                config_name,
-                                cmake_cfg.generator,
-                                cmake_cfg.toolchain_file,
-                                cmake_cfg.install_prefix,
-                                extra_configure_args,
-                            )
-                        );
+                            dep_source_dir,
+                            dep_build_dir,
+                            config_name,
+                            cmake_cfg.generator,
+                            cmake_cfg.toolchain_file,
+                            cmake_cfg.install_prefix,
+                            extra_configure_args,
+                        ));
                         if (last_step) |prev| {
                             configure_step.dependencies.append(prev) catch unreachable;
                         }
                         last_step = configure_step;
 
-                        const build_step = zaza_cmd.addCommandStep(
+                        const build_step = zaza_cmd.addCommandStep(b, b.fmt("build_{s}_{s}", .{ dep.name, config_name }), makeCMakeBuildCommand(
                             b,
-                            b.fmt("build_{s}_{s}", .{ dep.name, config_name }),
-                            makeCMakeBuildCommand(
-                                b,
-                                dep_build_dir,
-                                config_name,
-                                cmake_cfg.build_args,
-                            )
-                        );
+                            dep_build_dir,
+                            config_name,
+                            cmake_cfg.build_args,
+                        ));
                         build_step.dependencies.append(configure_step) catch unreachable;
                         last_step = build_step;
                         if (cmake_cfg.install) {
-                            const install_step = zaza_cmd.addCommandStep(
+                            const install_step = zaza_cmd.addCommandStep(b, b.fmt("install_{s}_{s}", .{ dep.name, config_name }), makeCMakeInstallCommand(
                                 b,
-                                b.fmt("install_{s}_{s}", .{ dep.name, config_name }),
-                                makeCMakeInstallCommand(
-                                    b,
-                                    dep_build_dir,
-                                    config_name,
-                                    cmake_cfg.install_prefix,
-                                    cmake_cfg.install_args,
-                                )
-                            );
+                                dep_build_dir,
+                                config_name,
+                                cmake_cfg.install_prefix,
+                                cmake_cfg.install_args,
+                            ));
                             install_step.dependencies.append(build_step) catch unreachable;
                             last_step = install_step;
                         }
@@ -1089,49 +1121,47 @@ pub const CppExample = struct {
                 // Use CMake for main project
                 const cmake_cfg = self.cmake_config orelse CMakeConfig{};
                 const source_dir = cmake_cfg.source_dir orelse ".";
-                const build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{"build", config_name});
-                const cmake_configure = zaza_cmd.addCommandStep(
+                const build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{ "build", config_name });
+                const cmake_configure = zaza_cmd.addCommandStep(b, b.fmt("configure_{s}_{s}", .{ self.name, config_name }), makeCMakeConfigureCommand(
                     b,
-                    b.fmt("configure_{s}_{s}", .{ self.name, config_name }),
-                    makeCMakeConfigureCommand(
-                        b,
-                        source_dir,
-                        build_dir,
-                        config_name,
-                        cmake_cfg.generator,
-                        cmake_cfg.toolchain_file,
-                        cmake_cfg.install_prefix,
-                        cmake_cfg.configure_args,
-                    )
-                );
+                    source_dir,
+                    build_dir,
+                    config_name,
+                    cmake_cfg.generator,
+                    cmake_cfg.toolchain_file,
+                    cmake_cfg.install_prefix,
+                    cmake_cfg.configure_args,
+                ));
                 if (last_step) |prev| cmake_configure.dependencies.append(prev) catch unreachable;
 
-                const cmake_build = zaza_cmd.addCommandStep(
+                const cmake_build = zaza_cmd.addCommandStep(b, b.fmt("build_{s}_{s}", .{ self.name, config_name }), makeCMakeBuildCommand(
                     b,
-                    b.fmt("build_{s}_{s}", .{ self.name, config_name }),
-                    makeCMakeBuildCommand(
-                        b,
-                        build_dir,
-                        config_name,
-                        cmake_cfg.build_args,
-                    )
-                );
+                    build_dir,
+                    config_name,
+                    cmake_cfg.build_args,
+                ));
                 cmake_build.dependencies.append(cmake_configure) catch unreachable;
                 last_step = cmake_build;
                 if (cmake_cfg.install) {
-                    const cmake_install = zaza_cmd.addCommandStep(
+                    const cmake_install = zaza_cmd.addCommandStep(b, b.fmt("install_{s}_{s}", .{ self.name, config_name }), makeCMakeInstallCommand(
                         b,
-                        b.fmt("install_{s}_{s}", .{ self.name, config_name }),
-                        makeCMakeInstallCommand(
-                            b,
-                            build_dir,
-                            config_name,
-                            cmake_cfg.install_prefix,
-                            cmake_cfg.install_args,
-                        )
-                    );
+                        build_dir,
+                        config_name,
+                        cmake_cfg.install_prefix,
+                        cmake_cfg.install_args,
+                    ));
                     cmake_install.dependencies.append(cmake_build) catch unreachable;
                     last_step = cmake_install;
+                }
+                if (last_step) |step| {
+                    if (addFileCopies(
+                        b,
+                        b.fmt("{s}-{s}", .{ self.name, config_name }),
+                        self.file_copies,
+                        step,
+                    )) |copy_step| {
+                        last_step = copy_step;
+                    }
                 }
                 if (last_step) |step| {
                     if (try addPostBuildCommands(b, self, config_name, step)) |post_step| {
@@ -1250,6 +1280,14 @@ pub const CppExample = struct {
                 )) |copy_step| {
                     last_step = copy_step;
                 }
+                if (addFileCopies(
+                    b,
+                    b.fmt("{s}-{s}", .{ self.name, config_name }),
+                    self.file_copies,
+                    last_step,
+                )) |copy_step| {
+                    last_step = copy_step;
+                }
                 if (try addPostBuildCommands(b, self, config_name, last_step)) |post_step| {
                     last_step = post_step;
                 }
@@ -1275,7 +1313,7 @@ pub const JUCEApplication = struct {
     pub const BuilderOptions = struct {
         enable_system_commands: bool = false,
     };
-    
+
     // Configuration struct for JUCE applications
     pub const JuceConfig = struct {
         /// The name of your application
@@ -1303,7 +1341,7 @@ pub const JUCEApplication = struct {
     // Common JUCE modules that most apps need
     const common_modules = [_][]const u8{
         "juce_core",
-        "juce_data_structures", 
+        "juce_data_structures",
         "juce_events",
         "juce_graphics",
         "juce_gui_basics",
@@ -1325,7 +1363,7 @@ pub const JUCEApplication = struct {
         }
 
         fn list(gpa: std.mem.Allocator, writer: *std.ArrayListUnmanaged(u8), name: []const u8, target: []const u8, items: []const []const u8) !void {
-            try listPrint(writer, gpa, "{s}({s} PRIVATE\n", .{name, target});
+            try listPrint(writer, gpa, "{s}({s} PRIVATE\n", .{ name, target });
             for (items) |item| {
                 try listPrint(writer, gpa, "    {s}\n", .{item});
             }
@@ -1391,7 +1429,7 @@ pub const JUCEApplication = struct {
             self.cpp_std = config.cpp_std;
             self.cmake_root = config.cmake_root;
             self.juce_git_tag = config.juce_git_tag;
-            
+
             // Add sources and modules
             for (config.sources) |src| {
                 try self.sources.append(self.b.allocator, src);
@@ -1433,7 +1471,7 @@ pub const JUCEApplication = struct {
             // Header
             try cmake.write(self.b.allocator, writer, "cmake_minimum_required(VERSION 3.22)", .{});
             try cmake.write(self.b.allocator, writer, "", .{});
-            try cmake.section(self.b.allocator, writer, "project", &.{self.name, "VERSION", self.version});
+            try cmake.section(self.b.allocator, writer, "project", &.{ self.name, "VERSION", self.version });
             try cmake.write(self.b.allocator, writer, "include(FetchContent)", .{});
             try cmake.write(self.b.allocator, writer, "set(FETCHCONTENT_QUIET OFF)", .{});
             try cmake.write(self.b.allocator, writer, "set(FETCHCONTENT_UPDATES_DISCONNECTED ON)", .{});
@@ -1466,7 +1504,7 @@ pub const JUCEApplication = struct {
 
             // Sources and modules
             try cmake.list(self.b.allocator, writer, "target_sources", self.name, self.sources.items);
-            
+
             var juce_modules: std.ArrayListUnmanaged([]const u8) = .empty;
             defer juce_modules.deinit(self.b.allocator);
             for (self.modules.items) |module| {
@@ -1475,7 +1513,7 @@ pub const JUCEApplication = struct {
             try cmake.list(self.b.allocator, writer, "target_link_libraries", self.name, juce_modules.items);
 
             // C++ standard
-            try cmake.section(self.b.allocator, writer, "target_compile_features", &.{self.name, "PRIVATE", "cxx_std_17"});
+            try cmake.section(self.b.allocator, writer, "target_compile_features", &.{ self.name, "PRIVATE", "cxx_std_17" });
 
             // Write CMakeLists.txt
             const cmake_path = if (std.mem.eql(u8, self.cmake_root, "."))
@@ -1712,7 +1750,9 @@ fn emitCompileCommands(
         defer b.allocator.free(escaped_cmd);
         defer b.allocator.free(escaped_out);
 
-        try listPrint(&entries, b.allocator,
+        try listPrint(
+            &entries,
+            b.allocator,
             "  {{\"directory\":\"{s}\",\"file\":\"{s}\",\"command\":\"{s}\",\"output\":\"{s}\"}}{s}\n",
             .{ escaped_dir, escaped_file, escaped_cmd, escaped_out, if (idx + 1 == all_sources.len) "" else "," },
         );
@@ -1795,7 +1835,7 @@ fn buildCompileCommand(
     }
 
     const obj = b.pathJoin(&.{ "zig-out", "obj", self.name, b.fmt("{s}.o", .{std.fs.path.stem(src)}) });
-    try listPrint(&cmd, b.allocator, "-c {s} -o {s}", .{src, obj});
+    try listPrint(&cmd, b.allocator, "-c {s} -o {s}", .{ src, obj });
     return cmd.toOwnedSlice(b.allocator);
 }
 
@@ -2003,13 +2043,14 @@ fn jsonEscape(b: *std.Build, input: []const u8) []u8 {
 }
 
 pub const CppConfig = struct {
-    pub const std_version = "17";  // Default C++ standard
+    pub const std_version = "17"; // Default C++ standard
 
     const required_flags = [_][]const u8{
         "-fexceptions",
         "-frtti",
         "-fno-sanitize=undefined",
-        "-x", "c++",
+        "-x",
+        "c++",
         "-Wno-everything",
     };
 
@@ -2028,22 +2069,22 @@ pub const CppConfig = struct {
             .RelWithDebInfo => "ReleaseSafe",
             .MinSizeRel => "ReleaseSmall",
         };
-        
+
         var flags: std.ArrayListUnmanaged(u8) = .empty;
         defer flags.deinit(b.allocator);
 
-        try listPrint(&flags, b.allocator, "-target {s} -O{s} ", .{target, opt_level});
-        
+        try listPrint(&flags, b.allocator, "-target {s} -O{s} ", .{ target, opt_level });
+
         // Add all flags except the standard version
         for (required_flags) |flag| {
             try listPrint(&flags, b.allocator, "{s} ", .{flag});
         }
-        
+
         // Add the C++ standard version (custom or default)
         const std_flag = try getStdFlag(b.allocator, cpp_std orelse std_version);
         defer b.allocator.free(std_flag);
         try listPrint(&flags, b.allocator, "{s}", .{std_flag});
-        
+
         return flags.toOwnedSlice(b.allocator);
     }
 };
@@ -2053,7 +2094,7 @@ pub const CppFlags = struct {
     flags: std.ArrayListUnmanaged([]const u8),
     cpp_std: ?[]const u8,
     allocator: std.mem.Allocator,
-    
+
     pub fn init(allocator: std.mem.Allocator) CppFlags {
         return .{
             .flags = .empty,
@@ -2073,7 +2114,7 @@ pub const CppFlags = struct {
     pub fn add(self: *CppFlags, flag: []const u8) !void {
         // Don't add C++ standard flags through this method
         if (std.mem.startsWith(u8, flag, "-std=")) return;
-        
+
         // Check if flag already exists
         for (self.flags.items) |existing| {
             if (std.mem.eql(u8, flag, existing)) return;
@@ -2091,7 +2132,7 @@ pub const CppFlags = struct {
         // Add the C++ standard first
         const std_flag = try CppConfig.getStdFlag(self.allocator, self.cpp_std orelse CppConfig.std_version);
         try self.flags.append(self.allocator, std_flag);
-        
+
         // Add other required flags
         for (CppConfig.required_flags[1..]) |flag| {
             try self.add(flag);
@@ -2101,7 +2142,7 @@ pub const CppFlags = struct {
     pub fn toOwnedSlice(self: *CppFlags) ![]const []const u8 {
         return try self.flags.toOwnedSlice(self.allocator);
     }
-}; 
+};
 
 fn hasCMakeFlag(args: []const []const u8, name: []const u8) bool {
     for (args) |arg| {
