@@ -529,13 +529,6 @@ pub fn build(b: *std.Build) !void {
     };
     var previous_matrix_step: ?*std.Build.Step = null;
     for (matrix_targets) |target_name| {
-        // wasm-web-demo-smoke runs build_lib/static_server.zig, whose networking
-        // still uses std.net. Zig 0.16 moved that to std.Io.net, so the server
-        // does not yet compile there. Skip this one target on 0.16 until the
-        // migration lands (#47) so the rest of the matrix still runs on that lane.
-        if (comptime !@hasDecl(std, "net")) {
-            if (std.mem.eql(u8, target_name, "wasm-web-demo-smoke")) continue;
-        }
         // cxx20-modules drives a C++20-modules-capable clang++ (ZAZA_MODULES_CXX,
         // or the macOS Homebrew LLVM by default). Off macOS that default is
         // absent, so run it only when ZAZA_MODULES_CXX points at a clang++ (CI
