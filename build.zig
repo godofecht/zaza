@@ -24,6 +24,7 @@ const wasm_exports_example = @import("examples/wasm_exports/build.zig");
 const zaza_juce_example = @import("examples/zaza-juce/build.zig");
 const rust_interop_example = @import("examples/rust_interop/build.zig");
 const bench_suite_example = @import("examples/bench_suite/build.zig");
+const universal_binary_example = @import("examples/universal_binary/build.zig");
 const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
 const presets = @import("build_lib/presets.zig");
@@ -210,6 +211,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "bindings")) {
         _ = bindings_example.addSteps(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "universal-binary")) {
+        _ = universal_binary_example.addSteps(b, target, optimize);
     }
 
     if (exampleEnabled(b, "benchmark-workflow")) {
@@ -526,6 +531,7 @@ pub fn build(b: *std.Build) !void {
         "wasm-wasi-report",
         "wasm-exports-run",
         "wasm-web-demo-smoke",
+        "universal-binary-report",
     };
     var previous_matrix_step: ?*std.Build.Step = null;
     for (matrix_targets) |target_name| {

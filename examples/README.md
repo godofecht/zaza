@@ -44,6 +44,7 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 | [rust_interop](rust_interop) | `ZAZA_EXAMPLES=rust-interop zig build rust-interop-run` | A Cargo staticlib linked into a Zig executable |
 | [shared_plugin](shared_plugin) | `ZAZA_EXAMPLES=shared-plugin zig build shared-plugin-run` | A shared library loaded at runtime via `dlopen` |
 | [test_workflows](test_workflows) | `ZAZA_EXAMPLES=test-workflows zig build test-workflows-run` | Run modes differing by arg, env, and cwd, via the `addTest` API |
+| [universal_binary](universal_binary) | `ZAZA_EXAMPLES=universal-binary zig build universal-binary-report` | A macOS universal binary combined from x86_64 and arm64 slices with zaza-lipo |
 | [wasm_exports](wasm_exports) | `ZAZA_EXAMPLES=wasm-exports zig build wasm-exports-run` | A freestanding wasm module with exports |
 | [wasm_wasi](wasm_wasi) | `ZAZA_EXAMPLES=wasm-wasi zig build wasm-wasi-report` | A `wasm32-wasi-musl` executable, validated |
 | [zaza-juce](zaza-juce) | `ZAZA_EXAMPLES=zaza-juce ZAZA_SYSTEM_CMDS=1 zig build zaza-juce` | A JUCE audio app with the audio modules on |
