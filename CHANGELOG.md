@@ -8,11 +8,11 @@
 - Added an external corpus under `corpus/`: real upstream repos rebuilt through
   Zaza and compared against their native build. Validated slices: `fmt`, `imgui`
   (Dear ImGui core from zig-gamedev), `imgui_glfw` (Dear ImGui with the GLFW +
-  OpenGL3 backends, linked against system GLFW/GL and run headless under Xvfb), and
-  `libxev` (C API consumer via `c_std`) — each with an upstream build proof and a
-  Zaza build proof. See `corpus/README.md`.
-- Recorded a corpus finding for `libvaxis` (pure Zig, no C/C++ surface) and an
-  assessment of `szkkng/juzi` vs Zaza's JUCE support.
+  OpenGL3 backends, linked against system GLFW/GL and run headless under Xvfb),
+  `libxev` (C API consumer via `c_std`), and `libvaxis` (a pure-Zig library with a
+  build-time generated Unicode table, consumed through the Zig build graph) — each
+  with an upstream build proof and a Zaza build proof. See `corpus/README.md`.
+- Added an assessment of `szkkng/juzi` vs Zaza's JUCE support (see `corpus/README.md`).
 - Manifest dependencies are now lazy, so a build fetches only the packages its
   targets actually consume instead of eagerly pulling the whole dependency set.
 

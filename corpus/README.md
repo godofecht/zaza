@@ -52,26 +52,29 @@ zig build run       # build the slice through Zaza and run its consumer
 | [`imgui`](imgui) (from `zig-gamedev`) | ✅ drop-in `c++`/`ar` | ✅ static lib + headless consumer | Dear ImGui core. The `zig-gamedev` candidate, reduced to the C/C++ part that needs no system GL. See [`imgui/PROOF.md`](imgui/PROOF.md). |
 | [`imgui_glfw`](imgui_glfw) (from `zig-gamedev`) | ✅ drop-in `g++`/`ar` | ✅ static lib + windowed consumer | Dear ImGui + GLFW/OpenGL3 backends, linked against system GLFW/GL and run headless under Xvfb. The heavier glfw+imgui+GL graph. See [`imgui_glfw/PROOF.md`](imgui_glfw/PROOF.md). |
 | [`libxev`](libxev) (lib/test install) | ✅ libxev's own build | ✅ C99 consumer links + runs | Consumes libxev's C API; motivated the `c_std` (C-language) option on `zaza.Target`. See [`libxev/PROOF.md`](libxev/PROOF.md). |
-| [`libvaxis`](libvaxis) (generated table) | — | ❌ out of scope | Pure Zig, no C/C++ surface. See [`libvaxis/FINDING.md`](libvaxis/FINDING.md). |
+| [`libvaxis`](libvaxis) (generated table) | ✅ libvaxis's own build | ✅ Zig consumer builds + runs | Pure-Zig library with a build-time generated Unicode table; consumed with the standard Zig build graph. See [`libvaxis/PROOF.md`](libvaxis/PROOF.md). |
 
-Four slices — `fmt`, `imgui`, `imgui_glfw`, and `libxev` — satisfy the issue's
-"done when": an external target slice with both an upstream build proof and a Zaza
-build proof, documented with exact commands and artifact locations. One candidate
-remains a **finding** rather than a slice; see below.
+All five candidate slices — `fmt`, `imgui`, `imgui_glfw`, `libxev`, and
+`libvaxis` — satisfy the issue's "done when": an external target slice with both
+an upstream build proof and a Zaza build proof, documented with exact commands and
+artifact locations.
 
 ## Findings
 
-Corpus validation is as much about surfacing gaps as landing green slices.
+Corpus validation is as much about surfacing gaps as landing green slices. Both
+findings below were closed by landing the slice they came from.
 
-- **`libxev` (now resolved)** — its C API header (`xev.h`) compiles only under
+- **`libxev` (resolved)** — its C API header (`xev.h`) compiles only under
   `-std=c99` (it fails in C++ mode and in default gnu C mode where `max_align_t`
   is 32). `zaza.Target` used to compile every target as C++, so it could not build
   the consumer. That gap is now closed: `zaza.Target` gained a `c_std` option
   (compile as C, no RTTI/exceptions, link `libc`), and `libxev` is a validated
   slice. See [`libxev/PROOF.md`](libxev/PROOF.md).
-- **`libvaxis`** — pure Zig, zero C/C++ sources, so there is nothing for the C/C++
-  graph layer to rebuild. Its "generated table" is Zig-side `uucode` codegen, not
-  a C/C++ custom command. Details in [`libvaxis/FINDING.md`](libvaxis/FINDING.md).
+- **`libvaxis` (resolved)** — first written off as "out of scope" because it is
+  pure Zig with no C/C++ surface. That was wrong: Zaza is a Zig build system, so a
+  Zig library is consumed with the standard Zig build graph Zaza is built on —
+  Zaza's C/C++ DSL simply does not apply. `libvaxis` is a validated slice,
+  including its build-time generated Unicode table. See [`libvaxis/PROOF.md`](libvaxis/PROOF.md).
 
 ### Is `szkkng/juzi` needed, or already solved by Zaza?
 

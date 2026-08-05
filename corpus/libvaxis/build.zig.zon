@@ -1,0 +1,13 @@
+.{
+    .name = .zaza_corpus_libvaxis,
+    .version = "0.0.0",
+    .fingerprint = 0x4f654d21647bbb5,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        .vaxis = .{
+            .url = "git+https://github.com/rockorager/libvaxis#5ca495f09f413c66789d9c5061359b941a8d82c2",
+            .hash = "vaxis-0.6.0-BWNV_KwYCgDSbZigsbwnpd5oQXBDRcAKMlkZRwbKMX7t",
+        },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}
