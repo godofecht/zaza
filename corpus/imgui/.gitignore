@@ -1,0 +1,11 @@
+# External upstream sources are fetched by fetch.sh, never committed.
+vendor/
+# Build outputs and Zaza-generated interop files.
+zig-out/
+.zig-cache/
+CMakeLists.txt
+compile_commands.json
+deps/
+
+# Dear ImGui writes this at runtime.
+imgui.ini

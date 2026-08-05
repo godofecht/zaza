@@ -48,14 +48,48 @@ zig build run       # build the slice through Zaza and run its consumer
 
 | Slice | Upstream proof | Zaza proof | Notes |
 |-------|:--------------:|:----------:|-------|
-| [`fmt`](fmt) | ✅ CMake | ✅ static lib + linked consumer | First landed slice. See [`fmt/PROOF.md`](fmt/PROOF.md). |
-| `zig-gamedev` (glfw/imgui/bullet) | — | — | Candidate from #46. C/C++ sample dependency graph. Not started. |
-| `libvaxis` (generated table) | — | — | Candidate from #46. Custom-command / generated-source proof. Not started. |
-| `libxev` (lib/test install) | — | — | Candidate from #46. Library + test install/report path. Not started. |
+| [`fmt`](fmt) | ✅ CMake | ✅ static lib + linked consumer | See [`fmt/PROOF.md`](fmt/PROOF.md). |
+| [`imgui`](imgui) (from `zig-gamedev`) | ✅ drop-in `c++`/`ar` | ✅ static lib + headless consumer | Dear ImGui core. The `zig-gamedev` candidate, reduced to the C/C++ part that needs no system GL. See [`imgui/PROOF.md`](imgui/PROOF.md). |
+| [`libxev`](libxev) (lib/test install) | n/a (Zig lib) | ⚠️ toolchain-only | C consumer builds+runs via `zig cc`, but not yet expressible as a `zaza.Target`. See [`libxev/FINDING.md`](libxev/FINDING.md). |
+| [`libvaxis`](libvaxis) (generated table) | — | ❌ out of scope | Pure Zig, no C/C++ surface. See [`libvaxis/FINDING.md`](libvaxis/FINDING.md). |
 
-`fmt` satisfies the issue's "done when": one external target slice has both an
-upstream build proof and a Zaza build proof, documented with exact commands and
-artifact locations. The remaining candidates are the next slices to land.
+Two slices — `fmt` and `imgui` — satisfy the issue's "done when": an external
+target slice with both an upstream build proof and a Zaza build proof, documented
+with exact commands and artifact locations. The other two candidates turned into
+**findings** rather than passing slices; see below.
+
+## Findings
+
+Corpus validation is as much about surfacing gaps as landing green slices. Two of
+issue #46's candidates did not become slices, for concrete, reproducible reasons:
+
+- **`libxev`** — its C API header (`xev.h`) compiles only under `-std=c99`
+  (it fails in C++ mode and in default gnu C mode where `max_align_t` is 32).
+  A `zig cc` C99 consumer links libxev's C library and runs a real event loop
+  (`libxev/proof.sh`), but `zaza.Target` always emits a C++ std flag and has no
+  C-language option, so the slice can't be written with the DSL yet. The
+  one-option follow-up (`c_std`) is spelled out in [`libxev/FINDING.md`](libxev/FINDING.md).
+- **`libvaxis`** — pure Zig, zero C/C++ sources, so there is nothing for the C/C++
+  graph layer to rebuild. Its "generated table" is Zig-side `uucode` codegen, not
+  a C/C++ custom command. Details in [`libvaxis/FINDING.md`](libvaxis/FINDING.md).
+
+### Is `szkkng/juzi` needed, or already solved by Zaza?
+
+[`juzi`](https://github.com/szkkng/juzi) builds JUCE **audio plugins** (VST3, AU,
+Standalone) **natively through the Zig build system** — it compiles the JUCE
+modules with `addCSourceFiles` and assembles the plugin bundles (Info.plist,
+PkgInfo, the macOS MH_DYLIB workaround) in pure Zig, with **no CMake**.
+
+Zaza's JUCE support is a different thing: `zaza.JUCEApplication` **generates a
+`CMakeLists.txt`** that calls `juce_add_gui_app` and then **drives JUCE's own
+CMake** (it needs system commands enabled). So it builds a GUI **application** via
+CMake, not audio **plugins** natively.
+
+Verdict: **not already solved.** They overlap only at "use Zig tooling with JUCE."
+juzi covers a capability Zaza does not have today — native (CMake-free) VST3/AU
+plugin builds with bundle packaging. If Zaza wants that niche, juzi is the
+reference design for a native `juce_add_plugin`-equivalent; until then juzi is
+still necessary for anyone building plugins rather than GUI apps.
 
 ## Why fmt first
 

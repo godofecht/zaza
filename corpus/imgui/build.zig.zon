@@ -1,0 +1,14 @@
+.{
+    .name = .zaza_corpus_imgui,
+    .version = "0.0.0",
+    .fingerprint = 0x7ae2c13e366dc293,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .zaza = .{ .path = "../.." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
