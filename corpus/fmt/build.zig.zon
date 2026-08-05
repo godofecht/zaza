@@ -1,0 +1,17 @@
+.{
+    .name = .zaza_corpus_fmt,
+    .version = "0.0.0",
+    .fingerprint = 0x79cd6021535051d6,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        // Path dependency on the Zaza repository root. This is exactly how an
+        // out-of-tree consumer would depend on Zaza, so the overlay exercises
+        // the same wiring a real downstream project uses.
+        .zaza = .{ .path = "../.." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

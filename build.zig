@@ -1,5 +1,17 @@
 const std = @import("std");
 const builtin = @import("builtin");
+
+/// The Zaza public API, re-exported so downstream build files can reach the
+/// stable surface through a path dependency on this repository:
+///
+/// ```zig
+/// // build.zig.zon: .dependencies = .{ .zaza = .{ .path = "../.." } }
+/// const zaza = @import("zaza").api;
+/// ```
+///
+/// The external corpus overlays under `corpus/` consume Zaza this way, so they
+/// build against the same API surface a real downstream consumer would.
+pub const api = @import("build_lib/zaza.zig");
 const json_example = @import("examples/json/build.zig");
 const juce_example = @import("examples/juce/build.zig");
 const cmake_shim_example = @import("examples/cmake_shim/build.zig");

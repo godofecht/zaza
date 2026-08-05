@@ -390,6 +390,7 @@ Project Link: [https://github.com/godofecht/zaza](https://github.com/godofecht/z
 | [`build.zig`](build.zig) | Root build graph |
 | [`build_lib`](build_lib) | Reusable build helpers |
 | [`examples`](examples) | Example projects and workflows |
+| [`corpus`](corpus) | External upstream repos rebuilt through Zaza, with native-build comparisons |
 | [`tests`](tests) | Zig-side test coverage |
 | [`registry`](registry) | Lightweight registry metadata |
 | [`wiki`](wiki) | Static docs site |

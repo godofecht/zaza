@@ -1230,9 +1230,14 @@ pub const CppExample = struct {
                 // Add include directories from Zig package deps
                 for (self.deps) |dep| {
                     if (dep.pkg_name) |pkg_name| {
-                        const pkg = b.dependency(pkg_name, .{});
-                        const include_subdir = dep.pkg_include orelse ".";
-                        compile.root_module.addIncludePath(pkg.path(include_subdir));
+                        // Manifest dependencies are lazy, so they are fetched
+                        // only when a target actually consumes them. A null
+                        // return means the fetch is pending; the build runner
+                        // re-invokes once it is available.
+                        if (b.lazyDependency(pkg_name, .{})) |pkg| {
+                            const include_subdir = dep.pkg_include orelse ".";
+                            compile.root_module.addIncludePath(pkg.path(include_subdir));
+                        }
                     }
                 }
 
