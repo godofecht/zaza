@@ -50,13 +50,14 @@ zig build run       # build the slice through Zaza and run its consumer
 |-------|:--------------:|:----------:|-------|
 | [`fmt`](fmt) | ✅ CMake | ✅ static lib + linked consumer | See [`fmt/PROOF.md`](fmt/PROOF.md). |
 | [`imgui`](imgui) (from `zig-gamedev`) | ✅ drop-in `c++`/`ar` | ✅ static lib + headless consumer | Dear ImGui core. The `zig-gamedev` candidate, reduced to the C/C++ part that needs no system GL. See [`imgui/PROOF.md`](imgui/PROOF.md). |
+| [`imgui_glfw`](imgui_glfw) (from `zig-gamedev`) | ✅ drop-in `g++`/`ar` | ✅ static lib + windowed consumer | Dear ImGui + GLFW/OpenGL3 backends, linked against system GLFW/GL and run headless under Xvfb. The heavier glfw+imgui+GL graph. See [`imgui_glfw/PROOF.md`](imgui_glfw/PROOF.md). |
 | [`libxev`](libxev) (lib/test install) | ✅ libxev's own build | ✅ C99 consumer links + runs | Consumes libxev's C API; motivated the `c_std` (C-language) option on `zaza.Target`. See [`libxev/PROOF.md`](libxev/PROOF.md). |
 | [`libvaxis`](libvaxis) (generated table) | — | ❌ out of scope | Pure Zig, no C/C++ surface. See [`libvaxis/FINDING.md`](libvaxis/FINDING.md). |
 
-Three slices — `fmt`, `imgui`, and `libxev` — satisfy the issue's "done when": an
-external target slice with both an upstream build proof and a Zaza build proof,
-documented with exact commands and artifact locations. One candidate remains a
-**finding** rather than a slice; see below.
+Four slices — `fmt`, `imgui`, `imgui_glfw`, and `libxev` — satisfy the issue's
+"done when": an external target slice with both an upstream build proof and a Zaza
+build proof, documented with exact commands and artifact locations. One candidate
+remains a **finding** rather than a slice; see below.
 
 ## Findings
 

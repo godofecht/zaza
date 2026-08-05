@@ -893,8 +893,11 @@ pub const CppExample = struct {
         var flags: std.ArrayListUnmanaged([]const u8) = .empty;
         defer flags.deinit(b.allocator);
 
-        // Add C++ standard
-        const std_flag = try std.fmt.allocPrint(b.allocator, "-std=c++{s}", .{self.cpp_std orelse "17"});
+        // Add the language standard: C when c_std is set, else C++.
+        const std_flag = if (self.c_std) |c_std|
+            try std.fmt.allocPrint(b.allocator, "-std=c{s}", .{c_std})
+        else
+            try std.fmt.allocPrint(b.allocator, "-std=c++{s}", .{self.cpp_std orelse "17"});
         try flags.append(b.allocator, std_flag);
 
         // Add other flags

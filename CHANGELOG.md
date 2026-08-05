@@ -3,11 +3,14 @@
 ## Unreleased
 - Added a `c_std` option to `zaza.Target`: build a target as C (`-std=c<std>`,
   no RTTI/exceptions, links `libc`) instead of C++. This unblocks C-only libraries
-  and headers that do not compile as C++.
+  and headers that do not compile as C++. Honoured in the Zig compile, the
+  zaza-drive manifest, and the `export_cmake` CMakeLists output.
 - Added an external corpus under `corpus/`: real upstream repos rebuilt through
   Zaza and compared against their native build. Validated slices: `fmt`, `imgui`
-  (Dear ImGui core from zig-gamedev), and `libxev` (C API consumer via `c_std`) —
-  each with an upstream build proof and a Zaza build proof. See `corpus/README.md`.
+  (Dear ImGui core from zig-gamedev), `imgui_glfw` (Dear ImGui with the GLFW +
+  OpenGL3 backends, linked against system GLFW/GL and run headless under Xvfb), and
+  `libxev` (C API consumer via `c_std`) — each with an upstream build proof and a
+  Zaza build proof. See `corpus/README.md`.
 - Recorded a corpus finding for `libvaxis` (pure Zig, no C/C++ surface) and an
   assessment of `szkkng/juzi` vs Zaza's JUCE support.
 - Manifest dependencies are now lazy, so a build fetches only the packages its
