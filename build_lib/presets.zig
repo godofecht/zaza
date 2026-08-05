@@ -41,8 +41,8 @@ fn readAndParsePreset(allocator: std.mem.Allocator, path: []const u8, preset_nam
     const preset_entry = preset_entry_opt orelse return null;
     if (preset_entry != .array) return null;
 
-    var configs = std.ArrayList(cpp.BuildConfig).init(allocator);
-    errdefer configs.deinit();
+    var configs: std.ArrayListUnmanaged(cpp.BuildConfig) = .empty;
+    errdefer configs.deinit(allocator);
 
     for (preset_entry.array.items) |config_val| {
         if (config_val != .object) return null;
@@ -73,7 +73,7 @@ fn readAndParsePreset(allocator: std.mem.Allocator, path: []const u8, preset_nam
         const link_frameworks = parseStringArray(allocator, config_val.object.get("link_frameworks")) orelse &.{};
         const link_libs = parseStringArray(allocator, config_val.object.get("link_libs")) orelse &.{};
 
-        configs.append(.{
+        configs.append(allocator, .{
             .mode = mode,
             .target = target,
             .defines = defines,
@@ -87,20 +87,20 @@ fn readAndParsePreset(allocator: std.mem.Allocator, path: []const u8, preset_nam
         }) catch return null;
     }
 
-    return configs.toOwnedSlice() catch null;
+    return configs.toOwnedSlice(allocator) catch null;
 }
 
 fn parseStringArray(allocator: std.mem.Allocator, val_opt: ?std.json.Value) ?[]const []const u8 {
     const val = val_opt orelse return null;
     if (val != .array) return null;
-    var list = std.ArrayList([]const u8).init(allocator);
-    errdefer list.deinit();
+    var list: std.ArrayListUnmanaged([]const u8) = .empty;
+    errdefer list.deinit(allocator);
     for (val.array.items) |item| {
         if (item != .string) return null;
         const duped = allocator.dupe(u8, item.string) catch return null;
-        list.append(duped) catch return null;
+        list.append(allocator, duped) catch return null;
     }
-    return list.toOwnedSlice() catch null;
+    return list.toOwnedSlice(allocator) catch return null;
 }
 
 /// Resolve a preset name to a build configuration list. Known names are
