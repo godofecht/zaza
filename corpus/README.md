@@ -50,25 +50,24 @@ zig build run       # build the slice through Zaza and run its consumer
 |-------|:--------------:|:----------:|-------|
 | [`fmt`](fmt) | ✅ CMake | ✅ static lib + linked consumer | See [`fmt/PROOF.md`](fmt/PROOF.md). |
 | [`imgui`](imgui) (from `zig-gamedev`) | ✅ drop-in `c++`/`ar` | ✅ static lib + headless consumer | Dear ImGui core. The `zig-gamedev` candidate, reduced to the C/C++ part that needs no system GL. See [`imgui/PROOF.md`](imgui/PROOF.md). |
-| [`libxev`](libxev) (lib/test install) | n/a (Zig lib) | ⚠️ toolchain-only | C consumer builds+runs via `zig cc`, but not yet expressible as a `zaza.Target`. See [`libxev/FINDING.md`](libxev/FINDING.md). |
+| [`libxev`](libxev) (lib/test install) | ✅ libxev's own build | ✅ C99 consumer links + runs | Consumes libxev's C API; motivated the `c_std` (C-language) option on `zaza.Target`. See [`libxev/PROOF.md`](libxev/PROOF.md). |
 | [`libvaxis`](libvaxis) (generated table) | — | ❌ out of scope | Pure Zig, no C/C++ surface. See [`libvaxis/FINDING.md`](libvaxis/FINDING.md). |
 
-Two slices — `fmt` and `imgui` — satisfy the issue's "done when": an external
-target slice with both an upstream build proof and a Zaza build proof, documented
-with exact commands and artifact locations. The other two candidates turned into
-**findings** rather than passing slices; see below.
+Three slices — `fmt`, `imgui`, and `libxev` — satisfy the issue's "done when": an
+external target slice with both an upstream build proof and a Zaza build proof,
+documented with exact commands and artifact locations. One candidate remains a
+**finding** rather than a slice; see below.
 
 ## Findings
 
-Corpus validation is as much about surfacing gaps as landing green slices. Two of
-issue #46's candidates did not become slices, for concrete, reproducible reasons:
+Corpus validation is as much about surfacing gaps as landing green slices.
 
-- **`libxev`** — its C API header (`xev.h`) compiles only under `-std=c99`
-  (it fails in C++ mode and in default gnu C mode where `max_align_t` is 32).
-  A `zig cc` C99 consumer links libxev's C library and runs a real event loop
-  (`libxev/proof.sh`), but `zaza.Target` always emits a C++ std flag and has no
-  C-language option, so the slice can't be written with the DSL yet. The
-  one-option follow-up (`c_std`) is spelled out in [`libxev/FINDING.md`](libxev/FINDING.md).
+- **`libxev` (now resolved)** — its C API header (`xev.h`) compiles only under
+  `-std=c99` (it fails in C++ mode and in default gnu C mode where `max_align_t`
+  is 32). `zaza.Target` used to compile every target as C++, so it could not build
+  the consumer. That gap is now closed: `zaza.Target` gained a `c_std` option
+  (compile as C, no RTTI/exceptions, link `libc`), and `libxev` is a validated
+  slice. See [`libxev/PROOF.md`](libxev/PROOF.md).
 - **`libvaxis`** — pure Zig, zero C/C++ sources, so there is nothing for the C/C++
   graph layer to rebuild. Its "generated table" is Zig-side `uucode` codegen, not
   a C/C++ custom command. Details in [`libvaxis/FINDING.md`](libvaxis/FINDING.md).

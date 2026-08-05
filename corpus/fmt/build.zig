@@ -9,19 +9,29 @@ const zaza = @import("zaza").api;
 const fmt_src = "vendor/fmt/src";
 const fmt_include = "vendor/fmt/include";
 
+// Zig 0.16 moved the filesystem under std.Io, so Dir.access takes the build
+// graph's Io handle. Only the taken branch is analysed.
+fn buildRootHas(b: *std.Build, sub_path: []const u8) bool {
+    const r = if (comptime @hasDecl(std.fs, "cwd"))
+        b.build_root.handle.access(sub_path, .{})
+    else
+        b.build_root.handle.access(b.graph.io, sub_path, .{});
+    return if (r) |_| true else |_| false;
+}
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
 
     // A guard that turns a missing checkout into an actionable message instead
     // of an opaque "file not found" from the compiler.
-    b.build_root.handle.access(fmt_include, .{}) catch {
+    if (!buildRootHas(b, fmt_include)) {
         std.debug.print(
             \\error: upstream fmt sources not found under {s}.
             \\       run ./fetch.sh first to check out the pinned fmt release.
             \\
         , .{fmt_include});
         return error.UpstreamSourcesMissing;
-    };
+    }
 
     // The fmt compiled library, expressed as a Zaza static-library target.
     // This is the "target slice": fmt's two non-header translation units built
@@ -51,7 +61,7 @@ pub fn build(b: *std.Build) !void {
         .configs = &.{.{ .mode = .Release }},
     });
     const consumer_compile = try consumer.buildWithTarget(b, target);
-    consumer_compile.linkLibrary(fmt_compile);
+    consumer_compile.root_module.linkLibrary(fmt_compile);
 
     b.installArtifact(fmt_compile);
     b.installArtifact(consumer_compile);

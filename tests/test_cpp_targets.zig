@@ -183,3 +183,22 @@ test "all source files include generated sources" {
     try testing.expectEqualStrings("src/main.cpp", files[0]);
     try testing.expectEqualStrings("zig-out/gen/generated.cpp", files[1]);
 }
+
+test "c_std selects a C target; default targets stay C++" {
+    // A C target carries its C standard and leaves cpp_std unused.
+    const c_target = cpp.CppExample.executable(.{
+        .name = "c_app",
+        .source_files = &.{"src/main.c"},
+        .c_std = "99",
+    });
+    try testing.expect(c_target.c_std != null);
+    try testing.expectEqualStrings("99", c_target.c_std.?);
+
+    // A default target has no c_std, so it builds as C++.
+    const cpp_target = cpp.CppExample.executable(.{
+        .name = "cpp_app",
+        .source_files = &.{"src/main.cpp"},
+    });
+    try testing.expectEqual(@as(?[]const u8, null), cpp_target.c_std);
+    try testing.expectEqualStrings("17", cpp_target.cpp_std.?);
+}

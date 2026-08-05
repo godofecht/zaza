@@ -147,6 +147,19 @@ Shortcuts for the common cases:
 - `cpp.CppExample.objectLibrary(...)`
 - `cpp.CppExample.interfaceLibrary(...)`
 
+To build a target as **C** instead of C++, set `c_std` (for example `"99"` or
+`"11"`). The target is then compiled with `-std=c<c_std>`, the C++-only flags
+(`-frtti`, `-fexceptions`, `-D_HAS_EXCEPTIONS`) are dropped, and it links `libc`
+instead of `libc++`. `cpp_std` is ignored while `c_std` is set.
+
+```zig
+cpp.CppExample.executable(.{
+    .name = "c_app",
+    .source_files = &.{"src/main.c"},
+    .c_std = "99",
+});
+```
+
 These all feed the same generic target model underneath through `CppExample.make(...)`.
 
 ## 5. `CppExample` Fields

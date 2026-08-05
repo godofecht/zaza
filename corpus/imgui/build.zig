@@ -4,17 +4,27 @@ const zaza = @import("zaza").api;
 // Dear ImGui sources are fetched by ./fetch.sh into vendor/imgui (git-ignored).
 const imgui_dir = "vendor/imgui";
 
+// Zig 0.16 moved the filesystem under std.Io, so Dir.access takes the build
+// graph's Io handle. Only the taken branch is analysed.
+fn buildRootHas(b: *std.Build, sub_path: []const u8) bool {
+    const r = if (comptime @hasDecl(std.fs, "cwd"))
+        b.build_root.handle.access(sub_path, .{})
+    else
+        b.build_root.handle.access(b.graph.io, sub_path, .{});
+    return if (r) |_| true else |_| false;
+}
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
 
-    b.build_root.handle.access(imgui_dir ++ "/imgui.h", .{}) catch {
+    if (!buildRootHas(b, imgui_dir ++ "/imgui.h")) {
         std.debug.print(
             \\error: Dear ImGui sources not found under {s}.
             \\       run ./fetch.sh first to check out the pinned imgui slice.
             \\
         , .{imgui_dir});
         return error.UpstreamSourcesMissing;
-    };
+    }
 
     // Dear ImGui core as a Zaza static-library target. These four translation
     // units are the platform- and renderer-independent core: no GL, no X11, no
@@ -49,7 +59,7 @@ pub fn build(b: *std.Build) !void {
         .configs = &.{.{ .mode = .Release }},
     });
     const consumer_compile = try consumer.buildWithTarget(b, target);
-    consumer_compile.linkLibrary(imgui_compile);
+    consumer_compile.root_module.linkLibrary(imgui_compile);
 
     b.installArtifact(imgui_compile);
     b.installArtifact(consumer_compile);

@@ -182,6 +182,12 @@ pub const TargetOptions = struct {
     deps_build_system: BuildSystem = .Zig,
     main_build_system: BuildSystem = .Zig,
     cpp_std: ?[]const u8 = "17",
+    /// Build this target as C instead of C++. When set (for example `"99"` or
+    /// `"11"`), the target is compiled with `-std=c<c_std>`, the C++-only flags
+    /// (`-frtti`, `-fexceptions`, `-D_HAS_EXCEPTIONS`) are dropped, and it links
+    /// `libc` rather than `libc++`. `cpp_std` is ignored while this is set. Use
+    /// it for C-only sources or C headers that do not compile as C++.
+    c_std: ?[]const u8 = null,
     cmake_config: ?CMakeConfig = null,
     enable_system_commands: bool = false,
 };
@@ -672,6 +678,7 @@ pub const CppExample = struct {
     deps_build_system: BuildSystem,
     main_build_system: BuildSystem,
     cpp_std: ?[]const u8,
+    c_std: ?[]const u8 = null,
     cmake_config: ?CMakeConfig = null,
     enable_system_commands: bool = false,
 
@@ -705,6 +712,7 @@ pub const CppExample = struct {
             .deps_build_system = options.deps_build_system,
             .main_build_system = options.main_build_system,
             .cpp_std = options.cpp_std,
+            .c_std = options.c_std,
             .cmake_config = options.cmake_config,
             .enable_system_commands = options.enable_system_commands,
         };
@@ -936,8 +944,13 @@ pub const CppExample = struct {
         var list: std.ArrayListUnmanaged([]const u8) = .empty;
         try list.appendSlice(b.allocator, filterByConfig(b, self.cpp_flags, config_name));
         try list.appendSlice(b.allocator, config.cpp_flags);
-        try list.append(b.allocator, try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
-        try list.appendSlice(b.allocator, &.{ "-fexceptions", "-frtti", "-D_HAS_EXCEPTIONS=1" });
+        if (self.c_std) |c_std| {
+            // C target: a C standard and none of the C++-only flags.
+            try list.append(b.allocator, try std.fmt.allocPrint(b.allocator, "-std=c{s}", .{c_std}));
+        } else {
+            try list.append(b.allocator, try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version));
+            try list.appendSlice(b.allocator, &.{ "-fexceptions", "-frtti", "-D_HAS_EXCEPTIONS=1" });
+        }
         for (public_defines) |def| try list.append(b.allocator, ensureDefineFlag(b, def));
         for (private_defines) |def| try list.append(b.allocator, ensureDefineFlag(b, def));
         for (config.defines) |def| try list.append(b.allocator, ensureDefineFlag(b, def));
@@ -1241,9 +1254,13 @@ pub const CppExample = struct {
                     }
                 }
 
-                // Link C++ runtime
+                // Link the C or C++ runtime.
                 if (self.kind != .object_library and self.kind != .interface_library) {
-                    compile.root_module.link_libcpp = true;
+                    if (self.c_std != null) {
+                        compile.root_module.link_libc = true;
+                    } else {
+                        compile.root_module.link_libcpp = true;
+                    }
                 }
 
                 // Link extra libraries from build config
@@ -1800,7 +1817,8 @@ fn buildCompileCommand(
     private_defines: []const []const u8,
 ) ![]u8 {
     var cmd: std.ArrayListUnmanaged(u8) = .empty;
-    try cmd.appendSlice(b.allocator, "zig c++ ");
+    // A C target drives through `zig cc`; a C++ target through `zig c++`.
+    try cmd.appendSlice(b.allocator, if (self.c_std != null) "zig cc " else "zig c++ ");
 
     const flags = filterByConfig(b, self.cpp_flags, config_name);
     for (flags) |flag| {
@@ -1809,9 +1827,13 @@ fn buildCompileCommand(
     for (config.cpp_flags) |flag| {
         try listPrint(&cmd, b.allocator, "{s} ", .{flag});
     }
-    const std_flag = try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version);
-    defer b.allocator.free(std_flag);
-    try listPrint(&cmd, b.allocator, "{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
+    if (self.c_std) |c_std| {
+        try listPrint(&cmd, b.allocator, "-std=c{s} ", .{c_std});
+    } else {
+        const std_flag = try CppConfig.getStdFlag(b.allocator, self.cpp_std orelse CppConfig.std_version);
+        defer b.allocator.free(std_flag);
+        try listPrint(&cmd, b.allocator, "{s} -fexceptions -frtti -D_HAS_EXCEPTIONS=1 ", .{std_flag});
+    }
 
     for (public_defines) |def| {
         const flag = ensureDefineFlag(b, def);

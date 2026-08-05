@@ -59,6 +59,11 @@ zaza.Target.interfaceLibrary(...)
 A target is a plain struct, so you can inspect and modify it before building.
 The full field list is in [`SYNTAX_REFERENCE.md`](SYNTAX_REFERENCE.md).
 
+Targets are C++ by default. To build one as C, set `c_std` (for example `"99"`):
+the target compiles with `-std=c<c_std>`, drops the C++-only flags, and links
+`libc` instead of `libc++`. This is what lets Zaza consume C-only libraries and
+headers that do not compile as C++.
+
 ## Configurations
 
 | Name | Kind | Purpose |

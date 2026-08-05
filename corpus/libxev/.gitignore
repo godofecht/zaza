@@ -1,3 +1,7 @@
 vendor/
 zig-out/
 .zig-cache/
+CMakeLists.txt
+compile_commands.json
+deps/
+libxev_consumer

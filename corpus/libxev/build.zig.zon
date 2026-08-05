@@ -1,0 +1,14 @@
+.{
+    .name = .zaza_corpus_libxev,
+    .version = "0.0.0",
+    .fingerprint = 0x9c81dff0713060a0,
+    .minimum_zig_version = "0.14.0",
+    .dependencies = .{
+        .zaza = .{ .path = "../.." },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
