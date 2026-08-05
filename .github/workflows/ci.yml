@@ -101,6 +101,57 @@ jobs:
           chmod +x ./zig
           ./zig build example-matrix --summary all
 
+  # The external corpus: real upstream projects rebuilt through Zaza (see
+  # corpus/). Each slice is a standalone package outside the root build, so
+  # neither `zig build test` nor the example matrix touches it — this is the only
+  # lane that builds and runs the slices. Pinned to Zig 0.16.0 because libxev and
+  # libvaxis require it; the C/C++ slices build on it too. Each slice's fetch.sh
+  # checks its pinned upstream out over the network, which is why this fetches
+  # from several external repos rather than nothing like the example matrix.
+  corpus:
+    runs-on: ubuntu-latest
+    name: corpus (zig 0.16.0)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          # libxev and libvaxis set minimum_zig_version 0.16.0; the other slices
+          # were verified on it too.
+          version: 0.16.0
+
+      # imgui_glfw links system GLFW and OpenGL and renders headless under a
+      # virtual framebuffer with Mesa's software GL. The other slices need none
+      # of this.
+      - name: Install imgui_glfw system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libglfw3-dev libgl1-mesa-dev libgl1-mesa-dri xvfb
+
+      - name: fmt slice
+        working-directory: corpus/fmt
+        run: ./fetch.sh && zig build run --summary all
+
+      - name: imgui slice
+        working-directory: corpus/imgui
+        run: ./fetch.sh && zig build run --summary all
+
+      # Software GL under Xvfb: no GPU on the runner.
+      - name: imgui_glfw slice (headless GL)
+        working-directory: corpus/imgui_glfw
+        run: ./fetch.sh && LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a zig build run --summary all
+
+      # fetch.sh builds libxev's C static library (its own zig build) before the
+      # Zaza consumer links it.
+      - name: libxev slice
+        working-directory: corpus/libxev
+        run: ./fetch.sh && zig build run --summary all
+
+      # fetch.sh seeds the package cache with libvaxis and its deps; on a
+      # networked runner `zig build` could fetch them itself, but seeding keeps
+      # this identical to the documented offline path.
+      - name: libvaxis slice
+        working-directory: corpus/libvaxis
+        run: ./fetch.sh && zig build run --summary all
+
   # The whole graph, C++ examples and JUCE included. Slow (JUCE is compiled
   # from source), so it is kept off the PR path.
   full-build:
