@@ -45,8 +45,13 @@ deps/
 Thumbs.db
 
 # Zig installation
-zig-linux-x86_64-0.11.0/
-zig-linux-x86_64-0.11.0.tar.xz
+zig-linux-x86_64-*/
+zig-linux-x86_64-*
+zig-linux-x86_64-*.tar.xz
+
+# Local presets/profiles overrides
+zaza-presets.json
+zaza-presets.local.json
 
 # Env / local tooling
 .envrc
