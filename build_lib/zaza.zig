@@ -84,6 +84,12 @@ pub const config_sets = cpp.BuildConfigs;
 /// name falls back to debug. This is what `ZAZA_PRESET` selects.
 pub const presetConfigs = presets.presetConfigs;
 
+/// Resolve a preset name to a configuration list, supporting local override JSON files.
+pub const resolvePreset = presets.resolvePreset;
+
+/// Resolve a preset name to a configuration list with a custom allocator, supporting local override JSON files.
+pub const resolvePresetWithAllocator = presets.resolvePresetWithAllocator;
+
 // --- Dependencies -------------------------------------------------------------
 
 /// A source dependency: a name, a URL, and how to fetch and build it.

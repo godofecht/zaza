@@ -66,10 +66,10 @@ pub fn build(b: *std.Build) !void {
     // Apply preset configs to examples (optional)
     if (zaza_cmd.envString(b, "ZAZA_PRESET")) |preset| {
         defer b.allocator.free(preset);
-        applyPresetToExample(&cmake_combo_example.example, preset);
-        applyPresetToExample(&cmake_net_example.example, preset);
-        applyPresetToExample(&cmake_shim_example.example, preset);
-        applyPresetToExample(&preset_profiles_example.example, preset);
+        applyPresetToExample(b, &cmake_combo_example.example, preset);
+        applyPresetToExample(b, &cmake_net_example.example, preset);
+        applyPresetToExample(b, &cmake_shim_example.example, preset);
+        applyPresetToExample(b, &preset_profiles_example.example, preset);
     }
 
     if (exampleEnabled(b, "json")) {
@@ -845,8 +845,8 @@ fn exampleEnabled(b: *std.Build, name: []const u8) bool {
     return true;
 }
 
-fn applyPresetToExample(example: *cpp.CppExample, preset: []const u8) void {
-    example.configs = presets.presetConfigs(preset);
+fn applyPresetToExample(b: *std.Build, example: *cpp.CppExample, preset: []const u8) void {
+    example.configs = presets.resolvePreset(b, preset);
 }
 
 fn selectTarget(b: *std.Build) std.Build.ResolvedTarget {
