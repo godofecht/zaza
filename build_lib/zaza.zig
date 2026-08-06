@@ -27,11 +27,29 @@
 //! working. This facade re-exports from them without copying logic, so the two
 //! never drift. See `docs/API.md` for the full reference.
 
+const std = @import("std");
+
 const cpp = @import("cpp_example.zig");
 const test_suite = @import("test_suite.zig");
 const presets = @import("presets.zig");
 const cmd = @import("zaza_cmd.zig");
 const rust = @import("rust_example.zig");
+
+/// The Zig lanes Zaza is validated on. A downstream project reads this to pin a
+/// lane and to check compatibility before building. See `docs/LANES.md`.
+pub const supported_lanes = [_]std.SemanticVersion{
+    .{ .major = 0, .minor = 14, .patch = 1 },
+    .{ .major = 0, .minor = 15, .patch = 2 },
+    .{ .major = 0, .minor = 16, .patch = 0 },
+};
+
+/// True when `v` matches a supported lane by major.minor (patch is advisory).
+pub fn laneSupported(v: std.SemanticVersion) bool {
+    for (supported_lanes) |lane| {
+        if (lane.major == v.major and lane.minor == v.minor) return true;
+    }
+    return false;
+}
 const interop = @import("interop_hints.zig");
 
 // --- Targets ------------------------------------------------------------------

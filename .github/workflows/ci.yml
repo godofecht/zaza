@@ -25,6 +25,9 @@ jobs:
       # the build graph is constructed, so leaving these on would fetch JUCE,
       # curl, mbedtls, zlib, spdlog and fmt just to run Zig tests.
       ZAZA_EXAMPLES: none
+      # Isolate the local build cache per lane so a 0.14 build and a 0.16 build
+      # never share a stale cache (zaza#44).
+      ZIG_LOCAL_CACHE_DIR: .zig-cache-${{ matrix.zig }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +37,11 @@ jobs:
 
       - name: Test
         run: zig build test --summary all
+
+      # zaza-import (zaza#43) also uses the compat adaptor and a comptime entry
+      # point; compile it on every lane to catch version-specific breaks.
+      - name: Build zaza-import
+        run: zig build zaza-import --summary all
 
       # zaza-lipo uses the version-compat adaptor, and `zig build test` does not
       # build it. Compile it on each Zig version so a version-specific break in
@@ -80,6 +88,8 @@ jobs:
       # cxx20-modules needs a C++20-modules-capable clang++. Ubuntu ships one;
       # point the example at it so the matrix covers it off macOS too.
       ZAZA_MODULES_CXX: "/usr/bin/clang++"
+      # Per-lane local cache so the three lanes never share a stale cache (zaza#44).
+      ZIG_LOCAL_CACHE_DIR: .zig-cache-${{ matrix.zig }}
     steps:
       - uses: actions/checkout@v4
 

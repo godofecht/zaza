@@ -50,6 +50,19 @@ pub fn build(b: *std.Build) !void {
         );
     }
 
+    // Lane preflight: warn clearly when the running Zig is outside the validated
+    // lanes, and point at per-lane cache isolation so a 0.14 build and a 0.16
+    // build don't share a stale cache. See docs/LANES.md and zaza.supported_lanes.
+    if (!api.laneSupported(builtin.zig_version)) {
+        const v = builtin.zig_version;
+        std.log.warn(
+            "Zig {d}.{d}.{d} is outside Zaza's validated lanes (0.14.x / 0.15.x / 0.16.x); builds may fail. " ++
+                "Pin a supported lane, and isolate caches per lane with " ++
+                "ZIG_LOCAL_CACHE_DIR=.zig-cache-{d}.{d} (see docs/LANES.md).",
+            .{ v.major, v.minor, v.patch, v.major, v.minor },
+        );
+    }
+
     const system_cmds = b.option(bool, "system-cmds", "Enable git/cmake steps in build") orelse (envBool(b, "ZAZA_SYSTEM_CMDS") orelse false);
     const verbose = b.option(bool, "verbose", "Print build status messages") orelse true;
     const target = selectTarget(b);
