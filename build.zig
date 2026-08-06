@@ -705,7 +705,23 @@ fn ensureRegistryDeps(b: *std.Build) !void {
 }
 
 fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
+    // Already pinned in build.zig.zon (url + hash) means it resolves reproducibly
+    // from the cache; nothing to fetch.
     if (zonHasDependency(b, name)) return;
+
+    // Offline / cache-validation mode: do not reach the network. A dependency
+    // that is not already pinned is an error, so a fresh clone can be validated
+    // as fully vendored before it is trusted to build without network. (zaza#45)
+    if (envBool(b, "ZAZA_OFFLINE") orelse false) {
+        std.log.err(
+            "offline: dependency '{s}' is not pinned in build.zig.zon and ZAZA_OFFLINE=1.\n" ++
+                "  package:     {s}\n" ++
+                "  source:      the Zaza registry (scripts/zaza.zig fetch {s})\n" ++
+                "  remediation: run once online (unset ZAZA_OFFLINE) to pin it into build.zig.zon, then commit the lock.",
+            .{ name, name, name },
+        );
+        return error.DependencyNotAvailableOffline;
+    }
 
     // b.run exists in every supported Zig and fails the build on a non-zero
     // exit, so it replaces a hand-rolled Child. 0.16 removed Child.init and
@@ -719,7 +735,7 @@ fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
         name,
     });
 
-    std.debug.print("\\n[zaza] added dependency '{s}' to build.zig.zon; re-run zig build\\n", .{name});
+    std.debug.print("\n[zaza] added dependency '{s}' to build.zig.zon; re-run zig build\n", .{name});
     @panic("dependency added; re-run zig build");
 }
 
