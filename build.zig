@@ -19,6 +19,7 @@ const hello_zaza_example = @import("examples/hello_zaza/build.zig");
 const cmake_combo_example = @import("examples/cmake_combo/build.zig");
 const cmake_net_example = @import("examples/cmake_net/build.zig");
 const proof_library_example = @import("examples/proof_library/build.zig");
+const target_kinds_example = @import("examples/target_kinds/build.zig");
 const generated_code_example = @import("examples/generated_code/build.zig");
 const package_producer_example = @import("examples/package_producer/build.zig");
 const mixed_stack_example = @import("examples/mixed_stack/build.zig");
@@ -124,6 +125,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "proof-library")) {
         try proof_library_example.build(b, target, optimize);
+    }
+
+    if (exampleEnabled(b, "target-kinds")) {
+        try target_kinds_example.build(b, target, optimize);
     }
 
     if (exampleEnabled(b, "generated-code")) {
@@ -559,6 +564,7 @@ pub fn build(b: *std.Build) !void {
     const matrix_targets: []const []const u8 = &.{
         "run-hello-zaza",
         "proof-library-run",
+        "target-kinds-run",
         "generated-code-run",
         "package-consumer-run",
         "mixed-stack-run",
