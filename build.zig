@@ -379,6 +379,26 @@ pub fn build(b: *std.Build) !void {
         lipo_step.dependOn(&install_lipo.step);
     }
 
+    // zaza-import: generate a starter Zaza build.zig from a CMake project's
+    // compile_commands.json (zaza#43). `zig build zaza-import` installs it to
+    // zig-out/bin. See tools/zaza-import.
+    {
+        const importer = b.addExecutable(.{
+            .name = "zaza-import",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("tools/zaza-import/main.zig"),
+                .target = target,
+                .optimize = .ReleaseFast,
+            }),
+        });
+        importer.root_module.addImport("compat", b.createModule(.{
+            .root_source_file = b.path("build_lib/compat.zig"),
+        }));
+        const install_import = b.addInstallArtifact(importer, .{});
+        const import_step = b.step("zaza-import", "Install zaza-import: CMake compile_commands.json -> starter Zaza build.zig (zaza#43)");
+        import_step.dependOn(&install_import.step);
+    }
+
     // Add clean tests that actually work (test_step was created up front).
     const clean_tests = b.addTest(.{
         .root_module = b.createModule(.{
