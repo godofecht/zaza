@@ -395,7 +395,14 @@ fn addPostBuildCommands(
     dependency: ?*std.Build.Step,
 ) !?*std.Build.Step {
     if (self.post_build_commands.len == 0) return null;
-    if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+    if (!self.enable_system_commands) {
+        std.log.err(
+            "target '{s}': post-build command '{s}' needs system commands, which are disabled. " ++
+                "Enable with -Dsystem-cmds=true or ZAZA_SYSTEM_CMDS=1.",
+            .{ self.name, self.post_build_commands[0].name },
+        );
+        return error.SystemCommandsDisabled;
+    }
 
     var last_step = dependency;
     for (self.post_build_commands) |cmd| {
@@ -1116,7 +1123,14 @@ pub const CppExample = struct {
                 }
             }
             if (self.custom_commands.len > 0) {
-                if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+                if (!self.enable_system_commands) {
+                    std.log.err(
+                        "target '{s}': custom command '{s}' needs system commands, which are disabled. " ++
+                            "Enable with -Dsystem-cmds=true or ZAZA_SYSTEM_CMDS=1.",
+                        .{ self.name, self.custom_commands[0].name },
+                    );
+                    return error.SystemCommandsDisabled;
+                }
                 for (self.custom_commands) |cmd| {
                     const custom_step = zaza_cmd.addCommandStep(
                         b,
@@ -1132,7 +1146,14 @@ pub const CppExample = struct {
 
             // Build main project with selected build system
             if (self.main_build_system == .CMake) {
-                if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+                if (!self.enable_system_commands) {
+                    std.log.err(
+                        "target '{s}': CMake main-build phase needs system commands, which are disabled. " ++
+                            "Enable with -Dsystem-cmds=true or ZAZA_SYSTEM_CMDS=1.",
+                        .{self.name},
+                    );
+                    return error.SystemCommandsDisabled;
+                }
                 if (self.artifact_copies.len > 0) return error.ArtifactCopyRequiresZigArtifact;
                 // Use CMake for main project
                 const cmake_cfg = self.cmake_config orelse CMakeConfig{};
