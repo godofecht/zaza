@@ -170,27 +170,31 @@ Useful, but not required for replacing CMake on most new projects.
 
 ## Concrete Feature Mapping
 
-| CMake concept | Zaza requirement | Status |
-| --- | --- | --- |
-| `add_executable` | stable executable target API | partial |
-| `add_library(STATIC/SHARED)` | native library target API | missing |
-| `target_link_libraries` | target-to-target linking with visibility scopes | partial |
-| `target_include_directories` | usage requirements with transitive propagation | partial |
-| `target_compile_definitions` | scoped compile definitions | partial |
-| `target_compile_options` | scoped compile flags | partial |
-| `target_link_options` | scoped linker flags | partial |
-| `add_custom_command` | generated file pipeline with inputs/outputs | missing |
-| `add_custom_target` | phony orchestration targets | partial |
-| `enable_testing` / `add_test` | first-class test model | partial |
-| `install` | install layout and rules | partial |
-| `export` / package config | reusable downstream package metadata | partial |
-| `find_package` | package discovery/imported targets | missing |
-| `FetchContent` | reproducible dependency fetch + lock | partial |
-| presets/toolchains | named config + toolchain model | partial |
-| generator expressions | config/platform-conditioned values | partial |
-| `add_subdirectory` | composition of subprojects | missing |
-| object/interface/alias libs | target graph richness | missing |
-| `compile_commands.json` | tooling integration | partial |
+Status legend: **done** = implemented and exercised by an example or corpus
+slice; **partial** = usable but incomplete; **missing** = not implemented.
+
+| CMake concept | Zaza requirement | Status | Zaza API |
+| --- | --- | --- | --- |
+| `add_executable` | stable executable target API | done | `Target.executable` |
+| `add_library(STATIC/SHARED)` | native library target API | done | `Target.staticLibrary` / `sharedLibrary` |
+| `target_link_libraries` | target-to-target linking with visibility scopes | done | `deps` + `UsageRequirements` (public/private) |
+| `target_include_directories` | usage requirements with transitive propagation | done | `public/private_include_dirs`, `UsageRequirements.merge` |
+| `target_compile_definitions` | scoped compile definitions | done | `public/private_defines` |
+| `target_compile_options` | scoped compile flags | done | `cpp_flags`, per-config via `$<CONFIG:>` |
+| `target_link_options` | scoped linker flags | partial | config `link_*` only |
+| `add_custom_command` | generated file pipeline with inputs/outputs | done | `custom_commands`, `generated_source_files` |
+| `add_custom_target` | phony orchestration targets | partial | via build steps, no first-class phony target |
+| `enable_testing` / `add_test` | first-class test model | done | `test_suite` (`addTest` / `addBench`) |
+| `install` | install layout and rules | done | `install_libs`, `install_headers`, `ArtifactCopy`, `FileCopy` |
+| `export` / package config | reusable downstream package metadata | done | CMake export (`CMakeLists.txt`), package producer/consumer |
+| `find_package` | package discovery/imported targets | missing | — |
+| `FetchContent` | reproducible dependency fetch + lock | partial | `ensureRegistryDeps` + corpus `fetch.sh`; no lock (#45) |
+| presets/toolchains | named config + toolchain model | done | `presets.zig` (#51), `configs` |
+| generator expressions | config/platform-conditioned values | partial | `$<CONFIG:>` filtering; not full genex |
+| `add_subdirectory` | composition of subprojects | missing | — |
+| object / interface libs | target graph richness | done | `Target.objectLibrary` / `interfaceLibrary` (alias: missing) |
+| pkg-config libraries | scoped system-lib discovery | missing | — |
+| `compile_commands.json` | tooling integration | done (export) | emitted for Zig builds; import path is #43 |
 
 ## Recommended Execution Order
 
