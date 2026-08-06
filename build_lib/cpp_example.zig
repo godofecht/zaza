@@ -1340,8 +1340,17 @@ pub const CppExample = struct {
                 last_exe = compile;
             }
 
-            if (last_step) |step| {
-                final_steps.append(b.allocator, step) catch unreachable;
+            // An interface library carries usage requirements only: nothing is
+            // compiled, so there is no artifact to install. Hooking its (empty)
+            // static-library compile step to the install step makes `zig build`
+            // try to archive a library with zero object files, which the linker
+            // rejects (fatal on macOS, and on Linux too). Skip the install hook
+            // for it; its includes/defines still propagate to consumers, and any
+            // install_headers it declares are hooked separately.
+            if (self.kind != .interface_library) {
+                if (last_step) |step| {
+                    final_steps.append(b.allocator, step) catch unreachable;
+                }
             }
         }
 
