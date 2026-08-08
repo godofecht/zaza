@@ -53,6 +53,10 @@ zig-linux-x86_64-*.tar.xz
 zaza-presets.json
 zaza-presets.local.json
 
+# Local dependency overrides
+zaza-overrides.json
+zaza-overrides.local.json
+
 # Env / local tooling
 .envrc
 

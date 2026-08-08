@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const zaza_cmd = @import("zaza_cmd.zig");
+const compat = @import("compat.zig");
 
 /// Zig 0.14 spells buffered formatting `list.writer(gpa).print(...)`; 0.16
 /// removed `writer` and 0.15 added `list.print(gpa, ...)`. No single spelling
@@ -42,6 +43,76 @@ fn writeBuildRootFile(b: *std.Build, sub_path: []const u8, data: []const u8) !vo
     } else {
         try b.build_root.handle.writeFile(b.graph.io, .{ .sub_path = sub_path, .data = data });
     }
+}
+
+pub fn getOverridePath(allocator: std.mem.Allocator, dep_name: []const u8) ?[]const u8 {
+    const paths = [_][]const u8{ "zaza-overrides.local.json", "zaza-overrides.json" };
+    for (paths) |path| {
+        if (getOverridePathFromFile(allocator, path, dep_name)) |override| {
+            return override;
+        }
+    }
+    return null;
+}
+
+fn getOverridePathFromFile(allocator: std.mem.Allocator, path: []const u8, dep_name: []const u8) ?[]const u8 {
+    const content = compat.readFile(compat.io(), allocator, path) orelse return null;
+    defer allocator.free(content);
+
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, content, .{}) catch return null;
+    defer parsed.deinit();
+
+    const root = parsed.value;
+    if (root != .object) return null;
+
+    const deps_val = root.object.get("dependencies") orelse return null;
+    if (deps_val != .object) return null;
+
+    var override_opt: ?[]const u8 = null;
+    var it = deps_val.object.iterator();
+    while (it.next()) |entry| {
+        if (std.ascii.eqlIgnoreCase(entry.key_ptr.*, dep_name)) {
+            if (entry.value_ptr.* == .string) {
+                override_opt = allocator.dupe(u8, entry.value_ptr.*.string) catch null;
+            }
+            break;
+        }
+    }
+
+    return override_opt;
+}
+
+pub fn getDependencySourceDir(b: *std.Build, dep_name: []const u8, default_path: []const u8) []const u8 {
+    if (getOverridePath(b.allocator, dep_name)) |override| {
+        return override;
+    }
+    return default_path;
+}
+
+pub fn resolveOverriddenIncludeDirs(allocator: std.mem.Allocator, dirs: []const []const u8, deps: []const Dependency) []const []const u8 {
+    var list = std.ArrayListUnmanaged([]const u8).empty;
+    for (dirs) |dir| {
+        var rewritten = dir;
+        for (deps) |dep| {
+            const prefix1 = std.fmt.allocPrint(allocator, "deps/{s}", .{dep.name}) catch unreachable;
+            defer allocator.free(prefix1);
+            const prefix2 = std.fmt.allocPrint(allocator, "deps\\{s}", .{dep.name}) catch unreachable;
+            defer allocator.free(prefix2);
+            if (std.mem.startsWith(u8, dir, prefix1)) {
+                if (getOverridePath(allocator, dep.name)) |override| {
+                    defer allocator.free(override);
+                    rewritten = std.fs.path.join(allocator, &.{ override, dir[prefix1.len..] }) catch unreachable;
+                }
+            } else if (std.mem.startsWith(u8, dir, prefix2)) {
+                if (getOverridePath(allocator, dep.name)) |override| {
+                    defer allocator.free(override);
+                    rewritten = std.fs.path.join(allocator, &.{ override, dir[prefix2.len..] }) catch unreachable;
+                }
+            }
+        }
+        list.append(allocator, rewritten) catch unreachable;
+    }
+    return list.toOwnedSlice(allocator) catch unreachable;
 }
 
 /// A source dependency: a name, a URL, and how to fetch and build it. A null
@@ -869,7 +940,8 @@ pub const CppExample = struct {
 
         // Include directories
         if (self.public_include_dirs.len > 0) {
-            try cmake.listScoped(b.allocator, &writer, "target_include_directories", self.name, "PUBLIC", self.public_include_dirs);
+            const resolved_public = resolveOverriddenIncludeDirs(b.allocator, self.public_include_dirs, self.deps);
+            try cmake.listScoped(b.allocator, &writer, "target_include_directories", self.name, "PUBLIC", resolved_public);
         }
         if (self.include_dirs.len > 0 or self.private_include_dirs.len > 0) {
             var all_private: std.ArrayListUnmanaged([]const u8) = .empty;
@@ -877,7 +949,8 @@ pub const CppExample = struct {
             try all_private.appendSlice(b.allocator, self.include_dirs);
             try all_private.appendSlice(b.allocator, self.private_include_dirs);
             if (all_private.items.len > 0) {
-                try cmake.listScoped(b.allocator, &writer, "target_include_directories", self.name, "PRIVATE", all_private.items);
+                const resolved_private = resolveOverriddenIncludeDirs(b.allocator, all_private.items, self.deps);
+                try cmake.listScoped(b.allocator, &writer, "target_include_directories", self.name, "PRIVATE", resolved_private);
             }
         }
 
@@ -1020,35 +1093,40 @@ pub const CppExample = struct {
             // Clone and build dependencies (optional)
             if (self.enable_system_commands) {
                 for (self.deps) |dep| {
-                    // Clone step
-                    const clone_step = zaza_cmd.addCommandStep(
-                        b,
-                        b.fmt("clone_{s}_{s}", .{ dep.name, config_name }),
-                        makeCloneCommand(b, dep),
-                    );
-                    if (last_step) |prev| {
-                        clone_step.dependencies.append(prev) catch unreachable;
-                    }
-                    last_step = clone_step;
+                    const has_override = getOverridePath(b.allocator, dep.name) != null;
 
-                    // Submodule init step (for deps that need it)
-                    if (needsSubmoduleInit(dep.name)) {
-                        const submodule_step = zaza_cmd.addCommandStep(
+                    if (!has_override) {
+                        // Clone step
+                        const clone_step = zaza_cmd.addCommandStep(
                             b,
-                            b.fmt("submodule_init_{s}_{s}", .{ dep.name, config_name }),
-                            makeSubmoduleInitCommand(b, dep.name),
+                            b.fmt("clone_{s}_{s}", .{ dep.name, config_name }),
+                            makeCloneCommand(b, dep),
                         );
                         if (last_step) |prev| {
-                            submodule_step.dependencies.append(prev) catch unreachable;
+                            clone_step.dependencies.append(prev) catch unreachable;
                         }
-                        last_step = submodule_step;
+                        last_step = clone_step;
+
+                        // Submodule init step (for deps that need it)
+                        if (needsSubmoduleInit(dep.name)) {
+                            const submodule_step = zaza_cmd.addCommandStep(
+                                b,
+                                b.fmt("submodule_init_{s}_{s}", .{ dep.name, config_name }),
+                                makeSubmoduleInitCommand(b, dep.name),
+                            );
+                            if (last_step) |prev| {
+                                submodule_step.dependencies.append(prev) catch unreachable;
+                            }
+                            last_step = submodule_step;
+                        }
                     }
 
                     // Build step (only after clone completes)
                     const dep_build_system = dep.type orelse self.deps_build_system;
                     if (dep_build_system == .CMake) {
                         const cmake_cfg = dep.cmake_config orelse CMakeConfig{};
-                        const dep_source_dir = cmake_cfg.source_dir orelse b.pathJoin(&.{ "deps", dep.name });
+                        const default_source_dir = b.pathJoin(&.{ "deps", dep.name });
+                        const dep_source_dir = cmake_cfg.source_dir orelse getDependencySourceDir(b, dep.name, default_source_dir);
                         const dep_build_dir = cmake_cfg.build_dir orelse b.pathJoin(&.{ "deps", dep.name, "build", config_name });
                         const extra_configure_args = buildDefaultCMakeArgs(b, dep.name, cmake_cfg.configure_args);
 
@@ -1192,9 +1270,13 @@ pub const CppExample = struct {
                 continue;
             } else {
                 // Build with Zig directly since json is header-only
-                const public_include_dirs = filterByConfig(b, self.public_include_dirs, config_name);
-                const private_include_dirs = filterByConfig(b, self.private_include_dirs, config_name);
-                const include_dirs = filterByConfig(b, self.include_dirs, config_name);
+                const raw_public_include_dirs = filterByConfig(b, self.public_include_dirs, config_name);
+                const raw_private_include_dirs = filterByConfig(b, self.private_include_dirs, config_name);
+                const raw_include_dirs = filterByConfig(b, self.include_dirs, config_name);
+
+                const public_include_dirs = resolveOverriddenIncludeDirs(b.allocator, raw_public_include_dirs, self.deps);
+                const private_include_dirs = resolveOverriddenIncludeDirs(b.allocator, raw_private_include_dirs, self.deps);
+                const include_dirs = resolveOverriddenIncludeDirs(b.allocator, raw_include_dirs, self.deps);
                 const public_defines = filterByConfig(b, self.public_defines, config_name);
                 const private_defines = filterByConfig(b, self.private_defines, config_name);
                 const public_link_libs = filterByConfig(b, self.public_link_libs, config_name);

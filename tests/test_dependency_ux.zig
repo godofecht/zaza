@@ -200,3 +200,44 @@ test "removeTreeIfExists deletes a tree, then reports it absent" {
     // Second call finds nothing and reports so, without erroring.
     try testing.expect(!(try zaza.removeTreeIfExists("deps")));
 }
+
+test "resolveOverriddenIncludeDirs rewrites overridden dependency paths" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const override_json =
+        \\{
+        \\  "dependencies": {
+        \\    "fmt": "/local/src/fmt",
+        \\    "juce": "/local/src/JUCE"
+        \\  }
+        \\}
+    ;
+
+    try tmpWriteFile(&tmp, "zaza-overrides.json", override_json);
+    var old_cwd = try openCurrentDir();
+    defer closeDir(&old_cwd);
+    try setCurrentDir(tmp.dir);
+    defer setCurrentDir(old_cwd) catch {};
+
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const dirs = &[_][]const u8{
+        "deps/fmt/include",
+        "deps/juce/modules",
+        "src/local",
+    };
+
+    const deps = &[_]cpp.Dependency{
+        .{ .name = "fmt", .url = "some-url" },
+        .{ .name = "juce", .url = "some-url" },
+    };
+
+    const resolved = cpp.resolveOverriddenIncludeDirs(allocator, dirs, deps);
+    try testing.expectEqual(@as(usize, 3), resolved.len);
+    try testing.expect(std.mem.indexOf(u8, resolved[0], "/local/src/fmt") != null);
+    try testing.expect(std.mem.indexOf(u8, resolved[1], "/local/src/JUCE") != null);
+    try testing.expectEqualStrings("src/local", resolved[2]);
+}
