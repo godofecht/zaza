@@ -313,6 +313,24 @@ test "removeDependencyBlockText drops one entry and keeps the rest" {
     try testing.expectError(error.DependencyNotFound, zaza.removeDependencyBlockText(a, zon, "curl"));
 }
 
+test "renderVscodeTasksJson is valid and exposes the core tasks" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const tasks = zaza.renderVscodeTasksJson();
+    // It must parse as JSON and carry the expected labels and default build.
+    var parsed = try std.json.parseFromSlice(std.json.Value, a, tasks, .{});
+    defer parsed.deinit();
+    try testing.expect(std.mem.indexOf(u8, tasks, "\"zaza: build\"") != null);
+    try testing.expect(std.mem.indexOf(u8, tasks, "\"zaza: test\"") != null);
+    try testing.expect(std.mem.indexOf(u8, tasks, "\"isDefault\": true") != null);
+    try testing.expect(std.mem.indexOf(u8, tasks, "zig build") != null);
+
+    // The clangd config points at the compile database.
+    try testing.expect(std.mem.indexOf(u8, zaza.renderClangdConfig(), "CompilationDatabase") != null);
+}
+
 test "parseZonName reads the enum-literal and string forms" {
     try testing.expectEqualStrings("zaza", zaza.parseZonName(".{ .name = .zaza, .version = \"1\" }").?);
     try testing.expectEqualStrings("app", zaza.parseZonName(".{ .name = \"app\" }").?);

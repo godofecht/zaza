@@ -313,9 +313,12 @@ Dependency pins are recorded in `zaza.lock`, mirrored from `build.zig.zon`. The
 build verifies the lock, and `zig run scripts/zaza.zig -- lock --check` asserts
 they agree. See `docs/DEPENDENCIES.md`.
 
-The CLI also has readiness and inspection commands: `zaza doctor` (Zig lane,
-caches, lock), `zaza deps` (dependency table), and `zaza graph` (the dependency
-graph as Graphviz DOT, for piping to `dot`).
+The CLI also has readiness, inspection, and editor commands: `zaza doctor` (Zig
+lane, caches, lock), `zaza deps` (dependency table), `zaza graph` (the
+dependency graph as Graphviz DOT, for piping to `dot`), and `zaza ide` (write
+`.vscode/tasks.json` and a `.clangd` config, keeping any existing files). C++
+intellisense works through the `compile_commands.json` Zaza writes at the
+project root, which clangd discovers on its own.
 
 ## 6. `BuildConfig` Reference
 

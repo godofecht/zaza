@@ -215,6 +215,11 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !
         return;
     }
 
+    if (std.mem.eql(u8, cmd, "ide")) {
+        try ideSetup(allocator);
+        return;
+    }
+
     if (std.mem.eql(u8, cmd, "remove") or std.mem.eql(u8, cmd, "rm")) {
         if (args.len < 3) return usage();
         const name = args[2];
@@ -270,6 +275,7 @@ fn usage() !void {
         \\  zaza list            List all packages available in the registry (alias: ls)
         \\  zaza deps            List dependencies with source, lock state, and on-disk presence
         \\  zaza graph           Print the dependency graph as Graphviz DOT (pipe to `dot`)
+        \\  zaza ide             Write editor config (.vscode/tasks.json, .clangd), keeping existing files
         \\  zaza lock            Regenerate zaza.lock from build.zig.zon
         \\  zaza lock --check    Verify zaza.lock matches build.zig.zon (fails on drift; for CI)
         \\  zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
@@ -279,7 +285,8 @@ fn usage() !void {
         \\  zaza info <name>     Show full metadata for a package (alias: show)
         \\  zaza init [name]     Scaffold a new Zaza project in the current directory
         \\
-        , .{},
+    ,
+        .{},
     );
     return error.InvalidArgs;
 }
@@ -987,6 +994,80 @@ fn cacheInfo(env: anytype, allocator: std.mem.Allocator) !void {
             "absent, created on first build";
         try stdout.print("  local    {s} (default)  ({s})\n", .{ default_local, state });
     }
+}
+
+/// A VS Code tasks.json exposing the core Zaza workflows: a default build task,
+/// a test task, and a prompt-driven "build step" task. Pure so it can be tested.
+pub fn renderVscodeTasksJson() []const u8 {
+    return 
+    \\{
+    \\  "version": "2.0.0",
+    \\  "tasks": [
+    \\    {
+    \\      "label": "zaza: build",
+    \\      "type": "shell",
+    \\      "command": "zig build",
+    \\      "group": { "kind": "build", "isDefault": true },
+    \\      "problemMatcher": ["$gcc"]
+    \\    },
+    \\    {
+    \\      "label": "zaza: test",
+    \\      "type": "shell",
+    \\      "command": "zig build test --summary all",
+    \\      "group": "test",
+    \\      "problemMatcher": ["$gcc"]
+    \\    },
+    \\    {
+    \\      "label": "zaza: build step",
+    \\      "type": "shell",
+    \\      "command": "zig build ${input:zazaStep}",
+    \\      "problemMatcher": ["$gcc"]
+    \\    }
+    \\  ],
+    \\  "inputs": [
+    \\    {
+    \\      "id": "zazaStep",
+    \\      "type": "promptString",
+    \\      "description": "zig build step (run `zig build --list-steps` to see them)"
+    \\    }
+    \\  ]
+    \\}
+    \\
+    ;
+}
+
+/// A clangd config pointing at the compile_commands.json Zaza writes at the
+/// project root, so C++ intellisense uses the real compile flags.
+pub fn renderClangdConfig() []const u8 {
+    return 
+    \\# Zaza writes compile_commands.json at the project root. Point clangd at it
+    \\# so C++ completion and diagnostics use the actual compile flags.
+    \\CompileFlags:
+    \\  CompilationDatabase: .
+    \\
+    ;
+}
+
+/// Write editor config for a Zaza project: VS Code tasks and a clangd config.
+/// Existing files are left untouched, so it never clobbers a user's setup.
+fn ideSetup(allocator: std.mem.Allocator) !void {
+    _ = allocator;
+    const stdout = stdoutWriter();
+    try makePath(".vscode");
+
+    const files = [_]struct { path: []const u8, body: []const u8 }{
+        .{ .path = ".vscode/tasks.json", .body = renderVscodeTasksJson() },
+        .{ .path = ".clangd", .body = renderClangdConfig() },
+    };
+    for (files) |f| {
+        if (pathExists(f.path)) {
+            try stdout.print("  kept    {s} (already exists)\n", .{f.path});
+        } else {
+            try writeFile(f.path, f.body);
+            try stdout.print("  wrote   {s}\n", .{f.path});
+        }
+    }
+    try stdout.print("editor config ready. Open the folder in VS Code and build with the default task.\n", .{});
 }
 
 const LockState = union(enum) {
