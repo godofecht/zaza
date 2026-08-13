@@ -117,7 +117,13 @@ fn preferLabel(prefer: Prefer) []const u8 {
 /// package both surface here as null.
 fn run(b: *std.Build, argv: []const []const u8) ?[]u8 {
     var code: u8 = 0;
-    return b.runAllowFail(argv, &code, .Ignore) catch null;
+    // Zig 0.16 removed std.process.Child.run and lower-cased the StdIo tags.
+    // Only the taken branch is analysed, so each spelling compiles on its lane.
+    if (comptime @hasDecl(std.process.Child, "run")) {
+        return b.runAllowFail(argv, &code, .Ignore) catch null;
+    } else {
+        return b.runAllowFail(argv, &code, .ignore) catch null;
+    }
 }
 
 const StrList = std.ArrayListUnmanaged([]const u8);
@@ -211,7 +217,8 @@ fn makeBuildRootPath(b: *std.Build, sub_path: []const u8) void {
     if (comptime @hasDecl(std.fs, "cwd")) {
         b.build_root.handle.makePath(sub_path) catch {};
     } else {
-        b.build_root.handle.makePath(b.graph.io, sub_path) catch {};
+        // Io.Dir has no makePath; the 0.16 spelling is createDirPath.
+        b.build_root.handle.createDirPath(b.graph.io, sub_path) catch {};
     }
 }
 
