@@ -329,6 +329,15 @@ test "renderVscodeTasksJson is valid and exposes the core tasks" {
 
     // The clangd config points at the compile database.
     try testing.expect(std.mem.indexOf(u8, zaza.renderClangdConfig(), "CompilationDatabase") != null);
+
+    // launch.json and extensions.json are valid JSON with the expected content.
+    var launch = try std.json.parseFromSlice(std.json.Value, a, zaza.renderVscodeLaunchJson(), .{});
+    defer launch.deinit();
+    try testing.expect(std.mem.indexOf(u8, zaza.renderVscodeLaunchJson(), "zig-out/bin") != null);
+
+    var ext = try std.json.parseFromSlice(std.json.Value, a, zaza.renderVscodeExtensionsJson(), .{});
+    defer ext.deinit();
+    try testing.expect(std.mem.indexOf(u8, zaza.renderVscodeExtensionsJson(), "ziglang.vscode-zig") != null);
 }
 
 test "parseZonName reads the enum-literal and string forms" {

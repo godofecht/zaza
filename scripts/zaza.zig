@@ -1036,6 +1036,51 @@ pub fn renderVscodeTasksJson() []const u8 {
     ;
 }
 
+/// Recommended VS Code extensions for a Zaza project: the Zig language server
+/// and clangd for C++, plus CodeLLDB for the debug launch config.
+pub fn renderVscodeExtensionsJson() []const u8 {
+    return 
+    \\{
+    \\  "recommendations": [
+    \\    "ziglang.vscode-zig",
+    \\    "llvm-vs-code-extensions.vscode-clangd",
+    \\    "vadimcn.vscode-lldb"
+    \\  ]
+    \\}
+    \\
+    ;
+}
+
+/// A VS Code launch.json to debug a built executable. The binary is chosen from
+/// zig-out/bin at launch, and the build runs first. Needs the CodeLLDB
+/// extension (recommended in extensions.json).
+pub fn renderVscodeLaunchJson() []const u8 {
+    return 
+    \\{
+    \\  "version": "0.2.0",
+    \\  "configurations": [
+    \\    {
+    \\      "name": "zaza: debug (lldb)",
+    \\      "type": "lldb",
+    \\      "request": "launch",
+    \\      "program": "${workspaceFolder}/zig-out/bin/${input:zazaBinary}",
+    \\      "args": [],
+    \\      "cwd": "${workspaceFolder}",
+    \\      "preLaunchTask": "zaza: build"
+    \\    }
+    \\  ],
+    \\  "inputs": [
+    \\    {
+    \\      "id": "zazaBinary",
+    \\      "type": "promptString",
+    \\      "description": "binary in zig-out/bin to debug"
+    \\    }
+    \\  ]
+    \\}
+    \\
+    ;
+}
+
 /// A clangd config pointing at the compile_commands.json Zaza writes at the
 /// project root, so C++ intellisense uses the real compile flags.
 pub fn renderClangdConfig() []const u8 {
@@ -1057,6 +1102,8 @@ fn ideSetup(allocator: std.mem.Allocator) !void {
 
     const files = [_]struct { path: []const u8, body: []const u8 }{
         .{ .path = ".vscode/tasks.json", .body = renderVscodeTasksJson() },
+        .{ .path = ".vscode/launch.json", .body = renderVscodeLaunchJson() },
+        .{ .path = ".vscode/extensions.json", .body = renderVscodeExtensionsJson() },
         .{ .path = ".clangd", .body = renderClangdConfig() },
     };
     for (files) |f| {
