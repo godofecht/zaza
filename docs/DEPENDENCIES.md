@@ -39,6 +39,9 @@ step:
 zig run scripts/zaza.zig -- lock --check   # fails on any drift: missing, changed, or extra
 ```
 
+`zaza doctor` folds this lock check into a wider readiness report (Zig lane,
+cache writability, lock sync) and fails when any of them needs attention.
+
 `zaza lock --check` reports each disagreement (a manifest dependency the lock is
 missing, a hash that differs, or a lock entry the manifest dropped) and exits
 non-zero. Run `zaza lock` to reconcile, then commit the result.

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 /// Zig 0.16 moved the filesystem, stdio and process spawning under `std.Io`,
 /// which took `File` out of `std.fs`. Only the taken branch of a
@@ -204,6 +205,11 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !
         return;
     }
 
+    if (std.mem.eql(u8, cmd, "doctor")) {
+        try doctor(env, allocator);
+        return;
+    }
+
     if (std.mem.eql(u8, cmd, "remove") or std.mem.eql(u8, cmd, "rm")) {
         if (args.len < 3) return usage();
         const name = args[2];
@@ -250,6 +256,7 @@ fn usage() !void {
         \\  zaza lock --check    Verify zaza.lock matches build.zig.zon (fails on drift; for CI)
         \\  zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
         \\  zaza cache           Show the Zig cache directories and whether they are writable
+        \\  zaza doctor          Check the Zig lane, caches, and dependency lock; fails on a problem
         \\  zaza search <query>  Search packages by name, description, and keywords (ranked)
         \\  zaza info <name>     Show full metadata for a package (alias: show)
         \\  zaza init [name]     Scaffold a new Zaza project in the current directory
@@ -870,6 +877,78 @@ fn cacheInfo(env: anytype, allocator: std.mem.Allocator) !void {
             "absent, created on first build";
         try stdout.print("  local    {s} (default)  ({s})\n", .{ default_local, state });
     }
+}
+
+const LockState = union(enum) {
+    in_sync: usize,
+    drift: usize,
+    no_lock,
+    no_manifest,
+};
+
+/// Summarise how the lock relates to the manifest. Carries only counts, so the
+/// arena it reads through can be freed before the result is used.
+fn lockState(allocator: std.mem.Allocator) LockState {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const zon = readFile(a, "build.zig.zon") catch return .no_manifest;
+    const lock = readFile(a, "zaza.lock") catch return .no_lock;
+    const drifts = lockDrift(a, zon, lock) catch return .{ .drift = 0 };
+    if (drifts.len > 0) return .{ .drift = drifts.len };
+    const deps = parseZonDependencies(a, zon) catch return .{ .in_sync = 0 };
+    return .{ .in_sync = deps.len };
+}
+
+/// One command that checks a project is ready to build: the Zig lane, the cache
+/// directories, and whether the dependency lock agrees with the manifest.
+/// Exits non-zero when a check needs attention, so it doubles as a CI gate.
+fn doctor(env: anytype, allocator: std.mem.Allocator) !void {
+    const stdout = stdoutWriter();
+    try stdout.print("zaza doctor\n", .{});
+    var ok = true;
+
+    // Zig lane: Zaza is validated on 0.14, 0.15, and 0.16.
+    const v = builtin.zig_version;
+    const supported = v.major == 0 and v.minor >= 14 and v.minor <= 16;
+    const lane_status = if (supported) "supported" else "unsupported: use 0.14, 0.15, or 0.16";
+    try stdout.print("  zig              {d}.{d}.{d}  ({s})\n", .{ v.major, v.minor, v.patch, lane_status });
+    if (!supported) ok = false;
+
+    // Global cache.
+    if (getEnvOwned(env, allocator, "ZIG_GLOBAL_CACHE_DIR")) |path| {
+        defer allocator.free(path);
+        const w = dirWritable(allocator, path);
+        try stdout.print("  global cache     {s}  ({s})\n", .{ path, if (w) "writable" else "not writable" });
+        if (!w) ok = false;
+    } else {
+        try stdout.print("  global cache     unset  (Zig uses its per-user default)\n", .{});
+    }
+
+    // Local cache.
+    {
+        const local = getEnvOwned(env, allocator, "ZIG_LOCAL_CACHE_DIR");
+        defer if (local) |p| allocator.free(p);
+        const path = local orelse ".zig-cache";
+        const w = dirWritable(allocator, path);
+        try stdout.print("  local cache      {s}  ({s})\n", .{ path, if (w) "writable" else "not writable" });
+        if (!w) ok = false;
+    }
+
+    // Dependency lock.
+    switch (lockState(allocator)) {
+        .in_sync => |n| try stdout.print("  dependency lock  in sync ({d} dependencies)\n", .{n}),
+        .drift => |n| {
+            try stdout.print("  dependency lock  {d} difference(s): run `zaza lock`\n", .{n});
+            ok = false;
+        },
+        .no_lock => try stdout.print("  dependency lock  zaza.lock absent: run `zaza lock`\n", .{}),
+        .no_manifest => try stdout.print("  dependency lock  no build.zig.zon in this directory\n", .{}),
+    }
+
+    try stdout.print("\n{s}\n", .{if (ok) "all checks passed" else "some checks need attention"});
+    if (!ok) return error.DoctorChecksFailed;
 }
 
 pub fn parseDependencyNames(allocator: std.mem.Allocator, zon: []const u8) ![][]const u8 {
