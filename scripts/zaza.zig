@@ -223,6 +223,17 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !
         return;
     }
 
+    if (std.mem.eql(u8, cmd, "update")) {
+        const zon_path = "build.zig.zon";
+        const registry_path = "registry/registry.json";
+        if (args.len >= 3) {
+            try updateDependency(allocator, registry_path, zon_path, args[2]);
+        } else {
+            try updateAllDependencies(allocator, registry_path, zon_path);
+        }
+        return;
+    }
+
     if (std.mem.eql(u8, cmd, "init")) {
         const project_name = if (args.len >= 3) args[2] else "my-zaza-project";
         try initProject(allocator, project_name);
@@ -255,6 +266,7 @@ fn usage() !void {
         \\  zaza fetch <name>    Fetch a package from the registry into build.zig.zon (alias: add)
         \\  zaza add <name>      Alias for fetch
         \\  zaza remove <name>   Remove a dependency from build.zig.zon (alias: rm)
+        \\  zaza update [name]   Re-resolve a dependency (or all) from the registry and rewrite its pin
         \\  zaza list            List all packages available in the registry (alias: ls)
         \\  zaza deps            List dependencies with source, lock state, and on-disk presence
         \\  zaza graph           Print the dependency graph as Graphviz DOT (pipe to `dot`)
@@ -635,31 +647,25 @@ fn infoPackage(allocator: std.mem.Allocator, registry_path: []const u8, name: []
     try printField(stdout, "url", jsonStr(entry, "url"));
 }
 
-pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name: []const u8) !void {
-    const zon = try readFile(allocator, zon_path);
-    defer allocator.free(zon);
-
-    // Find the entry: .name = .{ ... },
+/// Return `zon` with the `.<name> = .{ ... }` dependency block removed, along
+/// with its trailing comma and blank line. Returns error.DependencyNotFound
+/// when the entry is absent. Pure: the caller writes the result. Shared by
+/// `remove` and `update`.
+pub fn removeDependencyBlockText(allocator: std.mem.Allocator, zon: []const u8, name: []const u8) ![]u8 {
     const needle = try std.fmt.allocPrint(allocator, ".{s} = .{{", .{name});
     defer allocator.free(needle);
 
-    const start = std.mem.indexOf(u8, zon, needle) orelse {
-        const stderr = stderrWriter();
-        try stderr.print("error: dependency '{s}' not found in {s}\n", .{ name, zon_path });
-        return error.DependencyNotFound;
-    };
+    const start = std.mem.indexOf(u8, zon, needle) orelse return error.DependencyNotFound;
 
-    // Walk back to the start of the line (handles leading whitespace)
+    // Walk back to the start of the line (handles leading whitespace).
     var line_start = start;
     while (line_start > 0 and zon[line_start - 1] != '\n') {
         line_start -= 1;
     }
 
-    // Walk forward to find the matching closing brace, then consume the trailing comma + newline
+    // Find the matching closing brace, then take the trailing comma and newlines.
     const block_start = start + needle.len - 1; // position of the opening '{'
     const block_end = findMatchingBrace(zon, block_start + 1) orelse return error.BadZonFormat;
-
-    // Consume the trailing comma and newline after the closing brace
     var remove_end = block_end + 1;
     if (remove_end < zon.len and zon[remove_end] == ',') remove_end += 1;
     while (remove_end < zon.len and (zon[remove_end] == '\n' or zon[remove_end] == '\r')) {
@@ -667,14 +673,94 @@ pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name
     }
 
     var out: std.ArrayListUnmanaged(u8) = .empty;
-    defer out.deinit(allocator);
+    errdefer out.deinit(allocator);
     try out.appendSlice(allocator, zon[0..line_start]);
     try out.appendSlice(allocator, zon[remove_end..]);
-    try writeFile(zon_path, out.items);
+    return out.toOwnedSlice(allocator);
+}
+
+pub fn removeDependency(allocator: std.mem.Allocator, zon_path: []const u8, name: []const u8) !void {
+    const zon = try readFile(allocator, zon_path);
+    defer allocator.free(zon);
+
+    const updated = removeDependencyBlockText(allocator, zon, name) catch |err| {
+        if (err == error.DependencyNotFound) {
+            const stderr = stderrWriter();
+            try stderr.print("error: dependency '{s}' not found in {s}\n", .{ name, zon_path });
+        }
+        return err;
+    };
+    defer allocator.free(updated);
+
+    try writeFile(zon_path, updated);
     removeLockEntry(allocator, "zaza.lock", name) catch {};
 
     const stdout = stdoutWriter();
     try stdout.print("removed {s}\n", .{name});
+}
+
+/// Re-resolve a dependency from the registry and rewrite its pin: fetch the
+/// registry's current url, compute a fresh hash, and replace the entry in
+/// build.zig.zon and zaza.lock. This is the explicit update flow; `fetch` only
+/// adds a pin and leaves an existing one untouched.
+fn updateDependency(
+    allocator: std.mem.Allocator,
+    registry_path: []const u8,
+    zon_path: []const u8,
+    name: []const u8,
+) !void {
+    const zon = try readFile(allocator, zon_path);
+    defer allocator.free(zon);
+
+    // Update only applies to an already-pinned dependency.
+    const marker = try std.fmt.allocPrint(allocator, ".{s} = .{{", .{name});
+    defer allocator.free(marker);
+    if (std.mem.indexOf(u8, zon, marker) == null) {
+        const stderr = stderrWriter();
+        try stderr.print("error: '{s}' is not a dependency in {s}. Use `zaza fetch {s}` to add it.\n", .{ name, zon_path, name });
+        return error.DependencyNotFound;
+    }
+
+    const registry = try readFile(allocator, registry_path);
+    defer allocator.free(registry);
+    const url = try lookupRegistryUrl(allocator, registry, name);
+    defer allocator.free(url);
+
+    const hash = try zigFetch(allocator, url);
+    defer allocator.free(hash);
+
+    const removed = try removeDependencyBlockText(allocator, zon, name);
+    defer allocator.free(removed);
+    const updated = try upsertDependency(allocator, removed, name, url, hash);
+    defer allocator.free(updated);
+
+    try writeFile(zon_path, updated);
+    try updateLock(allocator, "zaza.lock", name, url, hash);
+
+    const stdout = stdoutWriter();
+    try stdout.print("updated {s}\n", .{name});
+}
+
+/// Update every dependency that the registry knows about, skipping the rest.
+fn updateAllDependencies(allocator: std.mem.Allocator, registry_path: []const u8, zon_path: []const u8) !void {
+    const zon = try readFile(allocator, zon_path);
+    const names = try parseDependencyNames(allocator, zon);
+    allocator.free(zon);
+    defer {
+        for (names) |n| allocator.free(n);
+        allocator.free(names);
+    }
+
+    const stdout = stdoutWriter();
+    for (names) |name| {
+        updateDependency(allocator, registry_path, zon_path, name) catch |err| {
+            if (err == error.PackageNotFound) {
+                try stdout.print("skipped {s} (not in the registry)\n", .{name});
+                continue;
+            }
+            return err;
+        };
+    }
 }
 
 fn initProject(allocator: std.mem.Allocator, name: []const u8) !void {

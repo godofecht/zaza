@@ -30,6 +30,13 @@ is derived from `build.zig.zon`, which stays authoritative: `zig run
 scripts/zaza.zig -- fetch <name>` updates both, and `zig run scripts/zaza.zig --
 lock` regenerates the lock from the manifest.
 
+`fetch` adds a pin and leaves an existing one untouched. To move a dependency to
+the registry's current version, use the explicit update flow: `zaza update
+<name>` re-resolves that dependency's url, computes a fresh hash, and rewrites
+its pin in both files; `zaza update` with no name does the same for every
+registry dependency, skipping any the registry does not know. An updated entry
+moves to the end of the dependency list.
+
 The build reads the lock and verifies it. A build fails if `zaza.lock` records a
 different hash than `build.zig.zon` for a pinned dependency, so a hand-edited pin
 cannot drift from the committed lock unnoticed. CI asserts the whole tree in one

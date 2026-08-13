@@ -264,6 +264,33 @@ test "lockDrift reports a missing manifest dependency" {
     try testing.expectEqual(zaza.DriftKind.missing, drifts[0].kind);
 }
 
+test "removeDependencyBlockText drops one entry and keeps the rest" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const zon =
+        \\.{
+        \\    .dependencies = .{
+        \\        .fmt = .{
+        \\            .url = "u",
+        \\            .hash = "h",
+        \\        },
+        \\        .spdlog = .{
+        \\            .url = "u",
+        \\            .hash = "h",
+        \\        },
+        \\    },
+        \\}
+    ;
+    const out = try zaza.removeDependencyBlockText(a, zon, "fmt");
+    try testing.expect(std.mem.indexOf(u8, out, ".fmt = .{") == null);
+    try testing.expect(std.mem.indexOf(u8, out, ".spdlog = .{") != null);
+
+    // Removing an absent dependency is an error.
+    try testing.expectError(error.DependencyNotFound, zaza.removeDependencyBlockText(a, zon, "curl"));
+}
+
 test "parseZonName reads the enum-literal and string forms" {
     try testing.expectEqualStrings("zaza", zaza.parseZonName(".{ .name = .zaza, .version = \"1\" }").?);
     try testing.expectEqualStrings("app", zaza.parseZonName(".{ .name = \"app\" }").?);
