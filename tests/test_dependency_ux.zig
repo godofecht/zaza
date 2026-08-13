@@ -185,6 +185,103 @@ test "lockEntryInfo returns null for an unlocked name" {
     try testing.expect((try zaza.lockEntryInfo(arena.allocator(), lock, "fmt")) == null);
 }
 
+const drift_zon =
+    \\.{
+    \\    .dependencies = .{
+    \\        .fmt = .{
+    \\            .url = "https://example.com/fmt.tar.gz",
+    \\            .hash = "hash_fmt",
+    \\        },
+    \\        .spdlog = .{
+    \\            .url = "https://example.com/spdlog.tar.gz",
+    \\            .hash = "hash_spdlog",
+    \\        },
+    \\    },
+    \\}
+;
+
+test "parseZonDependencies extracts name, url, and hash" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const deps = try zaza.parseZonDependencies(arena.allocator(), drift_zon);
+    try testing.expectEqual(@as(usize, 2), deps.len);
+    try testing.expectEqualStrings("fmt", deps[0].name);
+    try testing.expectEqualStrings("https://example.com/fmt.tar.gz", deps[0].url);
+    try testing.expectEqualStrings("hash_fmt", deps[0].hash);
+    try testing.expectEqualStrings("spdlog", deps[1].name);
+    try testing.expectEqualStrings("hash_spdlog", deps[1].hash);
+}
+
+test "renderLock round-trips through the lock reader" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const deps = try zaza.parseZonDependencies(a, drift_zon);
+    const lock = try zaza.renderLock(a, deps);
+
+    const fmt_entry = (try zaza.lockEntryInfo(a, lock, "fmt")).?;
+    try testing.expectEqualStrings("registry", fmt_entry.source);
+    try testing.expectEqualStrings("hash_fmt", fmt_entry.hash);
+    // A lock rendered from a manifest is in sync with it.
+    const drifts = try zaza.lockDrift(a, drift_zon, lock);
+    try testing.expectEqual(@as(usize, 0), drifts.len);
+}
+
+test "lockDrift reports a hash mismatch" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const lock =
+        \\{ "packages": {
+        \\  "fmt": { "name": "fmt", "source": "registry", "url": "u", "hash": "stale" },
+        \\  "spdlog": { "name": "spdlog", "source": "registry", "url": "u", "hash": "hash_spdlog" }
+        \\} }
+    ;
+    const drifts = try zaza.lockDrift(a, drift_zon, lock);
+    try testing.expectEqual(@as(usize, 1), drifts.len);
+    try testing.expectEqualStrings("fmt", drifts[0].name);
+    try testing.expectEqual(zaza.DriftKind.hash_mismatch, drifts[0].kind);
+    try testing.expectEqualStrings("hash_fmt", drifts[0].manifest_hash);
+    try testing.expectEqualStrings("stale", drifts[0].locked_hash);
+}
+
+test "lockDrift reports a missing manifest dependency" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const lock =
+        \\{ "packages": {
+        \\  "spdlog": { "name": "spdlog", "source": "registry", "url": "u", "hash": "hash_spdlog" }
+        \\} }
+    ;
+    const drifts = try zaza.lockDrift(a, drift_zon, lock);
+    try testing.expectEqual(@as(usize, 1), drifts.len);
+    try testing.expectEqualStrings("fmt", drifts[0].name);
+    try testing.expectEqual(zaza.DriftKind.missing, drifts[0].kind);
+}
+
+test "lockDrift reports a lock entry the manifest dropped" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const lock =
+        \\{ "packages": {
+        \\  "fmt": { "name": "fmt", "source": "registry", "url": "u", "hash": "hash_fmt" },
+        \\  "spdlog": { "name": "spdlog", "source": "registry", "url": "u", "hash": "hash_spdlog" },
+        \\  "curl": { "name": "curl", "source": "registry", "url": "u", "hash": "hash_curl" }
+        \\} }
+    ;
+    const drifts = try zaza.lockDrift(a, drift_zon, lock);
+    try testing.expectEqual(@as(usize, 1), drifts.len);
+    try testing.expectEqualStrings("curl", drifts[0].name);
+    try testing.expectEqual(zaza.DriftKind.extra, drifts[0].kind);
+}
+
 test "removeTreeIfExists deletes a tree, then reports it absent" {
     var tmp = std.testing.tmpDir(.{});
     defer tmp.cleanup();

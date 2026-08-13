@@ -67,6 +67,12 @@ jobs:
           zig run scripts/zaza.zig -- deps
           zig run scripts/zaza.zig -- cache
 
+      # Assert the committed zaza.lock still mirrors build.zig.zon. This fails the
+      # build if a dependency's pin was changed without regenerating the lock,
+      # so a reproducible tree is enforced on every lane (zaza#45).
+      - name: Verify the dependency lock is in sync
+        run: zig run scripts/zaza.zig -- lock --check
+
   # Cross-version example coverage. `zig build test` never builds the examples,
   # and the macOS full-build runs a single Zig version, so a version-specific
   # break in an example (a std.fs.cwd in a build.zig, say) had no lane to catch

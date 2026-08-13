@@ -728,8 +728,12 @@ fn ensureRegistryDeps(b: *std.Build) !void {
 
 fn ensureRegistryDep(b: *std.Build, name: []const u8) !void {
     // Already pinned in build.zig.zon (url + hash) means it resolves reproducibly
-    // from the cache; nothing to fetch.
-    if (zonHasDependency(b, name)) return;
+    // from the cache; nothing to fetch. Still confirm the lock agrees with the
+    // manifest before trusting the build (zaza#45).
+    if (zonHasDependency(b, name)) {
+        try verifyLockedHash(b, name);
+        return;
+    }
 
     // Offline / cache-validation mode: do not reach the network. A dependency
     // that is not already pinned is an error, so a fresh clone can be validated
@@ -766,6 +770,77 @@ fn zonHasDependency(b: *std.Build, name: []const u8) bool {
     defer b.allocator.free(data);
     const needle = b.fmt(".{s}", .{name});
     return std.mem.indexOf(u8, data, needle) != null;
+}
+
+// Fail the build when zaza.lock records a different hash than build.zig.zon for
+// a pinned dependency, so a hand-edited manifest cannot drift from the committed
+// lock unnoticed (zaza#45). The guard is deliberately lenient: a missing lock,
+// an unparseable lock, or a dependency the lock does not yet record are all left
+// to `zaza lock --check`, which is the strict CI gate. Only a genuine hash
+// disagreement stops the build here.
+fn verifyLockedHash(b: *std.Build, name: []const u8) !void {
+    const lock = readFile(b, "zaza.lock") catch return;
+    defer b.allocator.free(lock);
+
+    const manifest_hash = zonDependencyHash(b, name) orelse return;
+    defer b.allocator.free(manifest_hash);
+
+    var parsed = std.json.parseFromSlice(std.json.Value, b.allocator, lock, .{}) catch return;
+    defer parsed.deinit();
+
+    const packages = parsed.value.object.get("packages") orelse return;
+    const entry = packages.object.get(name) orelse return;
+    const locked = if (entry.object.get("hash")) |h| h.string else return;
+
+    if (!std.mem.eql(u8, locked, manifest_hash)) {
+        std.log.err(
+            "zaza.lock is out of sync with build.zig.zon for '{s}'.\n" ++
+                "  package:     {s}\n" ++
+                "  manifest:    {s}\n" ++
+                "  lock:        {s}\n" ++
+                "  remediation: run `zig run scripts/zaza.zig -- lock` to regenerate the lock, then commit it.",
+            .{ name, name, manifest_hash, locked },
+        );
+        return error.LockHashMismatch;
+    }
+}
+
+// Read a pinned dependency's `.hash` out of build.zig.zon, bounded to that
+// dependency's own block so it never reads a neighbour's hash. Returns null when
+// the dependency or its hash is absent. The result is owned by the caller.
+fn zonDependencyHash(b: *std.Build, name: []const u8) ?[]const u8 {
+    const data = readFile(b, "build.zig.zon") catch return null;
+    defer b.allocator.free(data);
+
+    const marker = b.fmt(".{s} = .{{", .{name});
+    const marker_idx = std.mem.indexOf(u8, data, marker) orelse return null;
+    const block_start = marker_idx + marker.len;
+    const block_end = zonMatchingBrace(data, block_start) orelse return null;
+    const block = data[block_start..block_end];
+
+    const key = ".hash = \"";
+    const key_idx = std.mem.indexOf(u8, block, key) orelse return null;
+    const value_start = key_idx + key.len;
+    const rest = block[value_start..];
+    const value_end = std.mem.indexOfScalar(u8, rest, '"') orelse return null;
+    return b.allocator.dupe(u8, rest[0..value_end]) catch null;
+}
+
+// Index of the `}` that closes the block starting just after an opening `{`.
+fn zonMatchingBrace(data: []const u8, start: usize) ?usize {
+    var depth: usize = 0;
+    var i = start;
+    while (i < data.len) : (i += 1) {
+        switch (data[i]) {
+            '{' => depth += 1,
+            '}' => {
+                if (depth == 0) return i;
+                depth -= 1;
+            },
+            else => {},
+        }
+    }
+    return null;
 }
 
 fn readFile(b: *std.Build, path: []const u8) ![]u8 {

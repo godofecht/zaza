@@ -184,6 +184,16 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !
         return;
     }
 
+    if (std.mem.eql(u8, cmd, "lock")) {
+        const check = args.len >= 3 and std.mem.eql(u8, args[2], "--check");
+        if (check) {
+            try lockCheck(allocator, "build.zig.zon", "zaza.lock");
+        } else {
+            try lockReconcile(allocator, "build.zig.zon", "zaza.lock");
+        }
+        return;
+    }
+
     if (std.mem.eql(u8, cmd, "clean-deps") or std.mem.eql(u8, cmd, "clean")) {
         try cleanDeps(allocator);
         return;
@@ -236,6 +246,8 @@ fn usage() !void {
         \\  zaza remove <name>   Remove a dependency from build.zig.zon (alias: rm)
         \\  zaza list            List all packages available in the registry (alias: ls)
         \\  zaza deps            List dependencies with source, lock state, and on-disk presence
+        \\  zaza lock            Regenerate zaza.lock from build.zig.zon
+        \\  zaza lock --check    Verify zaza.lock matches build.zig.zon (fails on drift; for CI)
         \\  zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
         \\  zaza cache           Show the Zig cache directories and whether they are writable
         \\  zaza search <query>  Search packages by name, description, and keywords (ranked)
@@ -947,4 +959,226 @@ pub fn listCurrentDependencies(allocator: std.mem.Allocator, zon_path: []const u
 
         try stdout.print("  {s:<16} {s:<10} {s:<14} {s}\n", .{ name, source, hash_disp, on_disk });
     }
+}
+
+/// One dependency read out of `build.zig.zon`: the pin the lock records. The
+/// slices are owned by the caller (use an arena, or free each field).
+pub const ZonDep = struct {
+    name: []const u8,
+    url: []const u8,
+    hash: []const u8,
+};
+
+/// Extract `name`, `url`, and `hash` for every dependency in a `build.zig.zon`.
+/// The manifest is the source of truth; the lock is derived from this. Missing
+/// `url`/`hash` come back empty rather than failing, so a partially written
+/// manifest still parses.
+pub fn parseZonDependencies(allocator: std.mem.Allocator, zon: []const u8) ![]ZonDep {
+    const names = try parseDependencyNames(allocator, zon);
+    defer {
+        for (names) |name| allocator.free(name);
+        allocator.free(names);
+    }
+
+    var deps = try allocator.alloc(ZonDep, names.len);
+    errdefer allocator.free(deps);
+    for (names, 0..) |name, i| {
+        const marker = try std.fmt.allocPrint(allocator, ".{s} = .{{", .{name});
+        defer allocator.free(marker);
+        const marker_idx = std.mem.indexOf(u8, zon, marker) orelse return error.BadZonFormat;
+        const block_start = marker_idx + marker.len;
+        const block_end = findMatchingBrace(zon, block_start) orelse return error.BadZonFormat;
+        const block = zon[block_start..block_end];
+        deps[i] = .{
+            .name = try allocator.dupe(u8, name),
+            .url = try allocator.dupe(u8, zonStringField(block, "url") orelse ""),
+            .hash = try allocator.dupe(u8, zonStringField(block, "hash") orelse ""),
+        };
+    }
+    return deps;
+}
+
+/// Read a `.key = "value"` string field out of a zon block, or null when it is
+/// absent.
+fn zonStringField(block: []const u8, key: []const u8) ?[]const u8 {
+    var buf: [64]u8 = undefined;
+    const needle = std.fmt.bufPrint(&buf, ".{s} = \"", .{key}) catch return null;
+    const idx = std.mem.indexOf(u8, block, needle) orelse return null;
+    const value_start = idx + needle.len;
+    const rest = block[value_start..];
+    const value_end = std.mem.indexOfScalar(u8, rest, '"') orelse return null;
+    return rest[0..value_end];
+}
+
+/// Render a `zaza.lock` from the manifest's dependencies. Entries keep the
+/// manifest's order, so the same manifest always renders byte-for-byte the same
+/// lock. The result is owned by the caller.
+pub fn renderLock(allocator: std.mem.Allocator, deps: []const ZonDep) ![]u8 {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    var packages = emptyJsonObject(a);
+    for (deps) |d| {
+        var entry = emptyJsonObject(a);
+        try jsonObjectPut(&entry.object, a, "name", .{ .string = d.name });
+        try jsonObjectPut(&entry.object, a, "source", .{ .string = "registry" });
+        try jsonObjectPut(&entry.object, a, "url", .{ .string = d.url });
+        try jsonObjectPut(&entry.object, a, "hash", .{ .string = d.hash });
+        try jsonObjectPut(&packages.object, a, d.name, entry);
+    }
+    var root = emptyJsonObject(a);
+    try jsonObjectPut(&root.object, a, "packages", packages);
+
+    const text = try jsonStringifyIndent2(a, root);
+    var out = try allocator.alloc(u8, text.len + 1);
+    @memcpy(out[0..text.len], text);
+    out[text.len] = '\n';
+    return out;
+}
+
+/// The names recorded in a lock's `packages` object. Owned by the caller.
+pub fn lockPackageNames(allocator: std.mem.Allocator, lock_data: []const u8) ![][]const u8 {
+    var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
+    defer parsed.deinit();
+
+    const packages = parsed.value.object.get("packages") orelse return allocator.alloc([]const u8, 0);
+    var names: std.ArrayListUnmanaged([]const u8) = .empty;
+    errdefer names.deinit(allocator);
+    var it = packages.object.iterator();
+    while (it.next()) |kv| {
+        try names.append(allocator, try allocator.dupe(u8, kv.key_ptr.*));
+    }
+    return names.toOwnedSlice(allocator);
+}
+
+/// How a lock entry disagrees with the manifest.
+pub const DriftKind = enum { missing, hash_mismatch, extra };
+
+/// One disagreement between the lock and the manifest. Owned by the caller.
+pub const Drift = struct {
+    name: []const u8,
+    kind: DriftKind,
+    manifest_hash: []const u8 = "",
+    locked_hash: []const u8 = "",
+};
+
+/// Compare a manifest against a lock and return every disagreement: a manifest
+/// dependency the lock is missing, a hash that differs, or a lock entry the
+/// manifest no longer has. An empty result means the lock is in sync. The
+/// returned slice and its strings are owned by the caller (use an arena).
+pub fn lockDrift(allocator: std.mem.Allocator, zon: []const u8, lock_data: []const u8) ![]Drift {
+    const deps = try parseZonDependencies(allocator, zon);
+    defer {
+        for (deps) |d| {
+            allocator.free(d.name);
+            allocator.free(d.url);
+            allocator.free(d.hash);
+        }
+        allocator.free(deps);
+    }
+
+    var drifts: std.ArrayListUnmanaged(Drift) = .empty;
+    errdefer drifts.deinit(allocator);
+
+    for (deps) |d| {
+        const entry = try lockEntryInfo(allocator, lock_data, d.name);
+        if (entry) |e| {
+            defer {
+                allocator.free(e.source);
+                allocator.free(e.hash);
+            }
+            if (!std.mem.eql(u8, e.hash, d.hash)) {
+                try drifts.append(allocator, .{
+                    .name = try allocator.dupe(u8, d.name),
+                    .kind = .hash_mismatch,
+                    .manifest_hash = try allocator.dupe(u8, d.hash),
+                    .locked_hash = try allocator.dupe(u8, e.hash),
+                });
+            }
+        } else {
+            try drifts.append(allocator, .{
+                .name = try allocator.dupe(u8, d.name),
+                .kind = .missing,
+                .manifest_hash = try allocator.dupe(u8, d.hash),
+            });
+        }
+    }
+
+    const lock_names = try lockPackageNames(allocator, lock_data);
+    defer {
+        for (lock_names) |n| allocator.free(n);
+        allocator.free(lock_names);
+    }
+    for (lock_names) |ln| {
+        var in_manifest = false;
+        for (deps) |d| {
+            if (std.mem.eql(u8, d.name, ln)) {
+                in_manifest = true;
+                break;
+            }
+        }
+        if (!in_manifest) {
+            try drifts.append(allocator, .{ .name = try allocator.dupe(u8, ln), .kind = .extra });
+        }
+    }
+
+    return drifts.toOwnedSlice(allocator);
+}
+
+/// Regenerate `zaza.lock` from `build.zig.zon`. The manifest is authoritative:
+/// the lock is rewritten to mirror its pinned dependencies exactly.
+fn lockReconcile(allocator: std.mem.Allocator, zon_path: []const u8, lock_path: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const zon = try readFile(a, zon_path);
+    const deps = try parseZonDependencies(a, zon);
+    const text = try renderLock(a, deps);
+    try writeFile(lock_path, text);
+
+    const stdout = stdoutWriter();
+    try stdout.print("wrote {s} ({d} dependencies)\n", .{ lock_path, deps.len });
+}
+
+/// Verify `zaza.lock` matches `build.zig.zon` without writing. Prints each
+/// disagreement and fails when any exist, so CI can assert a reproducible tree.
+fn lockCheck(allocator: std.mem.Allocator, zon_path: []const u8, lock_path: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const zon = try readFile(a, zon_path);
+    const lock_data = readFile(a, lock_path) catch {
+        const stderr = stderrWriter();
+        try stderr.print("error: {s} not found. Run `zaza lock` to generate it.\n", .{lock_path});
+        return error.LockMissing;
+    };
+
+    const drifts = try lockDrift(a, zon, lock_data);
+    if (drifts.len == 0) {
+        const deps = try parseZonDependencies(a, zon);
+        const stdout = stdoutWriter();
+        try stdout.print("{s} is in sync with {s} ({d} dependencies)\n", .{ lock_path, zon_path, deps.len });
+        return;
+    }
+
+    const stderr = stderrWriter();
+    try stderr.print("error: {s} is out of sync with {s} ({d} difference(s)):\n", .{ lock_path, zon_path, drifts.len });
+    for (drifts) |d| {
+        switch (d.kind) {
+            .missing => try stderr.print("  - {s}: in the manifest, absent from the lock\n", .{d.name}),
+            .extra => try stderr.print("  - {s}: in the lock, absent from the manifest\n", .{d.name}),
+            .hash_mismatch => try stderr.print(
+                "  - {s}: hash differs\n      manifest {s}\n      lock     {s}\n",
+                .{ d.name, d.manifest_hash, d.locked_hash },
+            ),
+        }
+    }
+    try stderr.print(
+        "remediation: run `zaza lock` to regenerate the lock from the manifest, then commit it.\n",
+        .{},
+    );
+    return error.LockDrift;
 }

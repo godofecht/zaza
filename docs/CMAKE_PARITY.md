@@ -210,7 +210,7 @@ slice; **partial** = usable but incomplete; **missing** = not implemented.
 | `export` / package config | reusable downstream package metadata | done | imported-target `Config.cmake` + `ConfigVersion.cmake` via `export_cmake` / `export_version` |
 | `find_package` (produce) | be found by a downstream CMake project | done | `export_cmake` installs a `find_package`-consumable package (`examples/cmake_consumer`) |
 | `find_package` (consume) | discover installed packages / imported targets | done | `findPackage` resolves via CMake's own `find_package` (`examples/find_package`) |
-| `FetchContent` | reproducible dependency fetch + lock | partial | `ensureRegistryDeps` + corpus `fetch.sh`; no lock (#45) |
+| `FetchContent` | reproducible dependency fetch + lock | done | `ensureRegistryDeps` fetch + `zaza.lock`, verified on build and by `zaza lock --check` (#45) |
 | presets/toolchains | named config + toolchain model | done | `presets.zig` (#51), `configs` |
 | generator expressions | config/platform-conditioned values | partial | `$<CONFIG:>` filtering; not full genex |
 | `add_subdirectory` | build an in-tree subtree (CMake or Zaza) | done | `addCMakeSubdirectory` builds a local CMake subdir (`examples/cmake_subdir`); `defineSubproject` composes a Zaza subproject's own `build.zig` (`examples/zaza_subproject`) |
