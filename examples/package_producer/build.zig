@@ -8,6 +8,11 @@ pub var library = cpp.CppExample.staticLibrary(.{
     .public_include_dirs = &.{"examples/package_producer/include"},
     .install_headers = &.{"examples/package_producer/include/package_math.hpp"},
     .export_cmake = true,
+    .export_version = "1.2.0",
+    // A library exported for external (non-Zig) consumers is built in a release
+    // mode. Zig's Debug mode instruments C/C++ with UBSan, whose runtime calls a
+    // plain clang/CMake link would not resolve; release carries no such deps.
+    .configs = cpp.BuildConfigs.release_only,
     .cpp_std = "17",
 });
 

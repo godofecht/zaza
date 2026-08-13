@@ -30,6 +30,8 @@
 const std = @import("std");
 
 const cpp = @import("cpp_example.zig");
+const find_package = @import("find_package.zig");
+const cmake_subdir = @import("cmake_subdir.zig");
 const test_suite = @import("test_suite.zig");
 const presets = @import("presets.zig");
 const cmd = @import("zaza_cmd.zig");
@@ -109,6 +111,31 @@ pub const resolvePreset = presets.resolvePreset;
 pub const resolvePresetWithAllocator = presets.resolvePresetWithAllocator;
 
 // --- Dependencies -------------------------------------------------------------
+
+/// Resolve an installed library (pkg-config or CMake `find_package`) into the
+/// include dirs, defines, and link inputs a target needs. Runs at configure
+/// time and returns a `ResolvedPackage` to place in `Target.packages`.
+pub const findPackage = find_package.findPackage;
+
+/// A library resolved by `findPackage`: the compile and link inputs it
+/// contributes to a target.
+pub const ResolvedPackage = find_package.ResolvedPackage;
+
+/// How `findPackage` resolves a package: version, resolver preference, and the
+/// pkg-config / CMake names when they differ from the common name.
+pub const FindOptions = find_package.FindOptions;
+
+/// Build an in-tree CMake subdirectory and link its library into a Zaza
+/// target. The `add_subdirectory` migration path: keep a CMake subtree, move
+/// the top-level build to Zaza.
+pub const addCMakeSubdirectory = cmake_subdir.addCMakeSubdirectory;
+
+/// A built CMake subdirectory returned by `addCMakeSubdirectory`; call
+/// `linkInto` to attach it to a compile.
+pub const CMakeSubdirectory = cmake_subdir.CMakeSubdirectory;
+
+/// Options for `addCMakeSubdirectory`.
+pub const SubdirOptions = cmake_subdir.SubdirOptions;
 
 /// A source dependency: a name, a URL, and how to fetch and build it.
 pub const Dependency = cpp.Dependency;

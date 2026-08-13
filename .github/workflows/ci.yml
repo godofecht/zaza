@@ -111,6 +111,44 @@ jobs:
           chmod +x ./zig
           ./zig build example-matrix --summary all
 
+  # CMake-ecosystem interop, both directions. These examples resolve and drive
+  # real installed tooling (pkg-config, cmake, zlib), so they are kept off the
+  # example matrix and verified here where those tools are guaranteed. Native
+  # toolchains on the runner, so the Zig-built and CMake-built objects share an
+  # architecture with no override.
+  cmake-interop:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        zig: ["0.14.1", "0.15.2", "0.16.0"]
+    name: cmake-interop (zig ${{ matrix.zig }})
+    env:
+      ZIG_LOCAL_CACHE_DIR: .zig-cache-${{ matrix.zig }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ matrix.zig }}
+
+      - name: Install cmake, pkg-config, zlib
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config zlib1g-dev
+
+      # Consume: link an installed zlib resolved by pkg-config and by CMake's
+      # own find_package, with no hand-wired paths.
+      - name: findPackage (consume installed packages)
+        run: ZAZA_EXAMPLES=find-package zig build find-package --summary all
+
+      # Be consumed: a plain CMake project finds a Zaza-built library with
+      # find_package and links its imported target.
+      - name: CMake package export (be consumed by CMake)
+        run: sh examples/cmake_consumer/verify.sh
+
+      # add_subdirectory: Zaza builds an in-tree CMake subtree and links it.
+      - name: addCMakeSubdirectory (build a CMake subtree)
+        run: ZAZA_EXAMPLES=cmake-subdir zig build cmake-subdir-run --summary all
+
   # The external corpus: real upstream projects rebuilt through Zaza (see
   # corpus/). Each slice is a standalone package outside the root build, so
   # neither `zig build test` nor the example matrix touches it — this is the only

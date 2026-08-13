@@ -81,3 +81,9 @@ www/
 # Output of running the driver from the repo root (the `zig build drive` demo)
 /.zaza-drive/
 /hello_zaza_cpp
+
+# findPackage CMake probe scratch
+.zaza-find/
+
+# addCMakeSubdirectory build scratch
+.zaza-subdir/

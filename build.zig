@@ -37,6 +37,8 @@ const wasm_exports_example = @import("examples/wasm_exports/build.zig");
 const zaza_juce_example = @import("examples/zaza-juce/build.zig");
 const rust_interop_example = @import("examples/rust_interop/build.zig");
 const bench_suite_example = @import("examples/bench_suite/build.zig");
+const find_package_example = @import("examples/find_package/build.zig");
+const cmake_subdir_example = @import("examples/cmake_subdir/build.zig");
 const universal_binary_example = @import("examples/universal_binary/build.zig");
 const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
@@ -198,6 +200,14 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "bench-suite")) {
         bench_suite_example.addSteps(b, target);
+    }
+
+    if (exampleEnabled(b, "find-package")) {
+        find_package_example.addSteps(b, target);
+    }
+
+    if (exampleEnabled(b, "cmake-subdir")) {
+        cmake_subdir_example.addSteps(b, target);
     }
 
     if (exampleEnabled(b, "generated-headers")) {

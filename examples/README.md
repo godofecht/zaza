@@ -25,10 +25,13 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 | [bindings](bindings) | `ZAZA_EXAMPLES=bindings zig build bindings-run` | Zig calling C++ across a C ABI wrapper |
 | [cmake](cmake) | (none) | Unwired early experiment, kept for reference |
 | [cmake_combo](cmake_combo) | `ZAZA_EXAMPLES=cmake-combo zig build cmake-combo-run` | fmt + spdlog built by CMake, linked by Zig |
+| [cmake_consumer](cmake_consumer) | `sh examples/cmake_consumer/verify.sh` | A plain CMake project consuming a Zaza-built library via `find_package` |
 | [cmake_net](cmake_net) | `ZAZA_EXAMPLES=cmake-net zig build cmake-net-run` | curl + zlib + mbedtls with an ordering constraint |
 | [cmake_shim](cmake_shim) | `ZAZA_EXAMPLES=cmake-shim ZAZA_SYSTEM_CMDS=1 zig build cmake-shim-run` | The smallest complete CMake interop path |
+| [cmake_subdir](cmake_subdir) | `ZAZA_EXAMPLES=cmake-subdir zig build cmake-subdir-run` | Building an in-tree CMake subtree and linking it into a Zaza target |
 | [cross_compile_cli](cross_compile_cli) | `ZAZA_EXAMPLES=cross-compile-cli zig build cross-compile-cli-report` | Nested build for a non-host triple |
 | [cxx20_modules](cxx20_modules) | `ZAZA_EXAMPLES=cxx20-modules zig build cxx20-modules-run` | A C++20 named-module pipeline |
+| [find_package](find_package) | `ZAZA_EXAMPLES=find-package zig build find-package` | Linking an installed library resolved by pkg-config and CMake `find_package` |
 | [generated_code](generated_code) | `ZAZA_EXAMPLES=generated-code zig build generated-code-run` | A custom command generating a `.cpp` |
 | [generated_headers](generated_headers) | `ZAZA_EXAMPLES=generated-headers zig build generated-headers-run` | A custom command generating a header |
 | [hello_zaza](hello_zaza) | `ZAZA_EXAMPLES=hello-zaza zig build run-hello-zaza` | A Zig exe and a C++ exe in one graph |

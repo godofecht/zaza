@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const zaza_cmd = @import("zaza_cmd.zig");
+const find_package = @import("find_package.zig");
 
 /// Zig 0.14 spells buffered formatting `list.writer(gpa).print(...)`; 0.16
 /// removed `writer` and 0.15 added `list.print(gpa, ...)`. No single spelling
@@ -174,6 +175,10 @@ pub const TargetOptions = struct {
     file_copies: []const FileCopy = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
+    /// Package version written into the generated CMake package config, so a
+    /// downstream `find_package(<name> <version>)` can version-check. Defaults
+    /// to `0.0.0`.
+    export_version: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
     custom_commands: []const CustomCommand = &.{},
     post_build_commands: []const CustomCommand = &.{},
@@ -190,6 +195,9 @@ pub const TargetOptions = struct {
     c_std: ?[]const u8 = null,
     cmake_config: ?CMakeConfig = null,
     enable_system_commands: bool = false,
+    /// Installed libraries resolved by `findPackage` (pkg-config / CMake). Their
+    /// include dirs, defines, and link inputs are folded into this target.
+    packages: []const find_package.ResolvedPackage = &.{},
 };
 
 /// Whether a target or dependency builds through Zig or through CMake.
@@ -677,6 +685,7 @@ pub const CppExample = struct {
     file_copies: []const FileCopy = &.{},
     export_cmake: bool = false,
     export_name: ?[]const u8 = null,
+    export_version: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
     custom_commands: []const CustomCommand = &.{},
     post_build_commands: []const CustomCommand = &.{},
@@ -688,6 +697,7 @@ pub const CppExample = struct {
     c_std: ?[]const u8 = null,
     cmake_config: ?CMakeConfig = null,
     enable_system_commands: bool = false,
+    packages: []const find_package.ResolvedPackage = &.{},
 
     /// Build a target of the given kind from `options`. The five kind
     /// constructors below call this; use one of them rather than `make`.
@@ -711,6 +721,7 @@ pub const CppExample = struct {
             .file_copies = options.file_copies,
             .export_cmake = options.export_cmake,
             .export_name = options.export_name,
+            .export_version = options.export_version,
             .generated_source_files = options.generated_source_files,
             .custom_commands = options.custom_commands,
             .post_build_commands = options.post_build_commands,
@@ -722,6 +733,7 @@ pub const CppExample = struct {
             .c_std = options.c_std,
             .cmake_config = options.cmake_config,
             .enable_system_commands = options.enable_system_commands,
+            .packages = options.packages,
         };
     }
 
@@ -1208,7 +1220,7 @@ pub const CppExample = struct {
                 if (last_step) |step| {
                     final_steps.append(b.allocator, step) catch unreachable;
                 }
-                try emitInstallAndExport(b, self, config_name);
+                try emitInstallAndExport(b, self, config_name, null, target);
                 const manifest = try buildToolingManifest(
                     b.allocator,
                     self,
@@ -1239,8 +1251,17 @@ pub const CppExample = struct {
 
                 const compile = try addTargetArtifact(b, self, config, target);
 
-                // Add source files with the shared C++ flag set.
-                const cpp_flags = try self.cppCompileFlags(b, config, config_name, public_defines, private_defines);
+                // Add source files with the shared C++ flag set, plus any
+                // defines and compile flags contributed by resolved packages.
+                var cpp_flags = try self.cppCompileFlags(b, config, config_name, public_defines, private_defines);
+                if (self.packages.len > 0) {
+                    var extra: std.ArrayListUnmanaged([]const u8) = .empty;
+                    for (self.packages) |pkg| {
+                        for (pkg.defines) |def| try extra.append(b.allocator, ensureDefineFlag(b, def));
+                        for (pkg.cflags) |flag| try extra.append(b.allocator, flag);
+                    }
+                    cpp_flags = try concatSlices(b.allocator, cpp_flags, extra.items);
+                }
 
                 const all_sources = try self.allSourceFiles(b.allocator);
                 if (self.kind != .interface_library) {
@@ -1263,6 +1284,13 @@ pub const CppExample = struct {
                 // Add system include directories from build config
                 for (config.system_includes) |dir| {
                     compile.root_module.addSystemIncludePath(.{ .cwd_relative = dir });
+                }
+                // Header search paths from resolved packages (as system includes
+                // so third-party headers do not raise this target's warnings).
+                for (self.packages) |pkg| {
+                    for (pkg.include_dirs) |dir| {
+                        compile.root_module.addSystemIncludePath(.{ .cwd_relative = dir });
+                    }
                 }
                 // Add include directories from Zig package deps
                 for (self.deps) |dep| {
@@ -1306,12 +1334,30 @@ pub const CppExample = struct {
                 for (private_link_libs) |lib| {
                     compile.root_module.linkSystemLibrary(lib, .{});
                 }
+                // Link inputs from resolved packages (pkg-config / CMake).
+                for (self.packages) |pkg| {
+                    for (pkg.link_paths) |path| {
+                        compile.root_module.addLibraryPath(.{ .cwd_relative = path });
+                    }
+                    for (pkg.link_libs) |lib| {
+                        compile.root_module.linkSystemLibrary(lib, .{});
+                    }
+                    for (pkg.link_files) |file| {
+                        compile.root_module.addObjectFile(.{ .cwd_relative = file });
+                    }
+                    for (pkg.frameworks) |framework| {
+                        compile.root_module.linkFramework(framework, .{});
+                    }
+                    if (pkg.link_libs.len > 0 or pkg.link_files.len > 0) {
+                        compile.root_module.link_libc = true;
+                    }
+                }
 
                 // Optional: compile_commands.json for Zig builds
                 try emitCompileCommands(b, self, config, config_name, public_include_dirs, private_include_dirs, include_dirs, public_defines, private_defines);
 
                 // Optional install + export
-                try emitInstallAndExport(b, self, config_name);
+                try emitInstallAndExport(b, self, config_name, compile, target);
 
                 if (last_step) |prev| {
                     compile.step.dependencies.append(prev) catch unreachable;
@@ -1899,8 +1945,15 @@ fn buildCompileCommand(
     return cmd.toOwnedSlice(b.allocator);
 }
 
-fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8) !void {
+fn emitInstallAndExport(
+    b: *std.Build,
+    self: CppExample,
+    config_name: []const u8,
+    compile: ?*std.Build.Step.Compile,
+    target: std.Build.ResolvedTarget,
+) !void {
     _ = config_name;
+    _ = target;
     const export_name = self.export_name orelse self.name;
 
     for (self.install_headers) |hdr| {
@@ -1916,28 +1969,16 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
     }
 
     if (self.export_cmake) {
-        var content: std.ArrayListUnmanaged(u8) = .empty;
-        defer content.deinit(b.allocator);
-
-        try content.appendSlice(b.allocator, "get_filename_component(_ZAZA_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
-        try listPrint(&content, b.allocator, "set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
-        try content.appendSlice(b.allocator, "set(ZAZA_LIB_DIR \"${_ZAZA_PREFIX}/lib\")\n");
-        if (self.public_link_libs.len > 0 or self.private_link_libs.len > 0) {
-            try content.appendSlice(b.allocator, "set(ZAZA_LIBRARIES ");
-            for (self.public_link_libs) |lib| {
-                try listPrint(&content, b.allocator, "{s} ", .{lib});
-            }
-            for (self.private_link_libs) |lib| {
-                try listPrint(&content, b.allocator, "{s} ", .{lib});
-            }
-            try content.appendSlice(b.allocator, ")\n");
+        // A Zig-built library artifact can be exported as a real find_package
+        // package: install the artifact, then write a Config.cmake that defines
+        // an imported target pointing at it. A downstream CMake project does
+        // find_package(<name>) + target_link_libraries(app <name>::<name>).
+        const is_lib = self.kind == .static_library or self.kind == .shared_library;
+        if (compile != null and is_lib) {
+            try emitCMakePackageConfig(b, self, export_name, compile.?);
+        } else {
+            try emitLegacyCMakeConfig(b, self, export_name);
         }
-
-        const write_files = b.addWriteFiles();
-        const cmake_rel = b.fmt("cmake/{s}/{s}Config.cmake", .{ export_name, export_name });
-        const cmake_file = write_files.add(cmake_rel, content.items);
-        const install_cmake = b.addInstallFileWithDir(cmake_file, .prefix, cmake_rel);
-        b.getInstallStep().dependOn(&install_cmake.step);
     }
 
     const manifest = try buildPackageManifest(b.allocator, self);
@@ -1947,6 +1988,125 @@ fn emitInstallAndExport(b: *std.Build, self: CppExample, config_name: []const u8
     const manifest_file = write_files.add(manifest_rel, manifest);
     const install_manifest = b.addInstallFileWithDir(manifest_file, .prefix, manifest_rel);
     b.getInstallStep().dependOn(&install_manifest.step);
+}
+
+/// Emit a modern, imported-target CMake package for a Zig-built library, so a
+/// downstream CMake project can `find_package(<name>)` and link
+/// `<name>::<name>`. Installs the artifact plus `<name>Config.cmake` and
+/// `<name>ConfigVersion.cmake` under `lib/cmake/<name>/`.
+fn emitCMakePackageConfig(
+    b: *std.Build,
+    self: CppExample,
+    export_name: []const u8,
+    compile: *std.Build.Step.Compile,
+) !void {
+    // Install the built library so the imported target has a real file to point
+    // at. Static/shared libraries install under `lib/`.
+    const install_art = b.addInstallArtifact(compile, .{});
+    b.getInstallStep().dependOn(&install_art.step);
+
+    const version = self.export_version orelse "0.0.0";
+    const lib_file = compile.out_filename; // e.g. libpackage_math.a
+    const imported_type = switch (self.kind) {
+        .static_library => "STATIC",
+        .shared_library => "SHARED",
+        else => "UNKNOWN",
+    };
+
+    var cfg: std.ArrayListUnmanaged(u8) = .empty;
+    defer cfg.deinit(b.allocator);
+    try listPrint(&cfg, b.allocator,
+        \\# {s}Config.cmake — generated by Zaza. Consumable via find_package({s}).
+        \\get_filename_component(_ZAZA_{s}_PREFIX "${{CMAKE_CURRENT_LIST_DIR}}/../../.." ABSOLUTE)
+        \\
+        \\if(NOT TARGET {s}::{s})
+        \\  add_library({s}::{s} {s} IMPORTED)
+        \\  set_target_properties({s}::{s} PROPERTIES
+        \\    IMPORTED_LOCATION "${{_ZAZA_{s}_PREFIX}}/lib/{s}"
+        \\    INTERFACE_INCLUDE_DIRECTORIES "${{_ZAZA_{s}_PREFIX}}/include/{s}"
+        \\  )
+        \\endif()
+        \\
+    , .{
+        export_name, export_name,
+        export_name, export_name,
+        export_name, export_name,
+        export_name, imported_type,
+        export_name, export_name,
+        export_name, lib_file,
+        export_name, export_name,
+    });
+
+    if (self.public_link_libs.len > 0) {
+        try listPrint(&cfg, b.allocator, "set_property(TARGET {s}::{s} APPEND PROPERTY INTERFACE_LINK_LIBRARIES", .{ export_name, export_name });
+        for (self.public_link_libs) |lib| try listPrint(&cfg, b.allocator, " {s}", .{lib});
+        try cfg.appendSlice(b.allocator, ")\n");
+    }
+
+    // Legacy variables for consumers that read them instead of the target.
+    try listPrint(&cfg, b.allocator,
+        \\set({s}_VERSION "{s}")
+        \\set({s}_INCLUDE_DIRS "${{_ZAZA_{s}_PREFIX}}/include/{s}")
+        \\set({s}_LIBRARIES {s}::{s})
+        \\set({s}_FOUND TRUE)
+        \\
+    , .{
+        export_name, version,
+        export_name, export_name,
+        export_name, export_name,
+        export_name, export_name,
+        export_name,
+    });
+
+    const version_cmake = b.fmt(
+        \\set(PACKAGE_VERSION "{s}")
+        \\if(PACKAGE_VERSION VERSION_LESS PACKAGE_FIND_VERSION)
+        \\  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+        \\else()
+        \\  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+        \\  if(PACKAGE_VERSION VERSION_EQUAL PACKAGE_FIND_VERSION)
+        \\    set(PACKAGE_VERSION_EXACT TRUE)
+        \\  endif()
+        \\endif()
+        \\
+    , .{version});
+
+    const write_files = b.addWriteFiles();
+    const cfg_rel = b.fmt("lib/cmake/{s}/{s}Config.cmake", .{ export_name, export_name });
+    const ver_rel = b.fmt("lib/cmake/{s}/{s}ConfigVersion.cmake", .{ export_name, export_name });
+    const cfg_file = write_files.add(cfg_rel, cfg.items);
+    const ver_file = write_files.add(ver_rel, version_cmake);
+    const install_cfg = b.addInstallFileWithDir(cfg_file, .prefix, cfg_rel);
+    const install_ver = b.addInstallFileWithDir(ver_file, .prefix, ver_rel);
+    b.getInstallStep().dependOn(&install_cfg.step);
+    b.getInstallStep().dependOn(&install_ver.step);
+}
+
+/// The pre-existing variable-style config, kept for the CMake-built path where
+/// there is no Zig artifact to point an imported target at.
+fn emitLegacyCMakeConfig(b: *std.Build, self: CppExample, export_name: []const u8) !void {
+    var content: std.ArrayListUnmanaged(u8) = .empty;
+    defer content.deinit(b.allocator);
+
+    try content.appendSlice(b.allocator, "get_filename_component(_ZAZA_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/../..\" ABSOLUTE)\n");
+    try listPrint(&content, b.allocator, "set(ZAZA_INCLUDE_DIR \"${{_ZAZA_PREFIX}}/include/{s}\")\n", .{export_name});
+    try content.appendSlice(b.allocator, "set(ZAZA_LIB_DIR \"${_ZAZA_PREFIX}/lib\")\n");
+    if (self.public_link_libs.len > 0 or self.private_link_libs.len > 0) {
+        try content.appendSlice(b.allocator, "set(ZAZA_LIBRARIES ");
+        for (self.public_link_libs) |lib| {
+            try listPrint(&content, b.allocator, "{s} ", .{lib});
+        }
+        for (self.private_link_libs) |lib| {
+            try listPrint(&content, b.allocator, "{s} ", .{lib});
+        }
+        try content.appendSlice(b.allocator, ")\n");
+    }
+
+    const write_files = b.addWriteFiles();
+    const cmake_rel = b.fmt("cmake/{s}/{s}Config.cmake", .{ export_name, export_name });
+    const cmake_file = write_files.add(cmake_rel, content.items);
+    const install_cmake = b.addInstallFileWithDir(cmake_file, .prefix, cmake_rel);
+    b.getInstallStep().dependOn(&install_cmake.step);
 }
 
 pub fn buildPackageManifest(allocator: std.mem.Allocator, self: CppExample) ![]u8 {

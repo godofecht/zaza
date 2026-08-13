@@ -32,13 +32,29 @@ Already present in the repo:
 - registry-driven dependency autofetch
 - minimal generator-expression handling
 
+CMake-ecosystem interop, both directions:
+
+- **Consume installed packages.** `findPackage` resolves an installed library
+  through pkg-config and through CMake's own `find_package` (a throwaway probe
+  project reads back the resolved variables and imported-target properties), and
+  folds the include dirs, defines, and link inputs into a target's `packages`.
+  No hand-wired paths. See `examples/find_package`.
+- **Be consumed by CMake.** `export_cmake` installs a real `find_package`
+  package: the built library, an imported target in `<name>Config.cmake`, and a
+  `<name>ConfigVersion.cmake`. A plain CMake project does
+  `find_package(<name>)` + `target_link_libraries(app <name>::<name>)`. See
+  `examples/cmake_consumer`.
+- **Build an in-tree CMake subtree.** `addCMakeSubdirectory` drives CMake to
+  build a local subdirectory and links its library into a Zaza target, so a
+  project can move its top-level build to Zaza while a component stays on CMake.
+  See `examples/cmake_subdir`.
+
 Still missing or incomplete for true replacement:
 
 - first-class target model for libraries, not just example-driven executables
 - robust transitive propagation of include dirs, defines, link flags, link order
 - proper custom command / generated source support
 - test discovery and richer test orchestration
-- package consumption parity with `find_package` style workflows
 - presets, profiles, and reproducible configuration sets
 - toolchain and platform abstraction at the target level
 - object libraries, interface libraries, alias targets
@@ -186,14 +202,15 @@ slice; **partial** = usable but incomplete; **missing** = not implemented.
 | `add_custom_target` | phony orchestration targets | partial | via build steps, no first-class phony target |
 | `enable_testing` / `add_test` | first-class test model | done | `test_suite` (`addTest` / `addBench`) |
 | `install` | install layout and rules | done | `install_libs`, `install_headers`, `ArtifactCopy`, `FileCopy` |
-| `export` / package config | reusable downstream package metadata | done | CMake export (`CMakeLists.txt`), package producer/consumer |
-| `find_package` | package discovery/imported targets | missing | — |
+| `export` / package config | reusable downstream package metadata | done | imported-target `Config.cmake` + `ConfigVersion.cmake` via `export_cmake` / `export_version` |
+| `find_package` (produce) | be found by a downstream CMake project | done | `export_cmake` installs a `find_package`-consumable package (`examples/cmake_consumer`) |
+| `find_package` (consume) | discover installed packages / imported targets | done | `findPackage` resolves via CMake's own `find_package` (`examples/find_package`) |
 | `FetchContent` | reproducible dependency fetch + lock | partial | `ensureRegistryDeps` + corpus `fetch.sh`; no lock (#45) |
 | presets/toolchains | named config + toolchain model | done | `presets.zig` (#51), `configs` |
 | generator expressions | config/platform-conditioned values | partial | `$<CONFIG:>` filtering; not full genex |
-| `add_subdirectory` | composition of subprojects | missing | — |
+| `add_subdirectory` | build an in-tree CMake subtree | partial | `addCMakeSubdirectory` builds a local CMake subdir and links it (`examples/cmake_subdir`); zaza-to-zaza subproject composition still missing |
 | object / interface libs | target graph richness | done | `Target.objectLibrary` / `interfaceLibrary` (alias: missing) |
-| pkg-config libraries | scoped system-lib discovery | missing | — |
+| pkg-config libraries | scoped system-lib discovery | done | `findPackage` pkg-config path (`examples/find_package`) |
 | `compile_commands.json` | tooling integration | done (export) | emitted for Zig builds; import path is #43 |
 
 ## Recommended Execution Order
