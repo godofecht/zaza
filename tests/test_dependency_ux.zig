@@ -264,6 +264,28 @@ test "lockDrift reports a missing manifest dependency" {
     try testing.expectEqual(zaza.DriftKind.missing, drifts[0].kind);
 }
 
+test "malformed lock JSON is handled cleanly, never panics" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const zon = ".dependencies = .{ .fmt = .{ .url = \"u\", .hash = \"h\" }, }";
+    // Valid JSON of the wrong shape used to panic on `.object` access.
+    const locks = [_][]const u8{
+        "[]",                     "null",                 "42",                               "\"s\"",                                          "true",
+        "{ \"packages\": null }", "{ \"packages\": [] }", "{ \"packages\": { \"fmt\": 7 } }", "{ \"packages\": { \"fmt\": { \"hash\": 5 } } }",
+    };
+    for (locks) |lock| {
+        // None of these should crash; each returns a value or a clean error.
+        if (zaza.lockDrift(a, zon, lock)) |_| {} else |_| {}
+        if (zaza.lockEntryInfo(a, lock, "fmt")) |_| {} else |_| {}
+        if (zaza.lockPackageNames(a, lock)) |_| {} else |_| {}
+    }
+    // A non-object hash is treated as absent, so it reads as empty.
+    const entry = try zaza.lockEntryInfo(a, "{ \"packages\": { \"fmt\": { \"hash\": 5 } } }", "fmt");
+    try testing.expectEqualStrings("", entry.?.hash);
+}
+
 test "removeDependencyBlockText drops one entry and keeps the rest" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

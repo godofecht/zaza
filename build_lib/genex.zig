@@ -308,3 +308,46 @@ test "unbalanced expression is an error" {
     const a = std.testing.allocator;
     try std.testing.expectError(error.UnbalancedExpression, eval(a, "$<CONFIG:Debug", .{ .config = "Debug" }));
 }
+
+test "adversarial inputs never crash or leak" {
+    const a = std.testing.allocator;
+    const ctx = Context{ .config = "Debug", .platform = "linux" };
+    const inputs = [_][]const u8{
+        "",                                       "$",                                                            "$<",                                "$<>",
+        ">",                                      "<>",                                                           "$<>>",                              "$<<>",
+        "$<:>",                                   "$<::>",                                                        "$<CONFIG:>",                        "$<CONFIG:Debug",
+        "$<CONFIG:Debug>>",                       "$<CONFIG:Deb>ug>",                                             "$<IF:>",                            "$<IF:,,>",
+        "$<IF:1>",                                "$<IF:1,only>",                                                 "$<AND:>",                           "$<OR:>",
+        "$<NOT:>",                                "$<BOOL:>",                                                     "$<FOO:bar>",                        "$<FOO>",
+        "$<1:>",                                  "$<0:x>",                                                       "$<1:x>",                            "$<$<$<$<CONFIG:Debug>>>>",
+        "a$<CONFIG:Debug>b$<PLATFORM_ID:linux>c", "$$$<<<>>>",                                                    "text with $ and > and < scattered", "$<,>",
+        "$<IF:1,,>",                              "$<IF:$<AND:$<CONFIG:Debug>,$<NOT:$<CONFIG:Release>>>,yes,no>",
+    };
+    for (inputs) |in| {
+        const out = eval(a, in, ctx) catch |err| {
+            try std.testing.expect(err == error.UnbalancedExpression or err == error.OutOfMemory);
+            continue;
+        };
+        a.free(out);
+    }
+}
+
+test "deep nesting terminates and flips by parity" {
+    const a = std.testing.allocator;
+    for ([_]struct { n: usize, want: []const u8 }{
+        .{ .n = 50, .want = "1" }, // even NOTs of 1 -> 1
+        .{ .n = 51, .want = "0" }, // odd NOTs of 1 -> 0
+    }) |case| {
+        var buf: std.ArrayListUnmanaged(u8) = .empty;
+        defer buf.deinit(a);
+        var i: usize = 0;
+        while (i < case.n) : (i += 1) try buf.appendSlice(a, "$<NOT:");
+        try buf.append(a, '1');
+        i = 0;
+        while (i < case.n) : (i += 1) try buf.append(a, '>');
+
+        const out = try eval(a, buf.items, .{});
+        defer a.free(out);
+        try std.testing.expectEqualStrings(case.want, out);
+    }
+}

@@ -437,11 +437,23 @@ pub fn writeFile(path: []const u8, data: []const u8) !void {
 /// entry (only version + url) and a v2 entry (with description, keywords,
 /// repo, homepage, license) both read cleanly.
 fn jsonStr(obj: std.json.Value, key: []const u8) []const u8 {
+    if (obj != .object) return "";
     const v = obj.object.get(key) orelse return "";
     return switch (v) {
         .string => |s| s,
         else => "",
     };
+}
+
+/// Safely fetch an object-typed member. Returns null when `v` is not an object,
+/// the key is absent, or the value is not itself an object. Guards against a
+/// malformed lock or manifest whose JSON is valid but not the expected shape,
+/// which a bare `.object.get` would panic on.
+fn jsonObjectField(v: std.json.Value, key: []const u8) ?std.json.Value {
+    if (v != .object) return null;
+    const got = v.object.get(key) orelse return null;
+    if (got != .object) return null;
+    return got;
 }
 
 fn versionOrUnknown(entry: std.json.Value) []const u8 {
@@ -882,8 +894,12 @@ pub fn updateLock(allocator: std.mem.Allocator, path: []const u8, name: []const 
 
     var parsed = try std.json.parseFromSlice(std.json.Value, arena_alloc, lock_data, .{});
     defer parsed.deinit();
+    // A corrupt lock whose JSON is valid but not an object (or whose `packages`
+    // is not an object) is rebuilt rather than crashed on.
     var root = parsed.value;
-    if (root.object.getPtr("packages") == null) {
+    if (root != .object) root = emptyJsonObject(arena_alloc);
+    const existing = root.object.getPtr("packages");
+    if (existing == null or existing.?.* != .object) {
         try jsonObjectPut(&root.object, arena_alloc, "packages", emptyJsonObject(arena_alloc));
     }
     const packages = root.object.getPtr("packages").?;
@@ -910,7 +926,9 @@ pub fn removeLockEntry(allocator: std.mem.Allocator, path: []const u8, name: []c
 
     var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
     defer parsed.deinit();
+    if (parsed.value != .object) return;
     const packages = parsed.value.object.getPtr("packages") orelse return;
+    if (packages.* != .object) return;
     _ = packages.object.orderedRemove(name);
 
     const json_text = try jsonStringifyIndent2(allocator, parsed.value);
@@ -1077,13 +1095,12 @@ pub fn lockEntryInfo(allocator: std.mem.Allocator, lock_data: []const u8, name: 
     var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
     defer parsed.deinit();
 
-    const packages = parsed.value.object.get("packages") orelse return null;
+    const packages = jsonObjectField(parsed.value, "packages") orelse return null;
     const entry = packages.object.get(name) orelse return null;
-    const source = if (entry.object.get("source")) |s| s.string else "";
-    const hash = if (entry.object.get("hash")) |h| h.string else "";
+    if (entry != .object) return null;
     return LockEntry{
-        .source = try allocator.dupe(u8, source),
-        .hash = try allocator.dupe(u8, hash),
+        .source = try allocator.dupe(u8, jsonStr(entry, "source")),
+        .hash = try allocator.dupe(u8, jsonStr(entry, "hash")),
     };
 }
 
@@ -1275,7 +1292,7 @@ pub fn lockPackageNames(allocator: std.mem.Allocator, lock_data: []const u8) ![]
     var parsed = try std.json.parseFromSlice(std.json.Value, allocator, lock_data, .{});
     defer parsed.deinit();
 
-    const packages = parsed.value.object.get("packages") orelse return allocator.alloc([]const u8, 0);
+    const packages = jsonObjectField(parsed.value, "packages") orelse return allocator.alloc([]const u8, 0);
     var names: std.ArrayListUnmanaged([]const u8) = .empty;
     errdefer names.deinit(allocator);
     var it = packages.object.iterator();

@@ -801,9 +801,17 @@ fn verifyLockedHash(b: *std.Build, name: []const u8) !void {
     var parsed = std.json.parseFromSlice(std.json.Value, b.allocator, lock, .{}) catch return;
     defer parsed.deinit();
 
+    // A corrupt lock whose JSON is valid but not the expected object shape is
+    // treated as "nothing to verify" rather than crashing the build.
+    if (parsed.value != .object) return;
     const packages = parsed.value.object.get("packages") orelse return;
+    if (packages != .object) return;
     const entry = packages.object.get(name) orelse return;
-    const locked = if (entry.object.get("hash")) |h| h.string else return;
+    if (entry != .object) return;
+    const locked = switch (entry.object.get("hash") orelse return) {
+        .string => |s| s,
+        else => return,
+    };
 
     if (!std.mem.eql(u8, locked, manifest_hash)) {
         std.log.err(
