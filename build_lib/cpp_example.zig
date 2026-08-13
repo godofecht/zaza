@@ -185,6 +185,14 @@ pub const TargetOptions = struct {
     /// to `0.0.0`.
     export_version: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
+    /// Compile the target's source files as one translation unit: a generated
+    /// unit that includes each source. This is the `CMAKE_UNITY_BUILD`
+    /// equivalent, cutting redundant header parsing on a cold build. It needs
+    /// two or more sources and is skipped for interface libraries. Sources that
+    /// rely on file-local state (anonymous namespaces, `static` at file scope,
+    /// macros that leak between files) can collide when combined; keep those
+    /// out of a unity target.
+    unity_build: bool = false,
     custom_commands: []const CustomCommand = &.{},
     post_build_commands: []const CustomCommand = &.{},
     deps: []const Dependency = &.{},
@@ -720,6 +728,7 @@ pub const CppExample = struct {
     export_name: ?[]const u8 = null,
     export_version: ?[]const u8 = null,
     generated_source_files: []const []const u8 = &.{},
+    unity_build: bool = false,
     custom_commands: []const CustomCommand = &.{},
     post_build_commands: []const CustomCommand = &.{},
     deps: []const Dependency,
@@ -757,6 +766,7 @@ pub const CppExample = struct {
             .export_name = options.export_name,
             .export_version = options.export_version,
             .generated_source_files = options.generated_source_files,
+            .unity_build = options.unity_build,
             .custom_commands = options.custom_commands,
             .post_build_commands = options.post_build_commands,
             .deps = options.deps,
@@ -1300,10 +1310,28 @@ pub const CppExample = struct {
 
                 const all_sources = try self.allSourceFiles(b.allocator);
                 if (self.kind != .interface_library) {
-                    compile.root_module.addCSourceFiles(.{
-                        .files = all_sources,
-                        .flags = cpp_flags,
-                    });
+                    if (self.unity_build and self.source_files.len > 1) {
+                        // Compile the static sources as one translation unit,
+                        // written into the cache rather than the source tree.
+                        // Generated sources stay separate: they may not exist
+                        // yet when this unit is written.
+                        const root_abs = b.build_root.path orelse ".";
+                        const text = try unitySourceText(b.allocator, self.name, root_abs, self.source_files);
+                        const wf = b.addWriteFiles();
+                        const unity = wf.add(b.fmt("{s}-{s}-unity.cpp", .{ self.name, config_name }), text);
+                        compile.root_module.addCSourceFile(.{ .file = unity, .flags = cpp_flags });
+                        if (self.generated_source_files.len > 0) {
+                            compile.root_module.addCSourceFiles(.{
+                                .files = self.generated_source_files,
+                                .flags = cpp_flags,
+                            });
+                        }
+                    } else {
+                        compile.root_module.addCSourceFiles(.{
+                            .files = all_sources,
+                            .flags = cpp_flags,
+                        });
+                    }
                 }
 
                 // Add include directories
@@ -1767,6 +1795,30 @@ fn addTargetArtifact(
         }
     }
     return compile;
+}
+
+// Generate the text of a unity translation unit: one `#include` per source,
+// with absolute paths so it compiles wherever the generated file is placed.
+// Pure so it can be tested without a build graph.
+pub fn unitySourceText(
+    allocator: std.mem.Allocator,
+    name: []const u8,
+    root_abs: []const u8,
+    sources: []const []const u8,
+) ![]u8 {
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    errdefer out.deinit(allocator);
+    try out.appendSlice(allocator, "// Zaza unity build: ");
+    try out.appendSlice(allocator, name);
+    try out.appendSlice(allocator, ". Generated, do not edit.\n");
+    for (sources) |src| {
+        try out.appendSlice(allocator, "#include \"");
+        try out.appendSlice(allocator, root_abs);
+        try out.append(allocator, '/');
+        try out.appendSlice(allocator, src);
+        try out.appendSlice(allocator, "\"\n");
+    }
+    return out.toOwnedSlice(allocator);
 }
 
 // Apply target-level linker options to the final link. Each option maps to a

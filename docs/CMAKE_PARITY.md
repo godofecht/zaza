@@ -162,7 +162,7 @@ These improve performance and polish enough to matter commercially.
 
 1. Build performance features
 - precompiled headers
-- unity builds
+- unity builds (done: `TargetOptions.unity_build`)
 - ccache/sccache integration
 - better graph parallelism diagnostics
 
@@ -216,6 +216,7 @@ slice; **partial** = usable but incomplete; **missing** = not implemented.
 | generator expressions | config/platform-conditioned values | done | `genex.eval`: CONFIG, PLATFORM_ID, BOOL, NOT, AND, OR, IF, `$<cond:text>`; conditions flags and defines (`examples/orchestration`). Property/target-introspection genex not modelled |
 | `add_subdirectory` | build an in-tree subtree (CMake or Zaza) | done | `addCMakeSubdirectory` builds a local CMake subdir (`examples/cmake_subdir`); `defineSubproject` composes a Zaza subproject's own `build.zig` (`examples/zaza_subproject`) |
 | object / interface libs | target graph richness | done | `Target.objectLibrary` / `interfaceLibrary` (alias: missing) |
+| `CMAKE_UNITY_BUILD` | compile sources as one translation unit | done | `TargetOptions.unity_build` (`examples/unity_build`) |
 | pkg-config libraries | scoped system-lib discovery | done | `findPackage` pkg-config path (`examples/find_package`) |
 | `compile_commands.json` | tooling integration | done (export) | emitted for Zig builds; import path is #43 |
 

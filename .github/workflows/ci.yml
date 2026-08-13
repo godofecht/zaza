@@ -90,7 +90,7 @@ jobs:
     name: examples (zig ${{ matrix.zig }})
     env:
       ZAZA_REGISTRY: "0"
-      ZAZA_EXAMPLES: "hello-zaza,proof-library,target-kinds,generated-code,package-consumer,package-producer,mixed-stack,interface-object-graph,zaza-subproject,orchestration,test-workflows,bench-suite,generated-headers,shared-plugin,preset-profiles,cross-compile-cli,resources-bundle,bindings,benchmark-workflow,cxx20-modules,wasm-wasi,wasm-exports,universal-binary"
+      ZAZA_EXAMPLES: "hello-zaza,proof-library,target-kinds,generated-code,package-consumer,package-producer,mixed-stack,interface-object-graph,zaza-subproject,orchestration,unity-build,test-workflows,bench-suite,generated-headers,shared-plugin,preset-profiles,cross-compile-cli,resources-bundle,bindings,benchmark-workflow,cxx20-modules,wasm-wasi,wasm-exports,universal-binary"
       # cxx20-modules needs a C++20-modules-capable clang++. Ubuntu ships one;
       # point the example at it so the matrix covers it off macOS too.
       ZAZA_MODULES_CXX: "/usr/bin/clang++"

@@ -41,6 +41,7 @@ const find_package_example = @import("examples/find_package/build.zig");
 const cmake_subdir_example = @import("examples/cmake_subdir/build.zig");
 const zaza_subproject_example = @import("examples/zaza_subproject/build.zig");
 const orchestration_example = @import("examples/orchestration/build.zig");
+const unity_build_example = @import("examples/unity_build/build.zig");
 const universal_binary_example = @import("examples/universal_binary/build.zig");
 const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
@@ -218,6 +219,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "orchestration")) {
         orchestration_example.addSteps(b, target);
+    }
+
+    if (exampleEnabled(b, "unity-build")) {
+        unity_build_example.addSteps(b, target);
     }
 
     if (exampleEnabled(b, "generated-headers")) {
@@ -592,6 +597,7 @@ pub fn build(b: *std.Build) !void {
         "interface-object-graph-run",
         "zaza-subproject-run",
         "orchestration-run",
+        "unity-build-run",
         "test-workflows-run",
         "bench-suite-run",
         "generated-headers-run",

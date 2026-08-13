@@ -202,3 +202,19 @@ test "c_std selects a C target; default targets stay C++" {
     try testing.expectEqual(@as(?[]const u8, null), cpp_target.c_std);
     try testing.expectEqualStrings("17", cpp_target.cpp_std.?);
 }
+
+test "unity source includes every source by absolute path" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const text = try cpp.unitySourceText(
+        arena.allocator(),
+        "app",
+        "/root",
+        &.{ "src/a.cpp", "src/b.cpp" },
+    );
+    try testing.expect(std.mem.indexOf(u8, text, "#include \"/root/src/a.cpp\"") != null);
+    try testing.expect(std.mem.indexOf(u8, text, "#include \"/root/src/b.cpp\"") != null);
+    // The generated banner names the target.
+    try testing.expect(std.mem.indexOf(u8, text, "unity build: app") != null);
+}
