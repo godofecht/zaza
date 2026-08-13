@@ -313,6 +313,10 @@ Dependency pins are recorded in `zaza.lock`, mirrored from `build.zig.zon`. The
 build verifies the lock, and `zig run scripts/zaza.zig -- lock --check` asserts
 they agree. See `docs/DEPENDENCIES.md`.
 
+The CLI also has readiness and inspection commands: `zaza doctor` (Zig lane,
+caches, lock), `zaza deps` (dependency table), and `zaza graph` (the dependency
+graph as Graphviz DOT, for piping to `dot`).
+
 ## 6. `BuildConfig` Reference
 
 Common fields:

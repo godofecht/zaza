@@ -67,6 +67,7 @@ jobs:
           zig run scripts/zaza.zig -- deps
           zig run scripts/zaza.zig -- cache
           zig run scripts/zaza.zig -- doctor
+          zig run scripts/zaza.zig -- graph > /dev/null
 
       # Assert the committed zaza.lock still mirrors build.zig.zon. This fails the
       # build if a dependency's pin was changed without regenerating the lock,

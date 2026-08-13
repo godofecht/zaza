@@ -210,6 +210,11 @@ fn run(allocator: std.mem.Allocator, args: []const [:0]const u8, env: anytype) !
         return;
     }
 
+    if (std.mem.eql(u8, cmd, "graph")) {
+        try graphDot(allocator, "build.zig.zon");
+        return;
+    }
+
     if (std.mem.eql(u8, cmd, "remove") or std.mem.eql(u8, cmd, "rm")) {
         if (args.len < 3) return usage();
         const name = args[2];
@@ -252,6 +257,7 @@ fn usage() !void {
         \\  zaza remove <name>   Remove a dependency from build.zig.zon (alias: rm)
         \\  zaza list            List all packages available in the registry (alias: ls)
         \\  zaza deps            List dependencies with source, lock state, and on-disk presence
+        \\  zaza graph           Print the dependency graph as Graphviz DOT (pipe to `dot`)
         \\  zaza lock            Regenerate zaza.lock from build.zig.zon
         \\  zaza lock --check    Verify zaza.lock matches build.zig.zon (fails on drift; for CI)
         \\  zaza clean-deps      Remove deps/ and zig-out/deps (alias: clean)
@@ -1075,6 +1081,68 @@ pub fn parseZonDependencies(allocator: std.mem.Allocator, zon: []const u8) ![]Zo
         };
     }
     return deps;
+}
+
+/// Read the package name from a `build.zig.zon`. Handles the enum-literal form
+/// (`.name = .zaza`) and the string form (`.name = "zaza"`).
+pub fn parseZonName(zon: []const u8) ?[]const u8 {
+    const marker = ".name = ";
+    const idx = std.mem.indexOf(u8, zon, marker) orelse return null;
+    var i = idx + marker.len;
+    if (i >= zon.len) return null;
+    if (zon[i] == '.') i += 1; // enum literal: .name = .zaza
+    if (i < zon.len and zon[i] == '"') {
+        const rest = zon[i + 1 ..];
+        const end = std.mem.indexOfScalar(u8, rest, '"') orelse return null;
+        return rest[0..end];
+    }
+    var j = i;
+    while (j < zon.len and (std.ascii.isAlphanumeric(zon[j]) or zon[j] == '_')) j += 1;
+    if (j == i) return null;
+    return zon[i..j];
+}
+
+/// Render the dependency graph as Graphviz DOT, the analogue of CMake's
+/// `--graphviz`. The root package points at each dependency, which is labelled
+/// with a short hash. Pipe the output to `dot` to render an image.
+pub fn renderDepGraphDot(allocator: std.mem.Allocator, root: []const u8, deps: []const ZonDep) ![]u8 {
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    errdefer out.deinit(allocator);
+
+    try out.appendSlice(allocator, "digraph zaza {\n  rankdir=LR;\n  node [shape=box];\n");
+    const root_line = try std.fmt.allocPrint(allocator, "  \"{s}\" [style=bold];\n", .{root});
+    defer allocator.free(root_line);
+    try out.appendSlice(allocator, root_line);
+
+    for (deps) |d| {
+        const short = if (d.hash.len > 0) d.hash[0..@min(d.hash.len, 16)] else "";
+        const node = try std.fmt.allocPrint(allocator, "  \"{s}\" [label=\"{s}\\n{s}\"];\n", .{ d.name, d.name, short });
+        defer allocator.free(node);
+        try out.appendSlice(allocator, node);
+    }
+    for (deps) |d| {
+        const edge = try std.fmt.allocPrint(allocator, "  \"{s}\" -> \"{s}\";\n", .{ root, d.name });
+        defer allocator.free(edge);
+        try out.appendSlice(allocator, edge);
+    }
+
+    try out.appendSlice(allocator, "}\n");
+    return out.toOwnedSlice(allocator);
+}
+
+/// Print the dependency graph of `zon_path` as Graphviz DOT.
+fn graphDot(allocator: std.mem.Allocator, zon_path: []const u8) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const zon = try readFile(a, zon_path);
+    const root = parseZonName(zon) orelse "project";
+    const deps = try parseZonDependencies(a, zon);
+    const dot = try renderDepGraphDot(a, root, deps);
+
+    const stdout = stdoutWriter();
+    try stdout.print("{s}", .{dot});
 }
 
 /// Read a `.key = "value"` string field out of a zon block, or null when it is

@@ -264,6 +264,27 @@ test "lockDrift reports a missing manifest dependency" {
     try testing.expectEqual(zaza.DriftKind.missing, drifts[0].kind);
 }
 
+test "parseZonName reads the enum-literal and string forms" {
+    try testing.expectEqualStrings("zaza", zaza.parseZonName(".{ .name = .zaza, .version = \"1\" }").?);
+    try testing.expectEqualStrings("app", zaza.parseZonName(".{ .name = \"app\" }").?);
+}
+
+test "renderDepGraphDot emits a node and edge per dependency" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const deps = [_]zaza.ZonDep{
+        .{ .name = "fmt", .url = "u", .hash = "hashfmt000000000" },
+        .{ .name = "spdlog", .url = "u", .hash = "hashspdlog000000" },
+    };
+    const dot = try zaza.renderDepGraphDot(a, "app", &deps);
+    try testing.expect(std.mem.indexOf(u8, dot, "digraph zaza {") != null);
+    try testing.expect(std.mem.indexOf(u8, dot, "\"app\" -> \"fmt\";") != null);
+    try testing.expect(std.mem.indexOf(u8, dot, "\"app\" -> \"spdlog\";") != null);
+    try testing.expect(std.mem.indexOf(u8, dot, "\"fmt\" [label=") != null);
+}
+
 test "lockDrift reports a lock entry the manifest dropped" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
