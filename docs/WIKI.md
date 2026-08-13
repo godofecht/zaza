@@ -90,11 +90,18 @@ one-for-one syntax compatibility.
 | `add_library(SHARED ...)` | `CppExample.sharedLibrary(...)` |
 | `target_include_directories(PUBLIC ...)` | `.public_include_dirs` |
 | `target_compile_definitions(PRIVATE ...)` | `.private_defines` |
+| `target_link_options(...)` | `.link_options` (typed `LinkOption`) |
 | `add_custom_command()` | `.custom_commands` + `.generated_source_files` |
 | `add_custom_command(TARGET ... POST_BUILD copy ...)` | `.artifact_copies`, `.file_copies`, and copy helpers |
+| `add_custom_target()` | `zaza.addPhonyTarget(...)` |
 | `install()` / `export()` | `.install_headers`, `.export_cmake`, `.export_name` |
-| `find_package()` | package manifest read at configure time |
-| `FetchContent` | registry entry resolved into `build.zig.zon` |
+| `find_package()` (consume) | `zaza.findPackage(...)` via pkg-config or CMake |
+| `find_package()` (produce) | `.export_cmake` installs an imported-target package |
+| `add_subdirectory()` (CMake) | `zaza.addCMakeSubdirectory(...)` |
+| `add_subdirectory()` (Zaza) | `zaza.defineSubproject(...)` |
+| generator expressions | evaluated in flags and defines; `zaza.evalGenex` |
+| `CMAKE_UNITY_BUILD` | `.unity_build` |
+| `FetchContent` | registry entry resolved into `build.zig.zon` + `zaza.lock` |
 | `CMakePresets.json` | `ZAZA_PRESET` |
 | toolchain file | a target triple |
 
@@ -104,10 +111,13 @@ an explicit list of what to avoid building before the core target model is
 solid. Read it before betting a project on Zaza.
 
 The short summary of that document: executable and library targets, install and
-export, dependency fetching, custom commands, and CMake interop all work today
-and have examples. Transitive usage requirements, object and interface
-libraries, `find_package`-grade discovery, and `add_subdirectory` composition
-are partial or missing.
+export, dependency fetching with a verified lock, custom commands, transitive
+usage requirements, object and interface libraries, `find_package` in both
+directions, `add_subdirectory` for CMake and Zaza subtrees, target link options,
+generator expressions, and unity builds all work today and have examples. The
+concrete feature-mapping table has no partial rows left. What remains is the
+Tier 2/3 polish: precompiled headers, ccache integration, alias targets,
+`compile_commands.json` import, and editor tooling.
 
 ---
 

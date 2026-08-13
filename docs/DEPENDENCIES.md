@@ -30,7 +30,7 @@ is derived from `build.zig.zon`, which stays authoritative: `zig run
 scripts/zaza.zig -- fetch <name>` updates both, and `zig run scripts/zaza.zig --
 lock` regenerates the lock from the manifest.
 
-The lock is verified, not just written. A build fails if `zaza.lock` records a
+The build reads the lock and verifies it. A build fails if `zaza.lock` records a
 different hash than `build.zig.zon` for a pinned dependency, so a hand-edited pin
 cannot drift from the committed lock unnoticed. CI asserts the whole tree in one
 step:

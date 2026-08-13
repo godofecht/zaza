@@ -180,6 +180,11 @@ These all feed the same generic target model underneath through `CppExample.make
 - `.source_files`: normal C/C++ sources
 - `.generated_source_files`: generated sources that should also be compiled
 - `.custom_commands`: pre-build command steps that produce generated inputs
+- `.unity_build`: compile the sources as one translation unit (the
+  `CMAKE_UNITY_BUILD` equivalent), parsing shared headers once for a faster cold
+  build. Needs two or more sources. Keep sources with file-local state
+  (anonymous namespaces, file-scope `static`, leaking macros) out of a unity
+  target. See `examples/unity_build`.
 
 Pattern:
 
@@ -205,10 +210,26 @@ Pattern:
 - `.public_defines`: exported preprocessor defines
 - `.private_defines`: local-only defines
 
+Flags and defines may carry generator expressions, evaluated against the active
+config and target platform. The flat `$<CONFIG:Name>text` keeps `text` only in
+that config. The general forms nest: `$<CONFIG:...>`, `$<PLATFORM_ID:...>`,
+`$<BOOL:...>`, `$<NOT:...>`, `$<AND:...>`, `$<OR:...>`, `$<IF:cond,yes,no>`, and
+`$<cond:text>`. For example `BUILD_MODE=$<IF:$<CONFIG:Debug>,debug,release>`
+resolves per config. The evaluator is also callable directly as
+`zaza.evalGenex`. See `examples/orchestration`.
+
 ### Linking
 
 - `.public_link_libs`: system libraries propagated outward
 - `.private_link_libs`: local-only system libraries
+- `.link_options`: target-level linker options (the `target_link_options`
+  equivalent), as typed `LinkOption` values applied to the final link:
+  `gc_sections`, `z_relro`, `z_lazy`, `z_notext`, `new_dtags`,
+  `allow_shlib_undefined`, `each_lib_rpath`, `force_undefined_symbol`, and
+  `linker_script`. These map to the linker controls Zig's driver exposes.
+- `.packages`: installed libraries resolved by `zaza.findPackage` (pkg-config or
+  CMake `find_package`), whose include dirs, defines, and link inputs are folded
+  into the target. See `examples/find_package`.
 - per-config fields inside `BuildConfig` can also add:
   - `.link_paths`
   - `.link_libs`
@@ -271,6 +292,26 @@ should be part of the build graph without shelling out to `cp`.
 - `.deps`: git/CMake/Zig package dependencies
 - `.deps_build_system`: how dependencies should be built
 - `.main_build_system`: how the main target should be built
+
+### Composition and orchestration helpers
+
+Top-level `zaza` functions, alongside the `Target` constructors:
+
+- `zaza.findPackage(b, name, opts)`: resolve an installed library through
+  pkg-config or CMake `find_package`, returning a `ResolvedPackage` to place in
+  a target's `.packages`. See `examples/find_package`.
+- `zaza.defineSubproject(b, name, targets)`: expose a subproject's libraries to
+  a parent build. The zaza-to-zaza `add_subdirectory`. See
+  `examples/zaza_subproject`.
+- `zaza.addCMakeSubdirectory(b, opts)`: build an in-tree CMake subtree and link
+  its library into a Zaza target. See `examples/cmake_subdir`.
+- `zaza.addPhonyTarget(b, opts)`: a named `zig build <name>` that aggregates
+  targets and runs commands in order (the `add_custom_target` equivalent). See
+  `examples/orchestration`.
+
+Dependency pins are recorded in `zaza.lock`, mirrored from `build.zig.zon`. The
+build verifies the lock, and `zig run scripts/zaza.zig -- lock --check` asserts
+they agree. See `docs/DEPENDENCIES.md`.
 
 ## 6. `BuildConfig` Reference
 
