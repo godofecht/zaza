@@ -39,6 +39,7 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 | [json](json) | `ZAZA_EXAMPLES=json zig build run` | nlohmann/json as a Zig package dependency |
 | [juce](juce) | `ZAZA_EXAMPLES=juce ZAZA_SYSTEM_CMDS=1 zig build juce` | A JUCE GUI app through JUCE's CMake integration |
 | [mixed_stack](mixed_stack) | `ZAZA_EXAMPLES=mixed-stack zig build mixed-stack-run` | C library, C++ bridge, Zig executable |
+| [orchestration](orchestration) | `ZAZA_EXAMPLES=orchestration zig build orchestration-run` | A generator-expressioned define, a `target_link_options` linker option, and a phony target |
 | [package_consumer](package_consumer) | `ZAZA_EXAMPLES=package-consumer zig build package-consumer-run` | Consuming an installed package from its manifest |
 | [package_producer](package_producer) | `ZAZA_EXAMPLES=package-producer zig build package-producer-run` | Publishing headers, an archive, and a manifest |
 | [preset_profiles](preset_profiles) | `ZAZA_EXAMPLES=preset-profiles zig build preset-profiles-run` | `ZAZA_PRESET` selecting a build configuration |
@@ -87,7 +88,8 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 **Configuration and workflow**
 
 `preset_profiles`, `test_workflows`, `bench_suite`, `benchmark_workflow`,
-`cross_compile_cli`.
+`cross_compile_cli`, `orchestration` (generator expressions, link options, a
+phony target).
 
 ## Optional tools
 

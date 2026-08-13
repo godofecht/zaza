@@ -33,6 +33,8 @@ const cpp = @import("cpp_example.zig");
 const find_package = @import("find_package.zig");
 const cmake_subdir = @import("cmake_subdir.zig");
 const subproject = @import("subproject.zig");
+const phony = @import("phony.zig");
+const genex = @import("genex.zig");
 const test_suite = @import("test_suite.zig");
 const presets = @import("presets.zig");
 const cmd = @import("zaza_cmd.zig");
@@ -74,6 +76,10 @@ pub const TargetOptions = cpp.TargetOptions;
 
 /// Which artifact a target produces: executable or one of the library kinds.
 pub const TargetKind = cpp.TargetKind;
+
+/// A target-level linker option (`target_link_options`), placed in
+/// `TargetOptions.link_options` and applied to the final link.
+pub const LinkOption = cpp.LinkOption;
 
 /// A JUCE GUI application builder. It generates a CMake project and drives it,
 /// so it needs system commands enabled.
@@ -150,6 +156,25 @@ pub const Subproject = subproject.Subproject;
 
 /// One library a subproject exposes to its parent.
 pub const ExportedTarget = subproject.ExportedTarget;
+
+/// Create a phony orchestration target: a named `zig build <name>` that builds
+/// a group of targets and runs a sequence of commands. The `add_custom_target`
+/// equivalent.
+pub const addPhonyTarget = phony.addPhonyTarget;
+
+/// A built phony target returned by `addPhonyTarget`.
+pub const PhonyTarget = phony.PhonyTarget;
+
+/// Options for `addPhonyTarget`.
+pub const PhonyOptions = phony.PhonyOptions;
+
+/// Evaluate a generator expression (`$<...>`) against a config and platform.
+/// Supports CONFIG, PLATFORM_ID, BOOL, NOT, AND, OR, IF, and `$<cond:text>`.
+/// The same evaluator conditions a target's flags and defines.
+pub const evalGenex = genex.eval;
+
+/// The config and platform a generator expression is evaluated against.
+pub const GenexContext = genex.Context;
 
 /// A source dependency: a name, a URL, and how to fetch and build it.
 pub const Dependency = cpp.Dependency;

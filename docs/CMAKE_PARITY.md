@@ -30,7 +30,8 @@ Already present in the repo:
 - partial `compile_commands.json` support
 - partial CMake-dependency shimming
 - registry-driven dependency autofetch
-- minimal generator-expression handling
+- generator-expression evaluation (CONFIG, PLATFORM_ID, BOOL, NOT, AND, OR, IF)
+- phony orchestration targets and target-level linker options
 
 CMake-ecosystem interop, both directions:
 
@@ -202,9 +203,9 @@ slice; **partial** = usable but incomplete; **missing** = not implemented.
 | `target_include_directories` | usage requirements with transitive propagation | done | `public/private_include_dirs`, `UsageRequirements.merge` |
 | `target_compile_definitions` | scoped compile definitions | done | `public/private_defines` |
 | `target_compile_options` | scoped compile flags | done | `cpp_flags`, per-config via `$<CONFIG:>` |
-| `target_link_options` | scoped linker flags | partial | config `link_*` only |
+| `target_link_options` | target-level linker options | done | `TargetOptions.link_options` (`LinkOption`), applied to the final link; covers the linker controls Zig's driver exposes |
 | `add_custom_command` | generated file pipeline with inputs/outputs | done | `custom_commands`, `generated_source_files` |
-| `add_custom_target` | phony orchestration targets | partial | via build steps, no first-class phony target |
+| `add_custom_target` | phony orchestration targets | done | `addPhonyTarget` (`examples/orchestration`) |
 | `enable_testing` / `add_test` | first-class test model | done | `test_suite` (`addTest` / `addBench`) |
 | `install` | install layout and rules | done | `install_libs`, `install_headers`, `ArtifactCopy`, `FileCopy` |
 | `export` / package config | reusable downstream package metadata | done | imported-target `Config.cmake` + `ConfigVersion.cmake` via `export_cmake` / `export_version` |
@@ -212,7 +213,7 @@ slice; **partial** = usable but incomplete; **missing** = not implemented.
 | `find_package` (consume) | discover installed packages / imported targets | done | `findPackage` resolves via CMake's own `find_package` (`examples/find_package`) |
 | `FetchContent` | reproducible dependency fetch + lock | done | `ensureRegistryDeps` fetch + `zaza.lock`, verified on build and by `zaza lock --check` (#45) |
 | presets/toolchains | named config + toolchain model | done | `presets.zig` (#51), `configs` |
-| generator expressions | config/platform-conditioned values | partial | `$<CONFIG:>` filtering; not full genex |
+| generator expressions | config/platform-conditioned values | done | `genex.eval`: CONFIG, PLATFORM_ID, BOOL, NOT, AND, OR, IF, `$<cond:text>`; conditions flags and defines (`examples/orchestration`). Property/target-introspection genex not modelled |
 | `add_subdirectory` | build an in-tree subtree (CMake or Zaza) | done | `addCMakeSubdirectory` builds a local CMake subdir (`examples/cmake_subdir`); `defineSubproject` composes a Zaza subproject's own `build.zig` (`examples/zaza_subproject`) |
 | object / interface libs | target graph richness | done | `Target.objectLibrary` / `interfaceLibrary` (alias: missing) |
 | pkg-config libraries | scoped system-lib discovery | done | `findPackage` pkg-config path (`examples/find_package`) |

@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zaza_cmd = @import("zaza_cmd.zig");
 const find_package = @import("find_package.zig");
+const genex = @import("genex.zig");
 
 /// Zig 0.14 spells buffered formatting `list.writer(gpa).print(...)`; 0.16
 /// removed `writer` and 0.15 added `list.print(gpa, ...)`. No single spelling
@@ -169,6 +170,10 @@ pub const TargetOptions = struct {
     private_defines: []const []const u8 = &.{},
     public_link_libs: []const []const u8 = &.{},
     private_link_libs: []const []const u8 = &.{},
+    /// Linker options applied to the final link, the `target_link_options`
+    /// equivalent. Ignored for object and interface libraries, which have no
+    /// final link.
+    link_options: []const LinkOption = &.{},
     install_headers: []const []const u8 = &.{},
     install_libs: []const []const u8 = &.{},
     artifact_copies: []const ArtifactCopy = &.{},
@@ -221,6 +226,33 @@ pub const Visibility = enum {
     public,
     private,
     interface,
+};
+
+/// A target-level linker option, applied to the final link. These map to the
+/// linker controls Zig's driver exposes. Zaza does not accept an arbitrary raw
+/// flag string, because the Zig linker driver takes typed options rather than
+/// free-form flags; the set below is what it can express. The CMake spelling
+/// each corresponds to is noted.
+pub const LinkOption = union(enum) {
+    /// Drop unreferenced sections (`-Wl,--gc-sections`).
+    gc_sections: bool,
+    /// Read-only relocations (`-z relro` / `-z norelro`).
+    z_relro: bool,
+    /// Lazy binding (`-z lazy`).
+    z_lazy: bool,
+    /// Allow text relocations (`-z notext`).
+    z_notext: bool,
+    /// Emit new-style dynamic tags (`-Wl,--enable-new-dtags`).
+    new_dtags: bool,
+    /// Tolerate undefined symbols from shared libraries
+    /// (`-Wl,--allow-shlib-undefined`).
+    allow_shlib_undefined: bool,
+    /// An rpath entry per linked library.
+    each_lib_rpath: bool,
+    /// Keep or resolve a symbol even when unreferenced (`-u <symbol>`).
+    force_undefined_symbol: []const u8,
+    /// Use a custom linker script (`-T <path>`), path relative to the build root.
+    linker_script: []const u8,
 };
 
 pub const UsageRequirements = struct {
@@ -679,6 +711,7 @@ pub const CppExample = struct {
     private_defines: []const []const u8 = &.{},
     public_link_libs: []const []const u8 = &.{},
     private_link_libs: []const []const u8 = &.{},
+    link_options: []const LinkOption = &.{},
     install_headers: []const []const u8 = &.{},
     install_libs: []const []const u8 = &.{},
     artifact_copies: []const ArtifactCopy = &.{},
@@ -715,6 +748,7 @@ pub const CppExample = struct {
             .private_defines = options.private_defines,
             .public_link_libs = options.public_link_libs,
             .private_link_libs = options.private_link_libs,
+            .link_options = options.link_options,
             .install_headers = options.install_headers,
             .install_libs = options.install_libs,
             .artifact_copies = options.artifact_copies,
@@ -964,7 +998,7 @@ pub const CppExample = struct {
         private_defines: []const []const u8,
     ) ![]const []const u8 {
         var list: std.ArrayListUnmanaged([]const u8) = .empty;
-        try list.appendSlice(b.allocator, filterByConfig(b, self.cpp_flags, config_name));
+        try list.appendSlice(b.allocator, filterByConfig(b, self.cpp_flags, hostConfigCtx(config_name)));
         try list.appendSlice(b.allocator, config.cpp_flags);
         if (self.c_std) |c_std| {
             // C target: a C standard and none of the C++-only flags.
@@ -995,8 +1029,8 @@ pub const CppExample = struct {
         const config = if (self.configs.len > 0) self.configs[0] else BuildConfig{ .mode = .Debug };
         const config_name = config.mode.toCMakeString();
 
-        const public_defines = filterByConfig(b, self.public_defines, config_name);
-        const private_defines = filterByConfig(b, self.private_defines, config_name);
+        const public_defines = filterByConfig(b, self.public_defines, hostConfigCtx(config_name));
+        const private_defines = filterByConfig(b, self.private_defines, hostConfigCtx(config_name));
         const flags = try self.cppCompileFlags(b, config, config_name, public_defines, private_defines);
 
         // Built with appends and b.fmt rather than an ArrayList writer, which
@@ -1241,13 +1275,14 @@ pub const CppExample = struct {
                 continue;
             } else {
                 // Build with Zig directly since json is header-only
-                const public_include_dirs = filterByConfig(b, self.public_include_dirs, config_name);
-                const private_include_dirs = filterByConfig(b, self.private_include_dirs, config_name);
-                const include_dirs = filterByConfig(b, self.include_dirs, config_name);
-                const public_defines = filterByConfig(b, self.public_defines, config_name);
-                const private_defines = filterByConfig(b, self.private_defines, config_name);
-                const public_link_libs = filterByConfig(b, self.public_link_libs, config_name);
-                const private_link_libs = filterByConfig(b, self.private_link_libs, config_name);
+                const ctx = configCtx(config_name, target);
+                const public_include_dirs = filterByConfig(b, self.public_include_dirs, ctx);
+                const private_include_dirs = filterByConfig(b, self.private_include_dirs, ctx);
+                const include_dirs = filterByConfig(b, self.include_dirs, ctx);
+                const public_defines = filterByConfig(b, self.public_defines, ctx);
+                const private_defines = filterByConfig(b, self.private_defines, ctx);
+                const public_link_libs = filterByConfig(b, self.public_link_libs, ctx);
+                const private_link_libs = filterByConfig(b, self.private_link_libs, ctx);
 
                 const compile = try addTargetArtifact(b, self, config, target);
 
@@ -1351,6 +1386,12 @@ pub const CppExample = struct {
                     if (pkg.link_libs.len > 0 or pkg.link_files.len > 0) {
                         compile.root_module.link_libc = true;
                     }
+                }
+
+                // Target-level linker options (target_link_options). Object and
+                // interface libraries have no final link, so they are skipped.
+                if (self.kind != .object_library and self.kind != .interface_library) {
+                    applyLinkOptions(b, compile, self.link_options);
                 }
 
                 // Optional: compile_commands.json for Zig builds
@@ -1728,16 +1769,78 @@ fn addTargetArtifact(
     return compile;
 }
 
-fn filterByConfig(b: *std.Build, items: []const []const u8, config_name: []const u8) []const []const u8 {
+// Apply target-level linker options to the final link. Each option maps to a
+// typed control on the Zig compile step, guarded so a control renamed on a
+// future Zig lane degrades to a skip rather than a compile error.
+fn applyLinkOptions(b: *std.Build, compile: *std.Build.Step.Compile, opts: []const LinkOption) void {
+    const C = std.Build.Step.Compile;
+    for (opts) |opt| switch (opt) {
+        .gc_sections => |v| if (comptime @hasField(C, "link_gc_sections")) {
+            compile.link_gc_sections = v;
+        },
+        .z_relro => |v| if (comptime @hasField(C, "link_z_relro")) {
+            compile.link_z_relro = v;
+        },
+        .z_lazy => |v| if (comptime @hasField(C, "link_z_lazy")) {
+            compile.link_z_lazy = v;
+        },
+        .z_notext => |v| if (comptime @hasField(C, "link_z_notext")) {
+            compile.link_z_notext = v;
+        },
+        .new_dtags => |v| if (comptime @hasField(C, "linker_enable_new_dtags")) {
+            compile.linker_enable_new_dtags = v;
+        },
+        .allow_shlib_undefined => |v| if (comptime @hasField(C, "linker_allow_shlib_undefined")) {
+            compile.linker_allow_shlib_undefined = v;
+        },
+        .each_lib_rpath => |v| if (comptime @hasField(C, "each_lib_rpath")) {
+            compile.each_lib_rpath = v;
+        },
+        .force_undefined_symbol => |sym| if (comptime @hasDecl(C, "forceUndefinedSymbol")) {
+            compile.forceUndefinedSymbol(sym);
+        },
+        .linker_script => |path| if (comptime @hasDecl(C, "setLinkerScript")) {
+            compile.setLinkerScript(b.path(path));
+        },
+    };
+}
+
+// The context a config-conditioned item is evaluated against: the active
+// config, and the platform the target builds for.
+fn configCtx(config_name: []const u8, target: std.Build.ResolvedTarget) genex.Context {
+    return .{ .config = config_name, .platform = @tagName(target.result.os.tag) };
+}
+
+// Context for the host-side paths (compile-command emission, drive manifest)
+// that describe a build without a resolved cross target.
+fn hostConfigCtx(config_name: []const u8) genex.Context {
+    return .{ .config = config_name, .platform = @tagName(builtin.os.tag) };
+}
+
+// Filter a list of flags/defines/dirs by the active config and platform.
+//
+// Two forms are understood. The flat `$<CONFIG:Name>text` keeps `text` only when
+// `Name` is the active config, the long-standing Zaza spelling. Any other item
+// containing `$<` is a generator expression evaluated in full (CONFIG,
+// PLATFORM_ID, BOOL, NOT, AND, OR, IF, and `$<cond:text>`); its result is kept
+// when non-empty. Plain items pass through. An unparseable expression is passed
+// through untouched rather than dropped, so a typo surfaces at the compiler.
+fn filterByConfig(b: *std.Build, items: []const []const u8, ctx: genex.Context) []const []const u8 {
     var out: std.ArrayListUnmanaged([]const u8) = .empty;
     for (items) |item| {
         if (std.mem.startsWith(u8, item, "$<CONFIG:")) {
             const end = std.mem.indexOfScalar(u8, item, '>') orelse continue;
             const name = item["$<CONFIG:".len..end];
-            if (std.ascii.eqlIgnoreCase(name, config_name)) {
+            if (std.ascii.eqlIgnoreCase(name, ctx.config)) {
                 const rest = item[end + 1 ..];
                 if (rest.len > 0) out.append(b.allocator, rest) catch unreachable;
             }
+        } else if (std.mem.indexOf(u8, item, "$<") != null) {
+            const value = genex.eval(b.allocator, item, ctx) catch {
+                out.append(b.allocator, item) catch unreachable;
+                continue;
+            };
+            if (value.len > 0) out.append(b.allocator, value) catch unreachable;
         } else {
             out.append(b.allocator, item) catch unreachable;
         }
@@ -1899,7 +2002,7 @@ fn buildCompileCommand(
     // A C target drives through `zig cc`; a C++ target through `zig c++`.
     try cmd.appendSlice(b.allocator, if (self.c_std != null) "zig cc " else "zig c++ ");
 
-    const flags = filterByConfig(b, self.cpp_flags, config_name);
+    const flags = filterByConfig(b, self.cpp_flags, hostConfigCtx(config_name));
     for (flags) |flag| {
         try listPrint(&cmd, b.allocator, "{s} ", .{flag});
     }
