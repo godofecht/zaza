@@ -48,6 +48,11 @@ CMake-ecosystem interop, both directions:
   build a local subdirectory and links its library into a Zaza target, so a
   project can move its top-level build to Zaza while a component stays on CMake.
   See `examples/cmake_subdir`.
+- **Compose a Zaza subproject.** A subdirectory keeps its own `build.zig` and
+  library targets; the parent imports it, calls its `subproject(b, target)`
+  function, and links the exposed libraries in one build graph via
+  `defineSubproject` / `Subproject.linkInto`. This is `add_subdirectory` for a
+  Zaza-on-Zaza tree. See `examples/zaza_subproject`.
 
 Still missing or incomplete for true replacement:
 
@@ -208,7 +213,7 @@ slice; **partial** = usable but incomplete; **missing** = not implemented.
 | `FetchContent` | reproducible dependency fetch + lock | partial | `ensureRegistryDeps` + corpus `fetch.sh`; no lock (#45) |
 | presets/toolchains | named config + toolchain model | done | `presets.zig` (#51), `configs` |
 | generator expressions | config/platform-conditioned values | partial | `$<CONFIG:>` filtering; not full genex |
-| `add_subdirectory` | build an in-tree CMake subtree | partial | `addCMakeSubdirectory` builds a local CMake subdir and links it (`examples/cmake_subdir`); zaza-to-zaza subproject composition still missing |
+| `add_subdirectory` | build an in-tree subtree (CMake or Zaza) | done | `addCMakeSubdirectory` builds a local CMake subdir (`examples/cmake_subdir`); `defineSubproject` composes a Zaza subproject's own `build.zig` (`examples/zaza_subproject`) |
 | object / interface libs | target graph richness | done | `Target.objectLibrary` / `interfaceLibrary` (alias: missing) |
 | pkg-config libraries | scoped system-lib discovery | done | `findPackage` pkg-config path (`examples/find_package`) |
 | `compile_commands.json` | tooling integration | done (export) | emitted for Zig builds; import path is #43 |

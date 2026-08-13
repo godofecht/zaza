@@ -32,6 +32,7 @@ const std = @import("std");
 const cpp = @import("cpp_example.zig");
 const find_package = @import("find_package.zig");
 const cmake_subdir = @import("cmake_subdir.zig");
+const subproject = @import("subproject.zig");
 const test_suite = @import("test_suite.zig");
 const presets = @import("presets.zig");
 const cmd = @import("zaza_cmd.zig");
@@ -136,6 +137,19 @@ pub const CMakeSubdirectory = cmake_subdir.CMakeSubdirectory;
 
 /// Options for `addCMakeSubdirectory`.
 pub const SubdirOptions = cmake_subdir.SubdirOptions;
+
+/// Compose a Zaza subproject into a parent Zaza build. The zaza-to-zaza half of
+/// `add_subdirectory`: a subdirectory keeps its own `build.zig` and library
+/// targets, and the parent links them in one build graph. A subproject's
+/// `build.zig` calls this and returns the result.
+pub const defineSubproject = subproject.defineSubproject;
+
+/// A composed subproject returned by `defineSubproject`: the libraries it
+/// exposes. Call `linkInto(name, consumer)` to link one into a parent target.
+pub const Subproject = subproject.Subproject;
+
+/// One library a subproject exposes to its parent.
+pub const ExportedTarget = subproject.ExportedTarget;
 
 /// A source dependency: a name, a URL, and how to fetch and build it.
 pub const Dependency = cpp.Dependency;

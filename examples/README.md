@@ -51,6 +51,7 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 | [wasm_exports](wasm_exports) | `ZAZA_EXAMPLES=wasm-exports zig build wasm-exports-run` | A freestanding wasm module with exports |
 | [wasm_wasi](wasm_wasi) | `ZAZA_EXAMPLES=wasm-wasi zig build wasm-wasi-report` | A `wasm32-wasi-musl` executable, validated |
 | [zaza-juce](zaza-juce) | `ZAZA_EXAMPLES=zaza-juce ZAZA_SYSTEM_CMDS=1 zig build zaza-juce` | A JUCE audio app with the audio modules on |
+| [zaza_subproject](zaza_subproject) | `ZAZA_EXAMPLES=zaza-subproject zig build zaza-subproject-run` | A Zaza subproject with its own `build.zig`, composed into a parent build |
 
 ## Grouped by what you are looking for
 
@@ -68,7 +69,8 @@ That target shells out to `./zig` for each step. See [`setup.sh`](../setup.sh).
 
 **Target graph shapes**
 
-`interface_object_graph`, `shared_plugin`, `resources_bundle`.
+`interface_object_graph`, `shared_plugin`, `resources_bundle`,
+`zaza_subproject` (a subproject with its own `build.zig`).
 
 **Other languages**
 

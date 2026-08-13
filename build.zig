@@ -39,6 +39,7 @@ const rust_interop_example = @import("examples/rust_interop/build.zig");
 const bench_suite_example = @import("examples/bench_suite/build.zig");
 const find_package_example = @import("examples/find_package/build.zig");
 const cmake_subdir_example = @import("examples/cmake_subdir/build.zig");
+const zaza_subproject_example = @import("examples/zaza_subproject/build.zig");
 const universal_binary_example = @import("examples/universal_binary/build.zig");
 const zaza_cmd = @import("build_lib/zaza_cmd.zig");
 const cpp = @import("build_lib/cpp_example.zig");
@@ -208,6 +209,10 @@ pub fn build(b: *std.Build) !void {
 
     if (exampleEnabled(b, "cmake-subdir")) {
         cmake_subdir_example.addSteps(b, target);
+    }
+
+    if (exampleEnabled(b, "zaza-subproject")) {
+        zaza_subproject_example.addSteps(b, target);
     }
 
     if (exampleEnabled(b, "generated-headers")) {
@@ -579,6 +584,7 @@ pub fn build(b: *std.Build) !void {
         "package-consumer-run",
         "mixed-stack-run",
         "interface-object-graph-run",
+        "zaza-subproject-run",
         "test-workflows-run",
         "bench-suite-run",
         "generated-headers-run",
