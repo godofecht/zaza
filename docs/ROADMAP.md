@@ -3,7 +3,7 @@
 Short-term execution plan for making Zaza credible as a CMake replacement.
 
 For the full parity matrix, priorities, and success criteria, see
-[`docs/CMAKE_PARITY.md`](/Users/abhishekshivakumar/vex_zig/-Zaza/docs/CMAKE_PARITY.md).
+[`CMAKE_PARITY.md`](CMAKE_PARITY.md).
 
 ## Current Status
 
@@ -30,12 +30,20 @@ Recently added:
 - first-class test and benchmark API in `build_lib/test_suite.zig`
   (`addTest` / `addBench`), driving `examples/test_workflows` and
   `examples/bench_suite`
+- CMake-ecosystem interop both directions: `findPackage` (pkg-config / CMake),
+  `export_cmake` imported-target packages, `addCMakeSubdirectory`, and
+  `defineSubproject` for Zaza-on-Zaza subtrees
+- target link options, generator expressions in flags and defines, and unity
+  builds
+- a verified dependency lock (`zaza.lock`) with `zaza update` and
+  `zaza lock --check`
+- CLI ergonomics: `zaza doctor`, `zaza graph`, and `zaza ide` (editor config)
 
 Still notably incomplete:
 
-- stronger package discovery/import UX beyond the current producer/consumer proof
+- local dependency overrides for development
 - broader cross-target/platform matrix in CI
-- richer editor/IDE integration
+- a first-class VS Code extension beyond the generated editor config
 - automatic toolchain strategy selection for things like C++20 modules
 
 ## 1) Core Build Graph
@@ -47,12 +55,16 @@ Still notably incomplete:
   a toolchain-pure lipo-equivalent step ([#38](https://github.com/godofecht/zaza/issues/38))
 
 ## 2) Dependency and Package UX
-- [done] lockfile with exact fetched hashes (`zaza.lock`, written by `fetch`)
+- [done] lockfile with exact fetched hashes (`zaza.lock`), verified on build and
+  by `zaza lock --check`
+- [done] explicit update flow (`zaza update`)
 - local dependency overrides for development
-- package install/export layout that downstream projects can consume cleanly
+- [done] package install/export layout downstream CMake consumes cleanly
+  (`export_cmake`, `examples/cmake_consumer`)
 - [done] `zaza deps` listing (source, lock state, on-disk presence)
 - [done] `zaza clean-deps` to wipe `deps/` + `zig-out/deps`
 - [done] cache info command (`zaza cache`, shows the Zig cache dirs + writability)
+- [done] readiness and graph commands (`zaza doctor`, `zaza graph`)
 
 ## 3) Project Workflows
 - [done] first-class test target API (`test_suite.addTest`, labels/env/cwd/args)
@@ -65,7 +77,10 @@ Still notably incomplete:
 - generate `compile_commands.json` for CMake deps
 - emit include/lib/define manifests for downstream tools
 - improve CMake shim diagnostics and failure reporting
-- import package metadata from installed CMake deps where feasible
+- [done] import package metadata from installed CMake deps (`findPackage` via
+  CMake's own `find_package`, `examples/find_package`)
+- [done] build an in-tree CMake subtree (`addCMakeSubdirectory`,
+  `examples/cmake_subdir`)
 
 ## 5) Proof Projects
 - C++ library + executable + tests + install/export example

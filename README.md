@@ -195,11 +195,19 @@ zig run scripts/zaza.zig -- list                # every package, with descriptio
 zig run scripts/zaza.zig -- search audio        # ranked across name, keywords, description
 zig run scripts/zaza.zig -- info juce           # full metadata for one package
 zig run scripts/zaza.zig -- fetch fmt           # add it to build.zig.zon
+zig run scripts/zaza.zig -- update fmt          # move it to the registry's current version
+zig run scripts/zaza.zig -- lock --check        # assert zaza.lock matches build.zig.zon
 ```
 
 `search` scores each package across its name, keywords, and description, so
 `search http` finds curl even though the name does not contain the word. Each
 registry entry carries a description, keywords, repo, homepage, and license.
+
+Dependency pins live in `build.zig.zon` and are mirrored in a verified
+`zaza.lock`. More CLI commands help day to day: `deps` lists them with lock
+state, `doctor` checks the Zig lane, caches, and lock, `graph` prints the
+dependency graph as Graphviz DOT, and `ide` writes VS Code and clangd config for
+a project.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -239,12 +247,19 @@ The intent is not to mimic CMake syntax one-for-one. The intent is to cover the 
 | `add_library(STATIC ...)` | `CppExample{ .kind = .static_library }` |
 | `target_include_directories()` | include-dir fields on the target |
 | `target_compile_definitions()` | `public_defines` / `private_defines` / config defines |
+| `target_link_options()` | `link_options` (typed `LinkOption`) |
 | `add_custom_command()` | `custom_commands` |
 | `add_custom_command(TARGET ... POST_BUILD copy ...)` | `artifact_copies`, `file_copies`, and copy helpers |
+| `add_custom_target()` | `zaza.addPhonyTarget(...)` |
 | `install()` / `export()` | install/export fields and Zaza package metadata |
-| `find_package()` consumer flow | package producer / consumer example |
+| `find_package()` (consume) | `zaza.findPackage(...)` via pkg-config or CMake |
+| `find_package()` (produce) | `export_cmake` installs an imported-target package |
+| `add_subdirectory()` | `zaza.addCMakeSubdirectory(...)` (CMake) / `zaza.defineSubproject(...)` (Zaza) |
+| generator expressions | evaluated in flags and defines; `zaza.evalGenex` |
+| `CMAKE_UNITY_BUILD` | `unity_build` on a target |
+| `FetchContent` + lock | registry fetch into `build.zig.zon` + verified `zaza.lock` |
 
-See [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full parity framing.
+The concrete feature-mapping table in [`docs/CMAKE_PARITY.md`](docs/CMAKE_PARITY.md) has no partial rows left. See it and [`docs/ROADMAP.md`](docs/ROADMAP.md) for the full parity framing.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
