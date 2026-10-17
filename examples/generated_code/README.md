@@ -1,33 +1,17 @@
-# Generated Source
+# Generated source through a reusable rule
 
-A custom command writes a `.cpp` file, which is then compiled as part of a normal target.
-
-## What it demonstrates
-
-- `custom_commands` running before compilation.
-- `generated_source_files` alongside ordinary `source_files`.
-
-## Prerequisites
-
-- `sh` on PATH. The generator is a shell script.
-
-## Build and run
+This example uses a tracked per-source `CustomRule` to generate a C++ translation
+unit. The generator script and input template are declared as file dependencies
+and the generated output is a Zig `LazyPath` consumed by compilation. Only
+the changed input's action needs to rerun.
 
 ```bash
-ZAZA_EXAMPLES=generated-code zig build generated-code      # build only
-ZAZA_EXAMPLES=generated-code zig build generated-code-run  # build and run
+ZAZA_EXAMPLES=generated-code zig build generated-code
+ZAZA_EXAMPLES=generated-code zig build generated-code-run
 ```
 
-## Expected output
+Expected output: `generated code is working`.
 
-```text
-generated code is working
-```
-
-## Notes
-
-The generated file lands in `zig-out/gen/generated_message.cpp`.
-
----
-
-Back to the [example index](../README.md) or the [Zaza wiki](../../docs/WIKI.md).
+The generated C++ file lives in Zig's managed cache (not `zig-out/gen`).
+This example requires `sh` and `cp` on PATH. Existing `custom_commands`
+and `generated_source_files` remain supported for other workflows.
