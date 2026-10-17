@@ -1,4 +1,5 @@
 const std = @import("std");
+const custom_rule = @import("custom_rule.zig");
 const builtin = @import("builtin");
 const zaza_cmd = @import("zaza_cmd.zig");
 const find_package = @import("find_package.zig");
@@ -194,6 +195,7 @@ pub const TargetOptions = struct {
     /// out of a unity target.
     unity_build: bool = false,
     custom_commands: []const CustomCommand = &.{},
+    custom_rules: []const custom_rule.Binding = &.{},
     post_build_commands: []const CustomCommand = &.{},
     deps: []const Dependency = &.{},
     configs: ?[]const BuildConfig = null,
@@ -730,6 +732,7 @@ pub const CppExample = struct {
     generated_source_files: []const []const u8 = &.{},
     unity_build: bool = false,
     custom_commands: []const CustomCommand = &.{},
+    custom_rules: []const custom_rule.Binding = &.{},
     post_build_commands: []const CustomCommand = &.{},
     deps: []const Dependency,
     configs: []const BuildConfig,
@@ -768,6 +771,7 @@ pub const CppExample = struct {
             .generated_source_files = options.generated_source_files,
             .unity_build = options.unity_build,
             .custom_commands = options.custom_commands,
+            .custom_rules = options.custom_rules,
             .post_build_commands = options.post_build_commands,
             .deps = options.deps,
             .configs = options.configs orelse BuildConfigs.debug_only,
@@ -1202,6 +1206,7 @@ pub const CppExample = struct {
 
             // Build main project with selected build system
             if (self.main_build_system == .CMake) {
+                if (self.custom_rules.len != 0) return error.CustomRulesRequireZigBuild;
                 if (!self.enable_system_commands) {
                     std.log.err(
                         "target '{s}': CMake main-build phase needs system commands, which are disabled. " ++
@@ -1306,6 +1311,14 @@ pub const CppExample = struct {
                         for (pkg.cflags) |flag| try extra.append(b.allocator, flag);
                     }
                     cpp_flags = try concatSlices(b.allocator, cpp_flags, extra.items);
+                }
+
+                if (self.custom_rules.len != 0) {
+                    if (!self.enable_system_commands) return error.SystemCommandsDisabled;
+                    if (self.kind == .interface_library) return error.CustomRuleRequiresCompileTarget;
+                    for (self.custom_rules) |binding| {
+                        try binding.rule.addGeneratedSources(b, compile, binding.files, cpp_flags);
+                    }
                 }
 
                 const all_sources = try self.allSourceFiles(b.allocator);
