@@ -30,6 +30,7 @@
 const std = @import("std");
 
 const cpp = @import("cpp_example.zig");
+const custom_rule = @import("custom_rule.zig");
 const find_package = @import("find_package.zig");
 const cmake_subdir = @import("cmake_subdir.zig");
 const subproject = @import("subproject.zig");
@@ -190,6 +191,12 @@ pub const Defines = cpp.Defines;
 
 /// A named command that produces generated sources, run before compilation.
 pub const CustomCommand = cpp.CustomCommand;
+
+/// A reusable, per-source generator with tracked input and output edges.
+pub const CustomRule = custom_rule.Rule;
+
+/// Bind a set of input source files to a CustomRule.
+pub const CustomRuleBinding = custom_rule.Binding;
 
 /// Extra install-style copies of a built artifact.
 pub const ArtifactCopy = cpp.ArtifactCopy;
