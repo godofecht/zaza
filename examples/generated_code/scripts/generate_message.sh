@@ -1,12 +1,7 @@
 #!/bin/sh
 set -eu
 
-out="$1"
+src="$1"
+out="$2"
 mkdir -p "$(dirname "$out")"
-cat > "$out" <<'EOF'
-#include <string>
-
-const char* generated_message() {
-    return "generated code is working";
-}
-EOF
+cp "$src" "$out"
