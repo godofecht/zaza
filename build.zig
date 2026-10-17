@@ -465,6 +465,7 @@ pub fn build(b: *std.Build) !void {
         "build_lib/compat.zig",
         "build_lib/fatbinary.zig",
         "build_lib/genex.zig",
+        "build_lib/custom_rule.zig",
         "tests/test_string_split.zig",
         "tests/test_fetch_minimal.zig",
         "tests/test_cpp_targets.zig",
