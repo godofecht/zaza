@@ -5,13 +5,17 @@ pub var example = cpp.CppExample{
     .name = "generated_code_demo",
     .description = "Generated source example",
     .source_files = &.{"examples/generated_code/src/main.cpp"},
-    .generated_source_files = &.{"zig-out/gen/generated_message.cpp"},
     .include_dirs = &.{"zig-out/gen"},
     .cpp_flags = &.{},
-    .custom_commands = &.{
+    .custom_rules = &.{
         .{
-            .name = "generate_generated_message",
-            .argv = &.{"sh", "examples/generated_code/scripts/generate_message.sh", "zig-out/gen/generated_message.cpp"},
+            .rule = .{
+                .name = "generate_message",
+                .argv = &.{ "sh", "<GENERATOR>", "<SOURCE>", "<OUTPUT>" },
+                .generator_file = "examples/generated_code/scripts/generate_message.sh",
+                .output_suffix = ".cpp",
+            },
+            .files = &.{"examples/generated_code/templates/generated_message.cpp"},
         },
     },
     .deps = &.{},
